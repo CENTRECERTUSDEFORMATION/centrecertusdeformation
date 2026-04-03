@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '../supabaseClient';
 
 export default function Inscription() {
   const [fullName, setFullName] = useState('');
@@ -15,40 +16,75 @@ export default function Inscription() {
     setSuccess('');
 
     try {
-      const res = await fetch('http://localhost:5000/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fullName, email, password }),
+      // 🔹 1. Création utilisateur dans Supabase Auth
+      const { data, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
       });
 
-      const data = await res.json();
+      if (authError) throw authError;
 
-      if (!res.ok) {
-        setError(data.message || 'Erreur lors de l’inscription');
-      } else {
-        setSuccess('Inscription réussie. En attente d’approbation.');
-        setTimeout(() => navigate('/connexion'), 2000);
-      }
+      // 🔹 2. Ajouter dans table users
+      const { error: dbError } = await supabase.from('users').insert([
+        {
+          id: data.user.id,
+          full_name: fullName,
+          email: email,
+          is_admin: false,
+          is_approved: false,
+        },
+      ]);
+
+      if (dbError) throw dbError;
+
+      setSuccess('Inscription réussie. En attente d’approbation.');
+      setTimeout(() => navigate('/connexion'), 2000);
+
     } catch (err) {
-      setError('Erreur de connexion au serveur.');
+      console.error(err);
+      setError(err.message || 'Erreur lors de l’inscription');
     }
   };
 
   return (
     <div className="p-4 max-w-md mx-auto">
       <h1 className="text-2xl font-bold mb-4">Inscription</h1>
+
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && <p className="text-red-500">{error}</p>}
         {success && <p className="text-green-500">{success}</p>}
 
-        <input type="text" placeholder="Nom complet" value={fullName}
-          onChange={(e) => setFullName(e.target.value)} className="w-full p-2 border rounded" required />
-        <input type="email" placeholder="Email" value={email}
-          onChange={(e) => setEmail(e.target.value)} className="w-full p-2 border rounded" required />
-        <input type="password" placeholder="Mot de passe" value={password}
-          onChange={(e) => setPassword(e.target.value)} className="w-full p-2 border rounded" required />
+        <input
+          type="text"
+          placeholder="Nom complet"
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
+          className="w-full p-2 border rounded"
+          required
+        />
 
-        <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="w-full p-2 border rounded"
+          required
+        />
+
+        <input
+          type="password"
+          placeholder="Mot de passe"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="w-full p-2 border rounded"
+          required
+        />
+
+        <button
+          type="submit"
+          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+        >
           S'inscrire
         </button>
       </form>

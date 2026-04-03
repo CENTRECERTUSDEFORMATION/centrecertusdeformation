@@ -1,3 +1,4 @@
+// frontend/src/index.jsx
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
@@ -10,11 +11,11 @@ import { ActualitesProvider } from "./context/ActualitesContext";
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <AuthProvider>
-      <FormationsProvider>
-        <ActualitesProvider>
+      <ActualitesProvider>
+        <FormationsProvider>
           <App />
-        </ActualitesProvider>
-      </FormationsProvider>
+        </FormationsProvider>
+      </ActualitesProvider>
     </AuthProvider>
   </React.StrictMode>
 );
