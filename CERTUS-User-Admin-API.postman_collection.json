@@ -1,0 +1,161 @@
+{
+  "info": {
+    "name": "CERTUS User Admin API",
+    "_postman_id": "c5cfef48-d6c0-4aa0-b0db-b80a5e99e1f7",
+    "description": "Routes API pour gérer les utilisateurs dans CERTUS (admin uniquement)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Get Approved Users",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "http://localhost:5000/api/users/approved-users",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5000",
+          "path": [
+            "api",
+            "users",
+            "approved-users"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Get Pending Users",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "http://localhost:5000/api/users/pending-users",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5000",
+          "path": [
+            "api",
+            "users",
+            "pending-users"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Approve User",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"isAdmin\": false\n}"
+        },
+        "url": {
+          "raw": "http://localhost:5000/api/users/approve/:id",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5000",
+          "path": [
+            "api",
+            "users",
+            "approve",
+            ":id"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Refuse (Delete) User",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "http://localhost:5000/api/users/refuse/:id",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5000",
+          "path": [
+            "api",
+            "users",
+            "refuse",
+            ":id"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Update Admin Message",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"adminMessage\": \"Bienvenue dans l’équipe !\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:5000/api/users/:id/admin-message",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "5000",
+          "path": [
+            "api",
+            "users",
+            ":id",
+            "admin-message"
+          ]
+        }
+      }
+    }
+  ]
+}
