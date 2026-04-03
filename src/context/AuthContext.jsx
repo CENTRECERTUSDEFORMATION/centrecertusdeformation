@@ -1,6 +1,7 @@
 // frontend/src/context/AuthContext.jsx
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
+import bcrypt from "bcryptjs";
 
 const AuthContext = createContext();
 
@@ -10,33 +11,41 @@ export const AuthProvider = ({ children }) => {
 
   // Vérifie la session Supabase au démarrage
   useEffect(() => {
-    const session = supabase.auth.getSession().then(({ data }) => {
-      if (data.session) setUser(data.session.user);
-      setLoading(false);
-    });
-
-    // Écoute les changements de session (login/logout)
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const checkSession = async () => {
+      const { data: { session }, error } = await supabase.auth.getSession();
       if (session?.user) setUser(session.user);
-      else setUser(null);
-    });
-
-    return () => listener.subscription.unsubscribe();
+      setLoading(false);
+    };
+    checkSession();
   }, []);
 
   // Connexion
   const login = async (email, password) => {
     setLoading(true);
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+    // Récupérer l'utilisateur depuis Supabase
+    const { data, error } = await supabase
+      .from("users")
+      .select("*")
+      .eq("email", email)
+      .single();
+
     setLoading(false);
-    if (error) throw error;
-    setUser(data.user);
-    return data.user;
+
+    if (error || !data) throw new Error("Utilisateur non trouvé");
+
+    // Comparer le mot de passe avec le hash stocké
+    const valid = bcrypt.compareSync(password, data.password);
+    if (!valid) throw new Error("Mot de passe incorrect");
+
+    setUser(data); // définir l'utilisateur connecté
+    return data;
   };
 
   // Déconnexion
   const logout = async () => {
-    await supabase.auth.signOut();
+    // Si tu veux, tu peux appeler supabase.auth.signOut() ici,
+    // mais comme on gère directement depuis la table users, ce n’est pas obligatoire.
     setUser(null);
   };
 

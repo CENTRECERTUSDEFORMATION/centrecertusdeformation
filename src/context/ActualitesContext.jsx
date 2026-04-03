@@ -1,5 +1,6 @@
+// frontend/src/context/ActualitesContext.jsx
 import React, { createContext, useContext, useEffect, useState } from "react";
-import axios from "axios";
+import { supabase } from "../supabaseClient";
 
 const ActualitesContext = createContext();
 
@@ -9,35 +10,53 @@ export const ActualitesProvider = ({ children }) => {
   const [actualites, setActualites] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // GET
+  // 🔹 Récupérer toutes les actualités
   const fetchActualites = async () => {
-    try {
-      const res = await axios.get("http://localhost:5000/api/actualites");
-      setActualites(res.data);
-    } catch (err) {
-      console.error("Erreur fetchActualites :", err);
-    } finally {
-      setLoading(false);
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("actualites")
+      .select("*")
+      .order("id", { ascending: false });
+
+    if (error) {
+      console.error("Erreur fetchActualites :", error);
+      setActualites([]);
+    } else {
+      setActualites(data);
     }
+    setLoading(false);
   };
 
-  // ➕ AJOUT LOCAL après POST
-  const ajouterActualite = (actualite) => {
-    setActualites((prev) => [actualite, ...prev]);
+  // 🔹 Ajouter une actualité
+  const ajouterActualite = async (actualiteData) => {
+    const { data, error } = await supabase
+      .from("actualites")
+      .insert([actualiteData])
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Erreur ajouterActualite :", error);
+      throw error;
+    }
+
+    setActualites((prev) => [data, ...prev]);
+    return data;
   };
 
-  // ❌ DELETE
+  // 🔹 Supprimer actualité
   const deleteActualite = async (id) => {
-    const token = localStorage.getItem("token");
+    const { error } = await supabase
+      .from("actualites")
+      .delete()
+      .eq("id", id);
 
-    await axios.delete(
-      `http://localhost:5000/api/actualites/${id}`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      }
-    );
+    if (error) {
+      console.error("Erreur deleteActualite :", error);
+      throw error;
+    }
 
-    setActualites((prev) => prev.filter((a) => a._id !== id));
+    setActualites((prev) => prev.filter(a => a.id !== id));
   };
 
   useEffect(() => {
@@ -45,14 +64,7 @@ export const ActualitesProvider = ({ children }) => {
   }, []);
 
   return (
-    <ActualitesContext.Provider
-      value={{
-        actualites,
-        loading,
-        ajouterActualite,
-        deleteActualite,
-      }}
-    >
+    <ActualitesContext.Provider value={{ actualites, loading, fetchActualites, ajouterActualite, deleteActualite }}>
       {children}
     </ActualitesContext.Provider>
   );

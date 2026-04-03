@@ -1,84 +1,94 @@
+// frontend/src/context/FormationsContext.jsx
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useAuth } from "./AuthContext";
-import axios from "axios";
+import { supabase } from "../supabaseClient";
 
 export const FormationsContext = createContext();
 
 export const FormationsProvider = ({ children }) => {
-  const auth = useAuth(); // 🔹 sécurité
-  const user = auth?.user;
-  const token = auth?.token;
-
+  const { user } = useAuth(); // 🔹 utilisateur connecté
   const [formations, setFormations] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchFormations = async () => {
-      if (!token) return; // pas encore connecté
+  // 🔹 Récupérer toutes les formations
+  const fetchFormations = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("formations")
+      .select("*")
+      .order("id", { ascending: false });
 
-      try {
-        const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/formations`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setFormations(res.data);
-      } catch (err) {
-        console.error("Erreur fetchFormations :", err);
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (error) {
+      console.error("Erreur fetchFormations :", error);
+      setFormations([]);
+    } else {
+      setFormations(data);
+    }
+    setLoading(false);
+  };
 
-    fetchFormations();
-  }, [token]);
-
+  // 🔹 Ajouter une formation
   const addFormation = async (formationData) => {
-    if (!user || !user.isAdmin) throw new Error("Accès refusé");
+    if (!user?.is_admin) throw new Error("Accès refusé");
 
-    const formData = new FormData();
-    Object.entries(formationData).forEach(([key, value]) => {
-      formData.append(key, value);
-    });
+    const { data, error } = await supabase
+      .from("formations")
+      .insert([formationData])
+      .select()
+      .single();
 
-    const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/formations`, formData, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "multipart/form-data",
-      },
-    });
+    if (error) {
+      console.error("Erreur addFormation :", error);
+      throw error;
+    }
 
-    setFormations((prev) => [...prev, res.data]);
-    return res.data;
+    setFormations((prev) => [data, ...prev]);
+    return data;
   };
 
+  // 🔹 Mettre à jour formation
   const updateFormation = async (id, formationData) => {
-    if (!user || !user.isAdmin) throw new Error("Accès refusé");
+    if (!user?.is_admin) throw new Error("Accès refusé");
 
-    const formData = new FormData();
-    Object.entries(formationData).forEach(([key, value]) => formData.append(key, value));
+    const { data, error } = await supabase
+      .from("formations")
+      .update(formationData)
+      .eq("id", id)
+      .select()
+      .single();
 
-    const res = await axios.put(`${import.meta.env.VITE_API_URL}/api/formations/${id}`, formData, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "multipart/form-data",
-      },
-    });
+    if (error) {
+      console.error("Erreur updateFormation :", error);
+      throw error;
+    }
 
-    setFormations((prev) => prev.map(f => f._id === id ? res.data : f));
-    return res.data;
+    setFormations((prev) => prev.map(f => f.id === id ? data : f));
+    return data;
   };
 
+  // 🔹 Supprimer formation
   const deleteFormation = async (id) => {
-    if (!user || !user.isAdmin) throw new Error("Accès refusé");
+    if (!user?.is_admin) throw new Error("Accès refusé");
 
-    await axios.delete(`${import.meta.env.VITE_API_URL}/api/formations/${id}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const { error } = await supabase
+      .from("formations")
+      .delete()
+      .eq("id", id);
 
-    setFormations((prev) => prev.filter(f => f._id !== id));
+    if (error) {
+      console.error("Erreur deleteFormation :", error);
+      throw error;
+    }
+
+    setFormations((prev) => prev.filter(f => f.id !== id));
   };
+
+  useEffect(() => {
+    fetchFormations();
+  }, []);
 
   return (
-    <FormationsContext.Provider value={{ formations, loading, addFormation, updateFormation, deleteFormation }}>
+    <FormationsContext.Provider value={{ formations, loading, fetchFormations, addFormation, updateFormation, deleteFormation }}>
       {children}
     </FormationsContext.Provider>
   );
