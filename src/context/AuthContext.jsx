@@ -9,12 +9,35 @@ export const AuthProvider = ({ children }) => {
   const [isApproved, setIsApproved] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // 🔥 CHARGE PROFIL UTILISATEUR
+  const loadUserProfile = async (authUser) => {
+    setUser(authUser);
+
+    const { data, error } = await supabase
+      .from("users")
+      .select("is_admin, is_approved")
+      .eq("id", authUser.id)
+      .maybeSingle();
+
+    if (error || !data) {
+      setIsAdmin(false);
+      setIsApproved(false);
+      return;
+    }
+
+    setIsAdmin(!!data.is_admin);
+    setIsApproved(!!data.is_approved);
+  };
+
+  // 🚀 INIT SESSION
   useEffect(() => {
-    const init = async () => {
+    const initAuth = async () => {
+      setLoading(true);
+
       const { data: { session } } = await supabase.auth.getSession();
 
       if (session?.user) {
-        await loadUser(session.user);
+        await loadUserProfile(session.user);
       } else {
         setUser(null);
         setIsAdmin(false);
@@ -24,42 +47,25 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     };
 
-    init();
+    initAuth();
 
+    // 🔁 écoute changements login/logout
     const { data: listener } = supabase.auth.onAuthStateChange(
       async (_, session) => {
         if (session?.user) {
-          await loadUser(session.user);
+          await loadUserProfile(session.user);
         } else {
           setUser(null);
           setIsAdmin(false);
           setIsApproved(false);
         }
+
+        setLoading(false);
       }
     );
 
     return () => listener.subscription.unsubscribe();
   }, []);
-
-  // 🔥 CHARGE USER PROFILE
-  const loadUser = async (authUser) => {
-    setUser(authUser);
-
-    const { data, error } = await supabase
-      .from("users")
-      .select("is_admin, is_approved")
-      .eq("id", authUser.id)
-      .single();
-
-    if (error || !data) {
-      setIsAdmin(false);
-      setIsApproved(false);
-      return;
-    }
-
-    setIsAdmin(Boolean(data.is_admin));
-    setIsApproved(Boolean(data.is_approved));
-  };
 
   // 🔑 LOGIN
   const login = async (email, password) => {
