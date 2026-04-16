@@ -6,17 +6,35 @@ export default function PrivateRoute({ children, adminOnly = false }) {
   const { user, isAdmin, isApproved, loading } = useAuth();
   const location = useLocation();
 
-  if (loading)
-    return <div className="flex justify-center items-center h-40">Chargement...</div>;
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-40">
+        Chargement...
+      </div>
+    );
+  }
 
-  if (!user)
+  // ❌ pas connecté
+  if (!user) {
     return <Navigate to="/connexion" replace state={{ from: location }} />;
+  }
 
-  if (!isApproved)
-    return <Navigate to="/" replace />;
+  // ❌ compte non approuvé
+  if (!isApproved) {
+    return (
+      <div className="flex flex-col items-center justify-center h-40 text-center">
+        <h2 className="text-xl font-bold text-red-600">
+          Compte non approuvé
+        </h2>
+        <p>Votre compte est en attente de validation par l'administrateur.</p>
+      </div>
+    );
+  }
 
-  if (adminOnly && !isAdmin)
+  // ❌ accès admin only
+  if (adminOnly && !isAdmin) {
     return <Navigate to="/espace-participant" replace />;
+  }
 
   return children;
 }

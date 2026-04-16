@@ -9,21 +9,23 @@ export const AuthProvider = ({ children }) => {
   const [isApproved, setIsApproved] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // 🔐 charger session
   useEffect(() => {
-    const getSession = async () => {
+    const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
 
       if (session?.user) {
         await loadUser(session.user);
+      } else {
+        setUser(null);
+        setIsAdmin(false);
+        setIsApproved(false);
       }
 
       setLoading(false);
     };
 
-    getSession();
+    init();
 
-    // 🔁 listen auth changes
     const { data: listener } = supabase.auth.onAuthStateChange(
       async (_, session) => {
         if (session?.user) {
@@ -39,21 +41,27 @@ export const AuthProvider = ({ children }) => {
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  // 🔥 load user profile
+  // 🔥 CHARGE USER PROFILE
   const loadUser = async (authUser) => {
     setUser(authUser);
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("users")
       .select("is_admin, is_approved")
       .eq("id", authUser.id)
       .single();
 
-    setIsAdmin(data?.is_admin || false);
-    setIsApproved(data?.is_approved || false);
+    if (error || !data) {
+      setIsAdmin(false);
+      setIsApproved(false);
+      return;
+    }
+
+    setIsAdmin(Boolean(data.is_admin));
+    setIsApproved(Boolean(data.is_approved));
   };
 
-  // 🔑 LOGIN (Supabase Auth)
+  // 🔑 LOGIN
   const login = async (email, password) => {
     const { error } = await supabase.auth.signInWithPassword({
       email,
@@ -72,14 +80,16 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      isAdmin,
-      isApproved,
-      login,
-      logout,
-      loading
-    }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isAdmin,
+        isApproved,
+        login,
+        logout,
+        loading,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
