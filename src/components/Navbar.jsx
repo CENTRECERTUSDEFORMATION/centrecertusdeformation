@@ -2,7 +2,10 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 export default function Navbar() {
-  const { user, role, logout } = useAuth();
+  const { user, logout } = useAuth();
+
+  const isAdmin = user?.is_admin;
+  const isApproved = user?.is_approved;
 
   return (
     <div className="flex gap-4 p-4 bg-white shadow">
@@ -14,11 +17,11 @@ export default function Navbar() {
 
       {!user && <Link to="/connexion">Connexion</Link>}
 
-      {user && role === "user" && (
+      {user && isApproved && !isAdmin && (
         <Link to="/espace-participant">Espace</Link>
       )}
 
-      {role === "admin" && (
+      {user && isApproved && isAdmin && (
         <>
           <Link to="/admin">Admin</Link>
           <Link to="/ajouter-formation">+ Formation</Link>
@@ -27,7 +30,9 @@ export default function Navbar() {
       )}
 
       {user && (
-        <button onClick={logout}>Déconnexion</button>
+        <button onClick={logout} className="text-red-600">
+          Déconnexion
+        </button>
       )}
     </div>
   );

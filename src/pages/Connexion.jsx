@@ -1,27 +1,28 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "react-toastify";
+import { useNavigate } from "react-router-dom";
+import logo from "../assets/logo-certus.png";
 
-export default function Connexion() {
-  const { login, isAdmin, isApproved, user, loading } = useAuth();
+const Connexion = () => {
+  const { login, user, role, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setSubmitting(true);
+    setLoading(true);
 
     try {
       await login(email, password);
       toast.success("Connexion réussie !");
     } catch (err) {
-      toast.error(err.message || "Erreur connexion");
+      toast.error("Email ou mot de passe incorrect");
     } finally {
-      setSubmitting(false);
+      setLoading(false);
     }
   };
 
@@ -29,48 +30,58 @@ export default function Connexion() {
   useEffect(() => {
     if (!user) return;
 
-    if (!isApproved) {
-      toast.error("Compte non approuvé");
-      navigate("/");
-      return;
-    }
-
-    if (isAdmin) {
+    if (role === "admin") {
       navigate("/admin");
     } else {
       navigate("/espace-participant");
     }
-  }, [user, isAdmin, isApproved, navigate]);
+  }, [user, role, navigate]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <form
-        onSubmit={handleSubmit}
-        className="p-6 bg-white shadow rounded w-full max-w-sm"
-      >
-        <input
-          type="email"
-          placeholder="Email"
-          onChange={(e) => setEmail(e.target.value)}
-          className="border p-2 w-full mb-2"
-          required
-        />
+    <>
+      <header className="flex items-center gap-4 p-6 border-b max-w-md mx-auto mt-10">
+        <img src={logo} alt="Logo Certus" className="h-12 w-auto" />
+        <div>
+          <h1 className="text-2xl font-bold text-blue-800">
+            CENTRE CERTUS DE FORMATION
+          </h1>
+          <p className="text-sm text-gray-600">
+            Structure privée - N° 52-193-17
+          </p>
+        </div>
+      </header>
 
-        <input
-          type="password"
-          placeholder="Mot de passe"
-          onChange={(e) => setPassword(e.target.value)}
-          className="border p-2 w-full mb-2"
-          required
-        />
+      <main className="max-w-sm mx-auto p-6">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            placeholder="Email"
+            className="w-full p-2 border rounded"
+          />
 
-        <button
-          disabled={submitting}
-          className="bg-blue-700 text-white px-4 py-2 w-full"
-        >
-          {submitting ? "Connexion..." : "Connexion"}
-        </button>
-      </form>
-    </div>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            placeholder="Mot de passe"
+            className="w-full p-2 border rounded"
+          />
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
+          >
+            {loading ? "Connexion..." : "Se connecter"}
+          </button>
+        </form>
+      </main>
+    </>
   );
-}
+};
+
+export default Connexion;

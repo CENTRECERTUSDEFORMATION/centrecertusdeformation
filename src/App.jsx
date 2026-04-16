@@ -6,19 +6,19 @@ import { FormationsProvider } from "./context/FormationsContext";
 import { ActualitesProvider } from "./context/ActualitesContext";
 import PrivateRoute from "./routes/PrivateRoute";
 
-// pages
 const Home = lazy(() => import("./pages/Home"));
 const Contact = lazy(() => import("./pages/Contact"));
 const Connexion = lazy(() => import("./pages/Connexion"));
 const Formations = lazy(() => import("./pages/Formations"));
 const FormationDetail = lazy(() => import("./pages/FormationDetail"));
 const EspaceParticipant = lazy(() => import("./pages/EspaceParticipant"));
+const AjouterFormation = lazy(() => import("./pages/AjouterFormation"));
+const AjouterActualite = lazy(() => import("./pages/AjouterActualite"));
 const AproposDeCertus = lazy(() => import("./pages/AproposDeCertus"));
 const Actualite = lazy(() => import("./pages/Actualite"));
 const Inscription = lazy(() => import("./pages/Inscription"));
+const ModifierFormation = lazy(() => import("./pages/ModifierFormation"));
 const Paiement = lazy(() => import("./pages/Paiement"));
-
-// admin pages
 const TableauDeBordAdmin = lazy(() => import("./pages/TableauDeBordAdmin"));
 
 function App() {
@@ -27,12 +27,15 @@ function App() {
       <FormationsProvider>
         <ActualitesProvider>
           <BrowserRouter>
+
+            {/* ✅ Navbar toujours visible */}
             <Navbar />
 
             <Suspense fallback={<div className="text-center py-10">Chargement...</div>}>
+
               <Routes>
 
-                {/* 🌍 PUBLIC */}
+                {/* PUBLIC */}
                 <Route path="/" element={<Home />} />
                 <Route path="/connexion" element={<Connexion />} />
                 <Route path="/contact" element={<Contact />} />
@@ -41,10 +44,11 @@ function App() {
                 <Route path="/inscription" element={<Inscription />} />
                 <Route path="/paiement" element={<Paiement />} />
 
+                {/* FORMATIONS */}
                 <Route path="/formations" element={<Formations />} />
                 <Route path="/formations/:id" element={<FormationDetail />} />
 
-                {/* 👤 USER */}
+                {/* USER */}
                 <Route
                   path="/espace-participant"
                   element={
@@ -54,7 +58,7 @@ function App() {
                   }
                 />
 
-                {/* 👨‍💼 ADMIN DASHBOARD CENTRAL */}
+                {/* ADMIN */}
                 <Route
                   path="/admin"
                   element={
@@ -64,7 +68,35 @@ function App() {
                   }
                 />
 
+                <Route
+                  path="/ajouter-formation"
+                  element={
+                    <PrivateRoute adminOnly>
+                      <AjouterFormation />
+                    </PrivateRoute>
+                  }
+                />
+
+                <Route
+                  path="/modifier-formation/:id"
+                  element={
+                    <PrivateRoute adminOnly>
+                      <ModifierFormation />
+                    </PrivateRoute>
+                  }
+                />
+
+                <Route
+                  path="/ajouter-actualite"
+                  element={
+                    <PrivateRoute adminOnly>
+                      <AjouterActualite />
+                    </PrivateRoute>
+                  }
+                />
+
               </Routes>
+
             </Suspense>
           </BrowserRouter>
         </ActualitesProvider>
