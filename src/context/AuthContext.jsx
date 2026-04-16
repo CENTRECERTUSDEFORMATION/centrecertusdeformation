@@ -9,35 +9,27 @@ export const AuthProvider = ({ children }) => {
   const [isApproved, setIsApproved] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // 🔥 CHARGE PROFIL UTILISATEUR
-  const loadUserProfile = async (authUser) => {
+  const loadProfile = async (authUser) => {
     setUser(authUser);
 
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("users")
       .select("is_admin, is_approved")
       .eq("id", authUser.id)
       .maybeSingle();
 
-    if (error || !data) {
-      setIsAdmin(false);
-      setIsApproved(false);
-      return;
-    }
-
-    setIsAdmin(!!data.is_admin);
-    setIsApproved(!!data.is_approved);
+    setIsAdmin(!!data?.is_admin);
+    setIsApproved(!!data?.is_approved);
   };
 
-  // 🚀 INIT SESSION
   useEffect(() => {
-    const initAuth = async () => {
+    const init = async () => {
       setLoading(true);
 
       const { data: { session } } = await supabase.auth.getSession();
 
       if (session?.user) {
-        await loadUserProfile(session.user);
+        await loadProfile(session.user);
       } else {
         setUser(null);
         setIsAdmin(false);
@@ -47,19 +39,17 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     };
 
-    initAuth();
+    init();
 
-    // 🔁 écoute changements login/logout
     const { data: listener } = supabase.auth.onAuthStateChange(
       async (_, session) => {
         if (session?.user) {
-          await loadUserProfile(session.user);
+          await loadProfile(session.user);
         } else {
           setUser(null);
           setIsAdmin(false);
           setIsApproved(false);
         }
-
         setLoading(false);
       }
     );
@@ -67,17 +57,14 @@ export const AuthProvider = ({ children }) => {
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  // 🔑 LOGIN
   const login = async (email, password) => {
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
-
     if (error) throw error;
   };
 
-  // 🚪 LOGOUT
   const logout = async () => {
     await supabase.auth.signOut();
     setUser(null);
@@ -86,16 +73,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isAdmin,
-        isApproved,
-        login,
-        logout,
-        loading,
-      }}
-    >
+    <AuthContext.Provider value={{ user, isAdmin, isApproved, login, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );
