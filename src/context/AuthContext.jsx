@@ -1,56 +1,85 @@
-// frontend/src/context/AuthContext.jsx
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
-import bcrypt from "bcryptjs";
 
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isApproved, setIsApproved] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Vérifie la session Supabase au démarrage
+  // 🔐 charger session
   useEffect(() => {
-    const checkSession = async () => {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      if (session?.user) setUser(session.user);
+    const getSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (session?.user) {
+        await loadUser(session.user);
+      }
+
       setLoading(false);
     };
-    checkSession();
+
+    getSession();
+
+    // 🔁 listen auth changes
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      async (_, session) => {
+        if (session?.user) {
+          await loadUser(session.user);
+        } else {
+          setUser(null);
+          setIsAdmin(false);
+          setIsApproved(false);
+        }
+      }
+    );
+
+    return () => listener.subscription.unsubscribe();
   }, []);
 
-  // Connexion
-  const login = async (email, password) => {
-    setLoading(true);
+  // 🔥 load user profile
+  const loadUser = async (authUser) => {
+    setUser(authUser);
 
-    // Récupérer l'utilisateur depuis Supabase
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("users")
-      .select("*")
-      .eq("email", email)
+      .select("is_admin, is_approved")
+      .eq("id", authUser.id)
       .single();
 
-    setLoading(false);
-
-    if (error || !data) throw new Error("Utilisateur non trouvé");
-
-    // Comparer le mot de passe avec le hash stocké
-    const valid = bcrypt.compareSync(password, data.password);
-    if (!valid) throw new Error("Mot de passe incorrect");
-
-    setUser(data); // définir l'utilisateur connecté
-    return data;
+    setIsAdmin(data?.is_admin || false);
+    setIsApproved(data?.is_approved || false);
   };
 
-  // Déconnexion
+  // 🔑 LOGIN (Supabase Auth)
+  const login = async (email, password) => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) throw error;
+  };
+
+  // 🚪 LOGOUT
   const logout = async () => {
-    // Si tu veux, tu peux appeler supabase.auth.signOut() ici,
-    // mais comme on gère directement depuis la table users, ce n’est pas obligatoire.
+    await supabase.auth.signOut();
     setUser(null);
+    setIsAdmin(false);
+    setIsApproved(false);
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={{
+      user,
+      isAdmin,
+      isApproved,
+      login,
+      logout,
+      loading
+    }}>
       {children}
     </AuthContext.Provider>
   );
