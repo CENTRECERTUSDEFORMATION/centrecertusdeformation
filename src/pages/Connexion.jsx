@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { toast } from "react-toastify";
 
 export default function Connexion() {
-  const { login, isAdmin } = useAuth();
+  const { login, isAdmin, isApproved } = useAuth();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
@@ -18,16 +18,25 @@ export default function Connexion() {
     try {
       await login(email, password);
 
-      toast.success("Connexion réussie");
+      toast.success("Connexion réussie !");
 
-      if (isAdmin) {
-        navigate("/admin");
-      } else {
-        navigate("/espace-participant");
-      }
+      // ⛔ ATTENTION: petit délai pour laisser AuthContext charger user
+      setTimeout(() => {
+        if (!isApproved) {
+          toast.error("Compte non approuvé");
+          navigate("/");
+          return;
+        }
+
+        if (isAdmin) {
+          navigate("/admin");
+        } else {
+          navigate("/espace-participant");
+        }
+      }, 300);
 
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.message || "Erreur connexion");
     } finally {
       setLoading(false);
     }
@@ -36,10 +45,21 @@ export default function Connexion() {
   return (
     <div className="min-h-screen flex items-center justify-center">
       <form onSubmit={handleSubmit} className="p-6 bg-white shadow rounded">
-        <input value={email} onChange={e => setEmail(e.target.value)} placeholder="email" />
-        <input value={password} onChange={e => setPassword(e.target.value)} placeholder="password" type="password" />
+        <input
+          type="email"
+          placeholder="Email"
+          onChange={(e) => setEmail(e.target.value)}
+          className="border p-2 w-full mb-2"
+        />
 
-        <button disabled={loading}>
+        <input
+          type="password"
+          placeholder="Mot de passe"
+          onChange={(e) => setPassword(e.target.value)}
+          className="border p-2 w-full mb-2"
+        />
+
+        <button className="bg-blue-700 text-white px-4 py-2 w-full">
           Connexion
         </button>
       </form>

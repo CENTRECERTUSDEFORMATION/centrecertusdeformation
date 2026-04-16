@@ -5,21 +5,19 @@ const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isApproved, setIsApproved] = useState(false);
+  const [role, setRole] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const loadProfile = async (authUser) => {
+  const loadUser = async (authUser) => {
     setUser(authUser);
 
     const { data } = await supabase
       .from("users")
-      .select("is_admin, is_approved")
+      .select("role")
       .eq("id", authUser.id)
       .maybeSingle();
 
-    setIsAdmin(!!data?.is_admin);
-    setIsApproved(!!data?.is_approved);
+    setRole(data?.role || "user");
   };
 
   useEffect(() => {
@@ -29,11 +27,10 @@ export const AuthProvider = ({ children }) => {
       const { data: { session } } = await supabase.auth.getSession();
 
       if (session?.user) {
-        await loadProfile(session.user);
+        await loadUser(session.user);
       } else {
         setUser(null);
-        setIsAdmin(false);
-        setIsApproved(false);
+        setRole(null);
       }
 
       setLoading(false);
@@ -44,11 +41,10 @@ export const AuthProvider = ({ children }) => {
     const { data: listener } = supabase.auth.onAuthStateChange(
       async (_, session) => {
         if (session?.user) {
-          await loadProfile(session.user);
+          await loadUser(session.user);
         } else {
           setUser(null);
-          setIsAdmin(false);
-          setIsApproved(false);
+          setRole(null);
         }
         setLoading(false);
       }
@@ -68,12 +64,11 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     await supabase.auth.signOut();
     setUser(null);
-    setIsAdmin(false);
-    setIsApproved(false);
+    setRole(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAdmin, isApproved, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, role, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
