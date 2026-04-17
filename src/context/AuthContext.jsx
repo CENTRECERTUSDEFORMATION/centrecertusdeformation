@@ -15,17 +15,25 @@ export const AuthProvider = ({ children }) => {
   };
 
   // -------------------------
-  // LOAD USER FROM DB
+  // LOAD USER FROM SUPABASE DB
   // -------------------------
   const loadUser = async (authUser) => {
+    console.log("🟣 LOAD USER DB...");
+
     try {
       const { data, error } = await supabase
         .from("users")
         .select("*")
-        .eq("id", authUser.id)
-        .single();
+        .eq("email", authUser.email) // ✅ FIX STABLE
+        .maybeSingle();
 
-      if (error || !data) {
+      if (error) {
+        console.error("DB ERROR:", error);
+      }
+
+      if (!data) {
+        console.warn("⚠️ USER NOT FOUND IN DB");
+
         setUser({
           id: authUser.id,
           email: authUser.email,
@@ -34,27 +42,32 @@ export const AuthProvider = ({ children }) => {
           isApproved: false,
           isBlocked: false,
         });
+
         return;
       }
 
-      // ❌ blocked user
+      // 🚫 BLOCKED USER
       if (data.is_blocked) {
+        console.warn("⛔ USER BLOCKED");
         await supabase.auth.signOut();
         resetUser();
         return;
       }
 
+      // ✅ SET USER FINAL
       setUser({
         id: authUser.id,
         email: data.email,
-        fullName: data.full_name,
+        fullName: data.full_name || authUser.email,
         isAdmin: Boolean(data.is_admin),
         isApproved: Boolean(data.is_approved),
         isBlocked: Boolean(data.is_blocked),
       });
 
+      console.log("✅ USER LOADED:", data);
+
     } catch (err) {
-      console.error("LOAD USER ERROR:", err);
+      console.error("❌ LOAD USER ERROR:", err);
 
       setUser({
         id: authUser.id,
@@ -74,6 +87,8 @@ export const AuthProvider = ({ children }) => {
     let mounted = true;
 
     const init = async () => {
+      console.log("🔵 INIT AUTH...");
+
       const { data } = await supabase.auth.getSession();
       const session = data?.session;
 
@@ -85,14 +100,17 @@ export const AuthProvider = ({ children }) => {
         resetUser();
       }
 
+      console.log("🟢 AUTH INIT DONE");
       setLoading(false);
     };
 
     init();
 
-    // LISTENER
+    // LISTENER AUTH STATE
     const { data: listener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log("🔄 AUTH CHANGE:", event);
+
         if (!mounted) return;
 
         if (session?.user) {
