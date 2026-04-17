@@ -6,7 +6,7 @@ import { FormationsProvider } from "./context/FormationsContext";
 import { ActualitesProvider } from "./context/ActualitesContext";
 import PrivateRoute from "./routes/PrivateRoute";
 
-// Lazy loading des pages
+// Pages
 const Home = lazy(() => import("./pages/Home"));
 const Contact = lazy(() => import("./pages/Contact"));
 const Connexion = lazy(() => import("./pages/Connexion"));
@@ -14,9 +14,9 @@ const Formations = lazy(() => import("./pages/Formations"));
 const FormationDetail = lazy(() => import("./pages/FormationDetail"));
 const EspaceParticipant = lazy(() => import("./pages/EspaceParticipant"));
 const AjouterFormation = lazy(() => import("./pages/AjouterFormation"));
-const AjouterActualite = lazy(() => import("./pages/AjouterActualite")); // ✅ corrigé
+const AjouterActualite = lazy(() => import("./pages/AjouterActualite"));
 const AproposDeCertus = lazy(() => import("./pages/AproposDeCertus"));
-const Actualite = lazy(() => import("./pages/Actualite")); // ✅ nom sans s
+const Actualite = lazy(() => import("./pages/Actualite"));
 const Inscription = lazy(() => import("./pages/Inscription"));
 const ModifierFormation = lazy(() => import("./pages/ModifierFormation"));
 const Paiement = lazy(() => import("./pages/Paiement"));
@@ -29,22 +29,30 @@ function App() {
         <ActualitesProvider>
           <BrowserRouter>
             <Navbar />
-            <Suspense fallback={<div className="text-center py-10">Chargement...</div>}>
+
+            <Suspense
+              fallback={
+                <div className="text-center py-10">
+                  Chargement...
+                </div>
+              }
+            >
               <Routes>
-                {/* Routes publiques */}
+
+                {/* PUBLIC */}
                 <Route path="/" element={<Home />} />
                 <Route path="/connexion" element={<Connexion />} />
                 <Route path="/contact" element={<Contact />} />
                 <Route path="/a-propos" element={<AproposDeCertus />} />
-                <Route path="/actualite" element={<Actualite />} /> {/* ✅ corrigé */}
+                <Route path="/actualite" element={<Actualite />} />
                 <Route path="/inscription" element={<Inscription />} />
                 <Route path="/paiement" element={<Paiement />} />
 
-                {/* Routes formations */}
+                {/* FORMATIONS */}
                 <Route path="/formations" element={<Formations />} />
                 <Route path="/formations/:id" element={<FormationDetail />} />
 
-                {/* Routes privées utilisateur */}
+                {/* USER */}
                 <Route
                   path="/espace-participant"
                   element={
@@ -54,7 +62,7 @@ function App() {
                   }
                 />
 
-                {/* Routes privées admin */}
+                {/* ADMIN */}
                 <Route
                   path="/admin"
                   element={
@@ -63,6 +71,7 @@ function App() {
                     </PrivateRoute>
                   }
                 />
+
                 <Route
                   path="/ajouter-formation"
                   element={
@@ -71,6 +80,7 @@ function App() {
                     </PrivateRoute>
                   }
                 />
+
                 <Route
                   path="/modifier-formation/:id"
                   element={
@@ -79,6 +89,7 @@ function App() {
                     </PrivateRoute>
                   }
                 />
+
                 <Route
                   path="/ajouter-actualite"
                   element={
@@ -87,6 +98,7 @@ function App() {
                     </PrivateRoute>
                   }
                 />
+
               </Routes>
             </Suspense>
           </BrowserRouter>
