@@ -5,9 +5,8 @@ import { AuthProvider } from "./context/AuthContext";
 import { FormationsProvider } from "./context/FormationsContext";
 import { ActualitesProvider } from "./context/ActualitesContext";
 import PrivateRoute from "./routes/PrivateRoute";
-import { useAuth } from "./context/AuthContext";
 
-// Pages (lazy loading)
+// Pages
 const Home = lazy(() => import("./pages/Home"));
 const Contact = lazy(() => import("./pages/Contact"));
 const Connexion = lazy(() => import("./pages/Connexion"));
@@ -24,21 +23,15 @@ const Paiement = lazy(() => import("./pages/Paiement"));
 const TableauDeBordAdmin = lazy(() => import("./pages/TableauDeBordAdmin"));
 const AdminUsers = lazy(() => import("./pages/AdminUsers"));
 
-/* 🔥 Wrapper interne pour gérer loading auth global */
+/* ---------------- APP CONTENT ---------------- */
 function AppContent() {
-  const { loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        Chargement...
-      </div>
-    );
-  }
-
   return (
     <BrowserRouter>
-      <Navbar />
+
+      {/* Navbar dans Suspense SAFE */}
+      <Suspense fallback={null}>
+        <Navbar />
+      </Suspense>
 
       <Suspense fallback={<div className="text-center py-10">Chargement...</div>}>
 
@@ -67,7 +60,7 @@ function AppContent() {
             }
           />
 
-          {/* 🧑‍💼 ADMIN DASHBOARD */}
+          {/* 🧑‍💼 ADMIN */}
           <Route
             path="/admin"
             element={
@@ -77,7 +70,7 @@ function AppContent() {
             }
           />
 
-          {/* 👥 ADMIN USERS */}
+          {/* 👥 USERS ADMIN */}
           <Route
             path="/admin/users"
             element={
@@ -87,7 +80,7 @@ function AppContent() {
             }
           />
 
-          {/* ➕ ADMIN FORMATIONS */}
+          {/* ➕ FORMATIONS ADMIN */}
           <Route
             path="/ajouter-formation"
             element={
@@ -106,7 +99,7 @@ function AppContent() {
             }
           />
 
-          {/* 📰 ADMIN ACTUALITES */}
+          {/* 📰 ACTUALITES ADMIN */}
           <Route
             path="/ajouter-actualite"
             element={
@@ -116,17 +109,18 @@ function AppContent() {
             }
           />
 
-          {/* 🔁 FALLBACK */}
+          {/* fallback */}
           <Route path="*" element={<Home />} />
 
         </Routes>
 
       </Suspense>
+
     </BrowserRouter>
   );
 }
 
-/* 🔥 ROOT WRAPPER */
+/* ---------------- ROOT ---------------- */
 export default function App() {
   return (
     <AuthProvider>
