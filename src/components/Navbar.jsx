@@ -1,44 +1,147 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
+import { Menu, X } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import logo from "../assets/logo-certus.png";
 
 export default function Navbar() {
+  const [menuOpen, setMenuOpen] = useState(false);
+
   const { user, isAdmin, isApproved, logout, loading } = useAuth();
 
-  if (loading) return <div className="p-4">Chargement...</div>;
+  const toggleMenu = () => setMenuOpen(!menuOpen);
+  const handleLogout = () => {
+    logout();
+    setMenuOpen(false);
+  };
+
+  if (loading) {
+    return (
+      <div className="p-4 text-center text-gray-500">
+        Chargement...
+      </div>
+    );
+  }
 
   return (
-    <div className="flex gap-4 p-4 bg-white shadow">
+    <header className="bg-white shadow-md fixed top-0 left-0 w-full z-50">
+      <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
 
-      <Link to="/">Accueil</Link>
-      <Link to="/a-propos">À propos</Link>
-      <Link to="/formations">Formations</Link>
-      <Link to="/contact">Contact</Link>
-      <Link to="/actualite">Actualité</Link>
+        {/* 🔵 LOGO */}
+        <div className="flex items-center gap-3">
+          <img
+            src={logo}
+            alt="Certus"
+            className="h-10 w-auto object-contain"
+          />
 
-      {/* 🔓 NON CONNECTÉ */}
-      {!user && <Link to="/connexion">Connexion</Link>}
+          <div className="hidden sm:block">
+            <h1 className="text-xl font-bold text-blue-800">
+              CENTRE CERTUS DE FORMATION
+            </h1>
+            <p className="text-xs text-gray-500">
+              Structure privée - N° 52-193-17
+            </p>
+          </div>
+        </div>
 
-      {/* 👤 USER */}
-      {user && isApproved && !isAdmin && (
-        <Link to="/espace-participant">Espace</Link>
-      )}
-
-      {/* 👨‍💼 ADMIN */}
-      {user && isAdmin && isApproved && (
-        <>
-          <Link to="/admin">Admin</Link>
-          <Link to="/ajouter-formation">+ Formation</Link>
-          <Link to="/ajouter-actualite">+ Actualité</Link>
-        </>
-      )}
-
-      {/* 🚪 LOGOUT */}
-      {user && (
-        <button onClick={logout} className="text-red-500">
-          Déconnexion
+        {/* ☰ MENU BUTTON MOBILE */}
+        <button
+          onClick={toggleMenu}
+          className="md:hidden text-blue-700"
+        >
+          {menuOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
+
+        {/* DESKTOP MENU */}
+        <nav className="hidden md:flex gap-6 text-gray-700 items-center">
+
+          <Link to="/">Accueil</Link>
+          <Link to="/a-propos">À propos</Link>
+          <Link to="/formations">Formations</Link>
+          <Link to="/contact">Contact</Link>
+          <Link to="/actualite">Actualité</Link>
+
+          {/* 👤 USER NORMAL */}
+          {user && isApproved && !isAdmin && (
+            <Link to="/espace-participant">Espace</Link>
+          )}
+
+          {/* 👨‍💼 ADMIN */}
+          {user && isAdmin && isApproved && (
+            <>
+              <Link className="text-green-600" to="/admin">
+                Admin
+              </Link>
+              <Link className="text-green-600" to="/ajouter-formation">
+                + Formation
+              </Link>
+              <Link className="text-green-600" to="/ajouter-actualite">
+                + Actualité
+              </Link>
+            </>
+          )}
+
+          {/* 🔐 AUTH */}
+          {!user ? (
+            <Link className="text-blue-600 font-semibold" to="/connexion">
+              Connexion
+            </Link>
+          ) : (
+            <button
+              onClick={handleLogout}
+              className="text-red-500"
+            >
+              Déconnexion
+            </button>
+          )}
+        </nav>
+      </div>
+
+      {/* 📱 MOBILE MENU */}
+      {menuOpen && (
+        <div className="md:hidden border-t bg-white px-4 py-4 flex flex-col gap-4 text-gray-700">
+
+          <Link onClick={toggleMenu} to="/">Accueil</Link>
+          <Link onClick={toggleMenu} to="/a-propos">À propos</Link>
+          <Link onClick={toggleMenu} to="/formations">Formations</Link>
+          <Link onClick={toggleMenu} to="/contact">Contact</Link>
+          <Link onClick={toggleMenu} to="/actualite">Actualité</Link>
+
+          {user && isApproved && !isAdmin && (
+            <Link onClick={toggleMenu} to="/espace-participant">
+              Espace
+            </Link>
+          )}
+
+          {user && isAdmin && isApproved && (
+            <>
+              <Link onClick={toggleMenu} to="/admin">
+                Admin
+              </Link>
+              <Link onClick={toggleMenu} to="/ajouter-formation">
+                + Formation
+              </Link>
+              <Link onClick={toggleMenu} to="/ajouter-actualite">
+                + Actualité
+              </Link>
+            </>
+          )}
+
+          {!user ? (
+            <Link onClick={toggleMenu} to="/connexion">
+              Connexion
+            </Link>
+          ) : (
+            <button
+              onClick={handleLogout}
+              className="text-red-500 text-left"
+            >
+              Déconnexion
+            </button>
+          )}
+        </div>
       )}
-    </div>
+    </header>
   );
 }
