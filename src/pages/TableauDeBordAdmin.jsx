@@ -1,4 +1,3 @@
-// frontend/src/pages/TableauDeBordAdmin.jsx
 import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -7,7 +6,7 @@ import { useActualites } from "../context/ActualitesContext";
 import { toast } from "react-toastify";
 
 const TableauDeBordAdmin = () => {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth(); // ✅ FIX ICI
   const { formations, deleteFormation } = useFormations();
   const { actualites, deleteActualite } = useActualites();
   const navigate = useNavigate();
@@ -18,13 +17,14 @@ const TableauDeBordAdmin = () => {
       navigate("/connexion");
       return;
     }
-    if (!user.isAdmin) {
+
+    if (!isAdmin) { // ✅ FIX ICI
       toast.error("Accès refusé");
       navigate("/espace-participant");
     }
-  }, [user, navigate]);
+  }, [user, isAdmin, navigate]);
 
-  if (!user || !user.isAdmin) return null;
+  if (!user || !isAdmin) return null;
 
   return (
     <div className="max-w-6xl mx-auto p-4">
@@ -35,7 +35,7 @@ const TableauDeBordAdmin = () => {
       </h1>
 
       <p className="mb-6 text-gray-600">
-        Bienvenue <strong>{user.fullName}</strong>
+        Bienvenue <strong>{user.email}</strong>
       </p>
 
       {/* 📊 STATS */}
@@ -62,10 +62,9 @@ const TableauDeBordAdmin = () => {
 
       </div>
 
-      {/* CONTENT */}
+      {/* FORMATIONS */}
       <div className="grid md:grid-cols-2 gap-8">
 
-        {/* FORMATIONS */}
         <div className="border rounded p-4 shadow-sm">
           <h2 className="text-2xl font-semibold mb-4">📚 Formations</h2>
 

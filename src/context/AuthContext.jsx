@@ -5,8 +5,6 @@ const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isApproved, setIsApproved] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -18,18 +16,14 @@ export const AuthProvider = ({ children }) => {
         const session = data?.session;
 
         if (session?.user) {
-          console.log("🟢 USER FOUND:", session.user);
-          loadUser(session.user); // ❗ PAS de await (évite boucle)
+          await loadUser(session.user);
         } else {
-          console.log("🔴 NO SESSION USER");
           resetUser();
         }
-
       } catch (err) {
         console.error("❌ AUTH ERROR:", err);
         resetUser();
       } finally {
-        console.log("✅ LOADING FALSE");
         setLoading(false);
       }
     };
@@ -37,95 +31,80 @@ export const AuthProvider = ({ children }) => {
     init();
 
     const { data: listener } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
         console.log("🔄 AUTH CHANGE:", event);
 
         if (session?.user) {
-          console.log("🟢 USER CHANGE:", session.user);
-          loadUser(session.user); // ❗ PAS await
+          await loadUser(session.user);
         } else {
-          console.log("🔴 USER LOGOUT");
           resetUser();
         }
       }
     );
 
-    return () => {
-      listener?.subscription?.unsubscribe();
-    };
+    return () => listener?.subscription?.unsubscribe();
   }, []);
 
-  // 🔥 RESET USER
+  // 🔥 RESET
   const resetUser = () => {
     setUser(null);
-    setIsAdmin(false);
-    setIsApproved(false);
   };
 
-  // 🔥 LOAD USER FROM DB
+  // 🔥 LOAD USER + ROLE
   const loadUser = async (authUser) => {
     console.log("🟣 LOAD USER DB...");
 
-    setUser(authUser);
+    const { data, error } = await supabase
+      .from("users")
+      .select("full_name, is_admin, is_approved, email")
+      .eq("email", authUser.email)
+      .maybeSingle();
 
-    try {
-      const { data, error } = await supabase
-        .from("users")
-        .select("is_admin, is_approved")
-        .eq("email", authUser.email)
-        .maybeSingle(); // ✅ plus safe que single()
-
-      console.log("📦 USER DB RESULT:", data);
-
-      if (error || !data) {
-        console.warn("⚠️ USER NOT FOUND IN DB");
-        setIsAdmin(false);
-        setIsApproved(false);
-        return;
-      }
-
-      setIsAdmin(Boolean(data.is_admin));
-      setIsApproved(Boolean(data.is_approved));
-
-      console.log("✅ ADMIN:", data.is_admin, "APPROVED:", data.is_approved);
-
-    } catch (err) {
-      console.error("❌ LOAD USER ERROR:", err);
-      setIsAdmin(false);
-      setIsApproved(false);
+    if (error || !data) {
+      console.warn("⚠️ USER NOT FOUND IN DB");
+      setUser({
+        ...authUser,
+        isAdmin: false,
+        isApproved: false,
+      });
+      return;
     }
+
+    setUser({
+      ...authUser,
+      fullName: data.full_name,
+      email: data.email,
+      isAdmin: Boolean(data.is_admin),
+      isApproved: Boolean(data.is_approved),
+    });
+
+    console.log("✅ USER LOADED:", data);
   };
 
-  // 🔑 LOGIN
+  // 🔐 LOGIN
   const login = async (email, password) => {
-    console.log("🔐 LOGIN...");
-
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
-    if (error) {
-      console.error("❌ LOGIN ERROR:", error);
-      throw error;
-    }
+    if (error) throw error;
   };
 
   // 🚪 LOGOUT
   const logout = async () => {
-    console.log("🚪 LOGOUT...");
     await supabase.auth.signOut();
     resetUser();
   };
 
-  console.log("🧠 STATE:", { user, isAdmin, isApproved, loading });
+  console.log("🧠 STATE:", { user, loading });
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        isAdmin,
-        isApproved,
+        isAdmin: user?.isAdmin || false,
+        isApproved: user?.isApproved || false,
         login,
         logout,
         loading,

@@ -16,13 +16,10 @@ export default function Navbar() {
     setMenuOpen(false);
   };
 
-  if (loading) {
-    return (
-      <div className="p-4 text-center text-gray-500">
-        Chargement...
-      </div>
-    );
-  }
+  if (loading) return null;
+
+  const showUserSpace = user && isApproved && !isAdmin;
+  const showAdmin = user && isAdmin && isApproved;
 
   const NavLinks = () => (
     <>
@@ -33,44 +30,28 @@ export default function Navbar() {
       <Link onClick={toggleMenu} to="/actualite">Actualité</Link>
 
       {/* USER */}
-      {user && isApproved && !isAdmin && (
+      {showUserSpace && (
         <Link onClick={toggleMenu} to="/espace-participant">
           Espace
         </Link>
       )}
 
       {/* ADMIN */}
-      {user && isAdmin && isApproved && (
+      {showAdmin && (
         <>
-          <Link
-            onClick={toggleMenu}
-            className="text-green-600"
-            to="/admin"
-          >
+          <Link className="text-green-600" onClick={toggleMenu} to="/admin">
             Dashboard
           </Link>
 
-          <Link
-            onClick={toggleMenu}
-            className="text-green-600"
-            to="/admin/users"
-          >
+          <Link className="text-green-600" onClick={toggleMenu} to="/admin/users">
             Utilisateurs
           </Link>
 
-          <Link
-            onClick={toggleMenu}
-            className="text-green-600"
-            to="/ajouter-formation"
-          >
+          <Link className="text-green-600" onClick={toggleMenu} to="/ajouter-formation">
             + Formation
           </Link>
 
-          <Link
-            onClick={toggleMenu}
-            className="text-green-600"
-            to="/ajouter-actualite"
-          >
+          <Link className="text-green-600" onClick={toggleMenu} to="/ajouter-actualite">
             + Actualité
           </Link>
         </>
@@ -78,18 +59,11 @@ export default function Navbar() {
 
       {/* AUTH */}
       {!user ? (
-        <Link
-          onClick={toggleMenu}
-          className="text-blue-600 font-semibold"
-          to="/connexion"
-        >
+        <Link className="text-blue-600 font-semibold" onClick={toggleMenu} to="/connexion">
           Connexion
         </Link>
       ) : (
-        <button
-          onClick={handleLogout}
-          className="text-red-500"
-        >
+        <button onClick={handleLogout} className="text-red-500">
           Déconnexion
         </button>
       )}
@@ -114,7 +88,7 @@ export default function Navbar() {
           </div>
         </div>
 
-        {/* MOBILE BUTTON */}
+        {/* MOBILE */}
         <button onClick={toggleMenu} className="md:hidden">
           {menuOpen ? <X /> : <Menu />}
         </button>
