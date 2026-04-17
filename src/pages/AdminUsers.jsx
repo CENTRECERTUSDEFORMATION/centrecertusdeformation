@@ -3,15 +3,22 @@ import { supabase } from "../supabaseClient";
 import { toast } from "react-toastify";
 import { useAuth } from "../context/AuthContext";
 
-export default function AdminUsers() {
-  const { isAdmin, loading: authLoading } = useAuth();
+const AdminUsers = () => {
+  const { isAdmin, loading } = useAuth();
 
   const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingUsers, setLoadingUsers] = useState(true);
 
-  // 🔄 Charger users
+  // 🔐 sécurité
+  useEffect(() => {
+    if (!loading && !isAdmin) {
+      toast.error("Accès refusé");
+    }
+  }, [isAdmin, loading]);
+
+  // 📥 fetch users
   const fetchUsers = async () => {
-    setLoading(true);
+    setLoadingUsers(true);
 
     const { data, error } = await supabase
       .from("users")
@@ -25,14 +32,29 @@ export default function AdminUsers() {
       setUsers(data);
     }
 
-    setLoading(false);
+    setLoadingUsers(false);
   };
 
   useEffect(() => {
     fetchUsers();
   }, []);
 
-  // 🔁 Toggle admin
+  // ✅ APPROVE USER
+  const toggleApprove = async (user) => {
+    const { error } = await supabase
+      .from("users")
+      .update({ is_approved: !user.is_approved })
+      .eq("id", user.id);
+
+    if (error) {
+      toast.error("Erreur update approval");
+    } else {
+      toast.success("Statut mis à jour");
+      fetchUsers();
+    }
+  };
+
+  // 👨‍💼 TOGGLE ADMIN
   const toggleAdmin = async (user) => {
     const { error } = await supabase
       .from("users")
@@ -40,36 +62,21 @@ export default function AdminUsers() {
       .eq("id", user.id);
 
     if (error) {
-      toast.error("Erreur mise à jour admin");
+      toast.error("Erreur update admin");
     } else {
-      toast.success("Rôle admin mis à jour");
+      toast.success("Rôle mis à jour");
       fetchUsers();
     }
   };
 
-  // 🔁 Toggle approval
-  const toggleApproval = async (user) => {
-    const { error } = await supabase
-      .from("users")
-      .update({ is_approved: !user.is_approved })
-      .eq("id", user.id);
-
-    if (error) {
-      toast.error("Erreur approbation");
-    } else {
-      toast.success("Statut utilisateur mis à jour");
-      fetchUsers();
-    }
-  };
-
-  // ❌ Delete user
-  const deleteUser = async (user) => {
+  // ❌ DELETE USER
+  const deleteUser = async (id) => {
     if (!window.confirm("Supprimer cet utilisateur ?")) return;
 
     const { error } = await supabase
       .from("users")
       .delete()
-      .eq("id", user.id);
+      .eq("id", id);
 
     if (error) {
       toast.error("Erreur suppression");
@@ -79,89 +86,84 @@ export default function AdminUsers() {
     }
   };
 
-  // 🔐 sécurité front
-  if (authLoading) return <div className="p-4">Chargement...</div>;
-
-  if (!isAdmin) {
-    return (
-      <div className="p-6 text-red-600 font-bold">
-        Accès refusé (Admin uniquement)
-      </div>
-    );
+  if (loadingUsers) {
+    return <div className="p-6">Chargement utilisateurs...</div>;
   }
 
   return (
     <div className="max-w-6xl mx-auto p-6">
 
       <h1 className="text-3xl font-bold text-blue-800 mb-6">
-        Gestion des utilisateurs
+        👥 Gestion des utilisateurs
       </h1>
 
-      {loading ? (
-        <div>Chargement utilisateurs...</div>
-      ) : (
-        <div className="overflow-x-auto bg-white shadow rounded">
+      <div className="overflow-x-auto bg-white shadow rounded">
 
-          <table className="w-full text-sm">
+        <table className="w-full text-sm text-left">
 
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="p-3 text-left">Nom</th>
-                <th className="p-3 text-left">Email</th>
-                <th className="p-3">Admin</th>
-                <th className="p-3">Approuvé</th>
-                <th className="p-3">Actions</th>
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="p-3">Nom</th>
+              <th className="p-3">Email</th>
+              <th className="p-3">Admin</th>
+              <th className="p-3">Approuvé</th>
+              <th className="p-3">Actions</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {users.map((u) => (
+              <tr key={u.id} className="border-b">
+
+                <td className="p-3 font-medium">
+                  {u.full_name || "—"}
+                </td>
+
+                <td className="p-3">
+                  {u.email}
+                </td>
+
+                <td className="p-3">
+                  {u.is_admin ? "✅" : "❌"}
+                </td>
+
+                <td className="p-3">
+                  {u.is_approved ? "✅" : "❌"}
+                </td>
+
+                <td className="p-3 flex gap-2 flex-wrap">
+
+                  <button
+                    onClick={() => toggleApprove(u)}
+                    className="px-3 py-1 bg-green-600 text-white rounded"
+                  >
+                    {u.is_approved ? "Désactiver" : "Approuver"}
+                  </button>
+
+                  <button
+                    onClick={() => toggleAdmin(u)}
+                    className="px-3 py-1 bg-blue-600 text-white rounded"
+                  >
+                    Admin
+                  </button>
+
+                  <button
+                    onClick={() => deleteUser(u.id)}
+                    className="px-3 py-1 bg-red-600 text-white rounded"
+                  >
+                    Supprimer
+                  </button>
+
+                </td>
               </tr>
-            </thead>
+            ))}
+          </tbody>
 
-            <tbody>
-              {users.map((u) => (
-                <tr key={u.id} className="border-t">
+        </table>
 
-                  <td className="p-3">{u.full_name}</td>
-                  <td className="p-3">{u.email}</td>
-
-                  {/* ADMIN */}
-                  <td className="p-3 text-center">
-                    <button
-                      onClick={() => toggleAdmin(u)}
-                      className={`px-3 py-1 rounded text-white ${
-                        u.is_admin ? "bg-green-600" : "bg-gray-400"
-                      }`}
-                    >
-                      {u.is_admin ? "Admin" : "User"}
-                    </button>
-                  </td>
-
-                  {/* APPROVAL */}
-                  <td className="p-3 text-center">
-                    <button
-                      onClick={() => toggleApproval(u)}
-                      className={`px-3 py-1 rounded text-white ${
-                        u.is_approved ? "bg-blue-600" : "bg-red-500"
-                      }`}
-                    >
-                      {u.is_approved ? "Actif" : "Bloqué"}
-                    </button>
-                  </td>
-
-                  {/* ACTIONS */}
-                  <td className="p-3 text-center">
-                    <button
-                      onClick={() => deleteUser(u)}
-                      className="px-3 py-1 bg-red-600 text-white rounded"
-                    >
-                      Supprimer
-                    </button>
-                  </td>
-
-                </tr>
-              ))}
-            </tbody>
-
-          </table>
-        </div>
-      )}
+      </div>
     </div>
   );
-}
+};
+
+export default AdminUsers;

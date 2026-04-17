@@ -21,6 +21,7 @@ const Inscription = lazy(() => import("./pages/Inscription"));
 const ModifierFormation = lazy(() => import("./pages/ModifierFormation"));
 const Paiement = lazy(() => import("./pages/Paiement"));
 const TableauDeBordAdmin = lazy(() => import("./pages/TableauDeBordAdmin"));
+const AdminUsers = lazy(() => import("./pages/AdminUsers")); // ⭐ AJOUT
 
 function App() {
   return (
@@ -30,13 +31,8 @@ function App() {
           <BrowserRouter>
             <Navbar />
 
-            <Suspense
-              fallback={
-                <div className="text-center py-10">
-                  Chargement...
-                </div>
-              }
-            >
+            <Suspense fallback={<div className="text-center py-10">Chargement...</div>}>
+
               <Routes>
 
                 {/* PUBLIC */}
@@ -62,7 +58,7 @@ function App() {
                   }
                 />
 
-                {/* ADMIN */}
+                {/* ADMIN DASHBOARD */}
                 <Route
                   path="/admin"
                   element={
@@ -72,6 +68,17 @@ function App() {
                   }
                 />
 
+                {/* ADMIN USERS ⭐ */}
+                <Route
+                  path="/admin/users"
+                  element={
+                    <PrivateRoute adminOnly>
+                      <AdminUsers />
+                    </PrivateRoute>
+                  }
+                />
+
+                {/* ADMIN ACTIONS */}
                 <Route
                   path="/ajouter-formation"
                   element={
@@ -100,7 +107,9 @@ function App() {
                 />
 
               </Routes>
+
             </Suspense>
+
           </BrowserRouter>
         </ActualitesProvider>
       </FormationsProvider>

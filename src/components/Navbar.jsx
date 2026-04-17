@@ -24,7 +24,7 @@ export default function Navbar() {
     );
   }
 
-  const NavLinks = ({ mobile = false }) => (
+  const NavLinks = () => (
     <>
       <Link onClick={toggleMenu} to="/">Accueil</Link>
       <Link onClick={toggleMenu} to="/a-propos">À propos</Link>
@@ -47,7 +47,15 @@ export default function Navbar() {
             className="text-green-600"
             to="/admin"
           >
-            Admin
+            Dashboard
+          </Link>
+
+          <Link
+            onClick={toggleMenu}
+            className="text-green-600"
+            to="/admin/users"
+          >
+            Utilisateurs
           </Link>
 
           <Link
@@ -90,6 +98,7 @@ export default function Navbar() {
 
   return (
     <header className="bg-white shadow-md fixed top-0 left-0 w-full z-50">
+
       <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
 
         {/* LOGO */}
@@ -105,11 +114,8 @@ export default function Navbar() {
           </div>
         </div>
 
-        {/* MENU BUTTON */}
-        <button
-          onClick={toggleMenu}
-          className="md:hidden"
-        >
+        {/* MOBILE BUTTON */}
+        <button onClick={toggleMenu} className="md:hidden">
           {menuOpen ? <X /> : <Menu />}
         </button>
 
@@ -117,14 +123,16 @@ export default function Navbar() {
         <nav className="hidden md:flex gap-6 text-gray-700">
           <NavLinks />
         </nav>
+
       </div>
 
       {/* MOBILE */}
       {menuOpen && (
         <div className="md:hidden border-t bg-white p-4 flex flex-col gap-4">
-          <NavLinks mobile />
+          <NavLinks />
         </div>
       )}
+
     </header>
   );
 }

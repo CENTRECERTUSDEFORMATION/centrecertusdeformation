@@ -28,28 +28,67 @@ const TableauDeBordAdmin = () => {
 
   return (
     <div className="max-w-6xl mx-auto p-4">
-      <h1 className="text-3xl font-bold text-blue-800 mb-6">Tableau de bord Administrateur</h1>
-      <p className="mb-6">Bienvenue <strong>{user.fullName}</strong></p>
 
+      {/* HEADER */}
+      <h1 className="text-3xl font-bold text-blue-800 mb-2">
+        Tableau de bord Administrateur
+      </h1>
+
+      <p className="mb-6 text-gray-600">
+        Bienvenue <strong>{user.fullName}</strong>
+      </p>
+
+      {/* 📊 STATS */}
+      <div className="grid md:grid-cols-3 gap-4 mb-8">
+
+        <div className="bg-blue-100 p-4 rounded shadow">
+          <h3 className="text-lg font-semibold">📚 Formations</h3>
+          <p className="text-3xl font-bold text-blue-800">
+            {formations.length}
+          </p>
+        </div>
+
+        <div className="bg-green-100 p-4 rounded shadow">
+          <h3 className="text-lg font-semibold">📰 Actualités</h3>
+          <p className="text-3xl font-bold text-green-700">
+            {actualites.length}
+          </p>
+        </div>
+
+        <div className="bg-gray-100 p-4 rounded shadow">
+          <h3 className="text-lg font-semibold">⚙️ Statut</h3>
+          <p className="text-green-600 font-bold">Admin actif</p>
+        </div>
+
+      </div>
+
+      {/* CONTENT */}
       <div className="grid md:grid-cols-2 gap-8">
-        {/* Formations */}
+
+        {/* FORMATIONS */}
         <div className="border rounded p-4 shadow-sm">
           <h2 className="text-2xl font-semibold mb-4">📚 Formations</h2>
+
           <button
             onClick={() => navigate("/ajouter-formation")}
             className="mb-4 px-4 py-2 bg-green-600 text-white rounded"
           >
             ➕ Ajouter une formation
           </button>
+
           <ul className="space-y-2">
             {formations.map((f) => (
-              <li key={f._id} className="flex justify-between items-center border p-2 rounded">
+              <li
+                key={f._id}
+                className="flex justify-between items-center border p-2 rounded"
+              >
                 <span
                   className="cursor-pointer text-blue-600 hover:underline"
                   onClick={() => navigate(`/modifier-formation/${f._id}`)}
                 >
                   {f.title}
                 </span>
+
                 <button
                   onClick={async () => {
                     if (window.confirm("Supprimer cette formation ?")) {
@@ -70,24 +109,30 @@ const TableauDeBordAdmin = () => {
           </ul>
         </div>
 
-        {/* Actualités */}
+        {/* ACTUALITÉS */}
         <div className="border rounded p-4 shadow-sm">
           <h2 className="text-2xl font-semibold mb-4">📰 Actualités</h2>
+
           <button
             onClick={() => navigate("/ajouter-actualite")}
             className="mb-4 px-4 py-2 bg-green-600 text-white rounded"
           >
             ➕ Ajouter une actualité
           </button>
+
           <ul className="space-y-2">
             {actualites.map((a) => (
-              <li key={a._id} className="flex justify-between items-center border p-2 rounded">
+              <li
+                key={a._id}
+                className="flex justify-between items-center border p-2 rounded"
+              >
                 <span
                   className="cursor-pointer text-blue-600 hover:underline"
                   onClick={() => navigate(`/modifier-actualite/${a._id}`)}
                 >
                   {a.titre}
                 </span>
+
                 <button
                   onClick={async () => {
                     if (window.confirm("Supprimer cette actualité ?")) {
@@ -107,6 +152,7 @@ const TableauDeBordAdmin = () => {
             ))}
           </ul>
         </div>
+
       </div>
     </div>
   );
