@@ -5,8 +5,9 @@ import { AuthProvider } from "./context/AuthContext";
 import { FormationsProvider } from "./context/FormationsContext";
 import { ActualitesProvider } from "./context/ActualitesContext";
 import PrivateRoute from "./routes/PrivateRoute";
+import { useAuth } from "./context/AuthContext";
 
-// Pages
+// Pages (lazy loading)
 const Home = lazy(() => import("./pages/Home"));
 const Contact = lazy(() => import("./pages/Contact"));
 const Connexion = lazy(() => import("./pages/Connexion"));
@@ -21,100 +22,119 @@ const Inscription = lazy(() => import("./pages/Inscription"));
 const ModifierFormation = lazy(() => import("./pages/ModifierFormation"));
 const Paiement = lazy(() => import("./pages/Paiement"));
 const TableauDeBordAdmin = lazy(() => import("./pages/TableauDeBordAdmin"));
-const AdminUsers = lazy(() => import("./pages/AdminUsers")); // ⭐ AJOUT
+const AdminUsers = lazy(() => import("./pages/AdminUsers"));
 
-function App() {
+/* 🔥 Wrapper interne pour gérer loading auth global */
+function AppContent() {
+  const { loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        Chargement...
+      </div>
+    );
+  }
+
+  return (
+    <BrowserRouter>
+      <Navbar />
+
+      <Suspense fallback={<div className="text-center py-10">Chargement...</div>}>
+
+        <Routes>
+
+          {/* 🌍 PUBLIC */}
+          <Route path="/" element={<Home />} />
+          <Route path="/connexion" element={<Connexion />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/a-propos" element={<AproposDeCertus />} />
+          <Route path="/actualite" element={<Actualite />} />
+          <Route path="/inscription" element={<Inscription />} />
+          <Route path="/paiement" element={<Paiement />} />
+
+          {/* 📚 FORMATIONS */}
+          <Route path="/formations" element={<Formations />} />
+          <Route path="/formations/:id" element={<FormationDetail />} />
+
+          {/* 👤 USER */}
+          <Route
+            path="/espace-participant"
+            element={
+              <PrivateRoute>
+                <EspaceParticipant />
+              </PrivateRoute>
+            }
+          />
+
+          {/* 🧑‍💼 ADMIN DASHBOARD */}
+          <Route
+            path="/admin"
+            element={
+              <PrivateRoute adminOnly>
+                <TableauDeBordAdmin />
+              </PrivateRoute>
+            }
+          />
+
+          {/* 👥 ADMIN USERS */}
+          <Route
+            path="/admin/users"
+            element={
+              <PrivateRoute adminOnly>
+                <AdminUsers />
+              </PrivateRoute>
+            }
+          />
+
+          {/* ➕ ADMIN FORMATIONS */}
+          <Route
+            path="/ajouter-formation"
+            element={
+              <PrivateRoute adminOnly>
+                <AjouterFormation />
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/modifier-formation/:id"
+            element={
+              <PrivateRoute adminOnly>
+                <ModifierFormation />
+              </PrivateRoute>
+            }
+          />
+
+          {/* 📰 ADMIN ACTUALITES */}
+          <Route
+            path="/ajouter-actualite"
+            element={
+              <PrivateRoute adminOnly>
+                <AjouterActualite />
+              </PrivateRoute>
+            }
+          />
+
+          {/* 🔁 FALLBACK */}
+          <Route path="*" element={<Home />} />
+
+        </Routes>
+
+      </Suspense>
+    </BrowserRouter>
+  );
+}
+
+/* 🔥 ROOT WRAPPER */
+export default function App() {
   return (
     <AuthProvider>
       <FormationsProvider>
         <ActualitesProvider>
-          <BrowserRouter>
-            <Navbar />
-
-            <Suspense fallback={<div className="text-center py-10">Chargement...</div>}>
-
-              <Routes>
-
-                {/* PUBLIC */}
-                <Route path="/" element={<Home />} />
-                <Route path="/connexion" element={<Connexion />} />
-                <Route path="/contact" element={<Contact />} />
-                <Route path="/a-propos" element={<AproposDeCertus />} />
-                <Route path="/actualite" element={<Actualite />} />
-                <Route path="/inscription" element={<Inscription />} />
-                <Route path="/paiement" element={<Paiement />} />
-
-                {/* FORMATIONS */}
-                <Route path="/formations" element={<Formations />} />
-                <Route path="/formations/:id" element={<FormationDetail />} />
-
-                {/* USER */}
-                <Route
-                  path="/espace-participant"
-                  element={
-                    <PrivateRoute>
-                      <EspaceParticipant />
-                    </PrivateRoute>
-                  }
-                />
-
-                {/* ADMIN DASHBOARD */}
-                <Route
-                  path="/admin"
-                  element={
-                    <PrivateRoute adminOnly>
-                      <TableauDeBordAdmin />
-                    </PrivateRoute>
-                  }
-                />
-
-                {/* ADMIN USERS ⭐ */}
-                <Route
-                  path="/admin/users"
-                  element={
-                    <PrivateRoute adminOnly>
-                      <AdminUsers />
-                    </PrivateRoute>
-                  }
-                />
-
-                {/* ADMIN ACTIONS */}
-                <Route
-                  path="/ajouter-formation"
-                  element={
-                    <PrivateRoute adminOnly>
-                      <AjouterFormation />
-                    </PrivateRoute>
-                  }
-                />
-
-                <Route
-                  path="/modifier-formation/:id"
-                  element={
-                    <PrivateRoute adminOnly>
-                      <ModifierFormation />
-                    </PrivateRoute>
-                  }
-                />
-
-                <Route
-                  path="/ajouter-actualite"
-                  element={
-                    <PrivateRoute adminOnly>
-                      <AjouterActualite />
-                    </PrivateRoute>
-                  }
-                />
-
-              </Routes>
-
-            </Suspense>
-
-          </BrowserRouter>
+          <AppContent />
         </ActualitesProvider>
       </FormationsProvider>
     </AuthProvider>
   );
 }
-
-export default App;

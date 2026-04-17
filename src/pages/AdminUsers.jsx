@@ -2,21 +2,24 @@ import React, { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { toast } from "react-toastify";
 import { useAuth } from "../context/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 const AdminUsers = () => {
   const { isAdmin, loading } = useAuth();
+  const navigate = useNavigate();
 
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
 
-  // 🔐 sécurité
+  // 🔐 SECURITY GUARD
   useEffect(() => {
     if (!loading && !isAdmin) {
       toast.error("Accès refusé");
+      navigate("/"); // ou "/espace-participant"
     }
-  }, [isAdmin, loading]);
+  }, [isAdmin, loading, navigate]);
 
-  // 📥 fetch users
+  // 📥 FETCH USERS
   const fetchUsers = async () => {
     setLoadingUsers(true);
 
@@ -29,47 +32,50 @@ const AdminUsers = () => {
       toast.error("Erreur chargement utilisateurs");
       console.error(error);
     } else {
-      setUsers(data);
+      setUsers(data || []);
     }
 
     setLoadingUsers(false);
   };
 
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    if (isAdmin) fetchUsers();
+  }, [isAdmin]);
 
-  // ✅ APPROVE USER
+  // ❌ BLOCK NON ADMIN RENDER
+  if (!loading && !isAdmin) return null;
+
+  if (loadingUsers) {
+    return <div className="p-6">Chargement utilisateurs...</div>;
+  }
+
+  // ✅ ACTIONS
   const toggleApprove = async (user) => {
     const { error } = await supabase
       .from("users")
       .update({ is_approved: !user.is_approved })
       .eq("id", user.id);
 
-    if (error) {
-      toast.error("Erreur update approval");
-    } else {
+    if (error) toast.error("Erreur update approval");
+    else {
       toast.success("Statut mis à jour");
       fetchUsers();
     }
   };
 
-  // 👨‍💼 TOGGLE ADMIN
   const toggleAdmin = async (user) => {
     const { error } = await supabase
       .from("users")
       .update({ is_admin: !user.is_admin })
       .eq("id", user.id);
 
-    if (error) {
-      toast.error("Erreur update admin");
-    } else {
+    if (error) toast.error("Erreur update admin");
+    else {
       toast.success("Rôle mis à jour");
       fetchUsers();
     }
   };
 
-  // ❌ DELETE USER
   const deleteUser = async (id) => {
     if (!window.confirm("Supprimer cet utilisateur ?")) return;
 
@@ -78,17 +84,12 @@ const AdminUsers = () => {
       .delete()
       .eq("id", id);
 
-    if (error) {
-      toast.error("Erreur suppression");
-    } else {
+    if (error) toast.error("Erreur suppression");
+    else {
       toast.success("Utilisateur supprimé");
       fetchUsers();
     }
   };
-
-  if (loadingUsers) {
-    return <div className="p-6">Chargement utilisateurs...</div>;
-  }
 
   return (
     <div className="max-w-6xl mx-auto p-6">
@@ -119,9 +120,7 @@ const AdminUsers = () => {
                   {u.full_name || "—"}
                 </td>
 
-                <td className="p-3">
-                  {u.email}
-                </td>
+                <td className="p-3">{u.email}</td>
 
                 <td className="p-3">
                   {u.is_admin ? "✅" : "❌"}
@@ -160,7 +159,6 @@ const AdminUsers = () => {
           </tbody>
 
         </table>
-
       </div>
     </div>
   );

@@ -6,11 +6,14 @@ import { useAuth } from "../context/AuthContext";
 
 export default function Actualite() {
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+
+  const { user, isAdmin, loading: authLoading } = useAuth();
 
   const [actualites, setActualites] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
+
+  const canManage = user?.isAdmin === true;
 
   const fetchActualites = async () => {
     try {
@@ -20,9 +23,11 @@ export default function Actualite() {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setActualites(data);
+
+      setActualites(data || []);
     } catch (err) {
-      toast.error("Erreur chargement");
+      console.error(err);
+      toast.error("Erreur chargement actualités");
     } finally {
       setLoading(false);
     }
@@ -33,14 +38,26 @@ export default function Actualite() {
   }, []);
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Supprimer ?")) return;
+    if (!canManage) {
+      toast.error("Accès refusé");
+      return;
+    }
+
+    if (!window.confirm("Supprimer cette actualité ?")) return;
 
     try {
-      await supabase.from("actualites").delete().eq("id", id);
+      const { error } = await supabase
+        .from("actualites")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+
       setActualites((prev) => prev.filter((a) => a.id !== id));
-      toast.success("Supprimé !");
-    } catch {
-      toast.error("Erreur");
+      toast.success("Actualité supprimée !");
+    } catch (err) {
+      console.error(err);
+      toast.error("Erreur suppression");
     }
   };
 
@@ -49,16 +66,26 @@ export default function Actualite() {
     return supabase.storage.from("uploads").getPublicUrl(path).data.publicUrl;
   };
 
-  const filteredActualites = actualites.filter((a) =>
-    `${a.titre} ${a.contenu}`.toLowerCase().includes(searchTerm.toLowerCase())
+  const filtered = actualites.filter((a) =>
+    `${a.titre || ""} ${a.contenu || ""}`
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase())
   );
+
+  if (authLoading) {
+    return <p className="text-center mt-10">Chargement utilisateur...</p>;
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
-      <div className="flex justify-between mb-4">
-        <h2 className="text-3xl font-bold text-blue-800">📰 Actualités</h2>
 
-        {isAdmin && (
+      {/* HEADER */}
+      <div className="flex justify-between mb-4">
+        <h2 className="text-3xl font-bold text-blue-800">
+          📰 Actualités
+        </h2>
+
+        {canManage && (
           <button
             onClick={() => navigate("/ajouter-actualite")}
             className="bg-green-600 text-white px-4 py-2"
@@ -68,6 +95,7 @@ export default function Actualite() {
         )}
       </div>
 
+      {/* SEARCH */}
       <input
         type="text"
         placeholder="Rechercher..."
@@ -76,26 +104,34 @@ export default function Actualite() {
         onChange={(e) => setSearchTerm(e.target.value)}
       />
 
+      {/* LOADING DATA */}
       {loading ? (
         <p>Chargement...</p>
       ) : (
         <table className="w-full border">
+
           <thead className="bg-blue-100">
             <tr>
               <th>Image</th>
               <th>Titre</th>
               <th>Contenu</th>
               <th>Date</th>
-              {isAdmin && <th>Actions</th>}
+              {canManage && <th>Actions</th>}
             </tr>
           </thead>
 
           <tbody>
-            {filteredActualites.map((a) => (
+            {filtered.map((a) => (
               <tr key={a.id}>
+
+                {/* IMAGE SAFE */}
                 <td>
-                  {a.images?.length ? (
-                    <img src={getImageUrl(a.images[0])} className="w-16 h-16" />
+                  {Array.isArray(a.images) && a.images.length > 0 ? (
+                    <img
+                      src={getImageUrl(a.images[0])}
+                      className="w-16 h-16 object-cover"
+                      alt="actualité"
+                    />
                   ) : (
                     "—"
                   )}
@@ -103,12 +139,19 @@ export default function Actualite() {
 
                 <td>{a.titre}</td>
                 <td>{a.contenu}</td>
-                <td>{new Date(a.created_at).toLocaleDateString()}</td>
 
-                {isAdmin && (
+                <td>
+                  {a.created_at
+                    ? new Date(a.created_at).toLocaleDateString()
+                    : "—"}
+                </td>
+
+                {canManage && (
                   <td>
                     <button
-                      onClick={() => navigate(`/modifier-actualite/${a.id}`)}
+                      onClick={() =>
+                        navigate(`/modifier-actualite/${a.id}`)
+                      }
                       className="bg-yellow-500 text-white px-2 py-1 mr-2"
                     >
                       Modifier
@@ -125,6 +168,7 @@ export default function Actualite() {
               </tr>
             ))}
           </tbody>
+
         </table>
       )}
     </div>

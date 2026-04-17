@@ -1,19 +1,31 @@
-// frontend/src/pages/ModifierFormation.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import { toast } from "react-toastify";
+import { useAuth } from "../context/AuthContext";
 
 const ModifierFormation = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+
+  // 🔐 SECURITY FIX
+  const { isAdmin, loading: authLoading } = useAuth();
 
   const [formation, setFormation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [preview, setPreview] = useState("");
 
-  // 🔹 Récupérer la formation depuis Supabase
+  // ⛔ BLOCK NON ADMIN
+  if (!authLoading && !isAdmin) {
+    return (
+      <div className="p-6 text-center text-red-600 font-bold">
+        Accès refusé (Admin uniquement)
+      </div>
+    );
+  }
+
+  // 📥 FETCH
   useEffect(() => {
     const fetchFormation = async () => {
       try {
@@ -25,16 +37,16 @@ const ModifierFormation = () => {
 
         if (error) throw error;
 
-        setFormation(data);
+        setFormation(data || null);
 
-        // Prévisualisation image existante
-        if (data.imageUrl) {
+        // image preview
+        if (data?.imageUrl) {
           const { data: publicData } = supabase.storage
             .from("uploads")
             .getPublicUrl(data.imageUrl);
-          setPreview(publicData.publicUrl);
-        }
 
+          setPreview(publicData?.publicUrl || "");
+        }
       } catch (err) {
         console.error(err);
         toast.error("Impossible de récupérer la formation");
@@ -46,33 +58,45 @@ const ModifierFormation = () => {
     fetchFormation();
   }, [id]);
 
-  // 🔹 Gestion upload nouvelle image
+  // 🖼️ IMAGE CHANGE
   const handleImageChange = (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
+    if (!file || !formation) return;
+
     setFormation({ ...formation, imageFile: file });
     setPreview(URL.createObjectURL(file));
   };
 
+  // 💾 UPDATE
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!isAdmin) {
+      toast.error("Accès refusé");
+      return;
+    }
+
+    if (!formation) return;
+
     setSaving(true);
 
     try {
       let imageUrl = formation.imageUrl;
 
-      // 🔹 Si une nouvelle image est uploadée, stocker sur Supabase
+      // 📤 upload new image
       if (formation.imageFile) {
-        const fileName = `${Date.now()}-${formation.imageFile.name}`;
+        const fileName = `formations/${Date.now()}-${formation.imageFile.name}`;
+
         const { error: uploadError } = await supabase.storage
           .from("uploads")
-          .upload(`formations/${fileName}`, formation.imageFile, { upsert: true });
+          .upload(fileName, formation.imageFile, { upsert: true });
 
         if (uploadError) throw uploadError;
 
-        imageUrl = `formations/${fileName}`;
+        imageUrl = fileName;
       }
 
-      // 🔹 Mettre à jour la formation
+      // 💾 UPDATE DB
       const { error } = await supabase
         .from("formations")
         .update({
@@ -87,7 +111,7 @@ const ModifierFormation = () => {
 
       if (error) throw error;
 
-      toast.success("Formation mise à jour avec succès !");
+      toast.success("Formation mise à jour !");
       navigate("/formations");
 
     } catch (err) {
@@ -98,87 +122,139 @@ const ModifierFormation = () => {
     }
   };
 
-  if (loading) return <p className="text-center mt-10 text-gray-500">Chargement de la formation...</p>;
-  if (!formation) return <p className="text-center mt-10 text-red-600">Formation introuvable</p>;
+  // ⏳ LOADING
+  if (loading) {
+    return (
+      <p className="text-center mt-10 text-gray-500">
+        Chargement...
+      </p>
+    );
+  }
+
+  // ❌ NOT FOUND
+  if (!formation) {
+    return (
+      <p className="text-center mt-10 text-red-600">
+        Formation introuvable
+      </p>
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto mt-10 p-6 bg-white shadow-md rounded-md">
-      <h1 className="text-3xl font-bold mb-6 text-blue-800 text-center">Modifier la formation</h1>
+
+      <h1 className="text-3xl font-bold mb-6 text-blue-800 text-center">
+        Modifier la formation
+      </h1>
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Titre */}
+
+        {/* TITRE */}
         <div>
           <label className="block font-medium mb-1">Titre</label>
           <input
             type="text"
             className="w-full border px-3 py-2 rounded-md"
-            value={formation.title}
-            onChange={(e) => setFormation({ ...formation, title: e.target.value })}
+            value={formation.title || ""}
+            onChange={(e) =>
+              setFormation({ ...formation, title: e.target.value })
+            }
           />
         </div>
 
-        {/* Description courte */}
+        {/* DESCRIPTION */}
         <div>
-          <label className="block font-medium mb-1">Description courte</label>
+          <label className="block font-medium mb-1">
+            Description courte
+          </label>
           <textarea
             rows={4}
-            className="w-full border px-3 py-2 rounded-md resize-none"
-            value={formation.description}
-            onChange={(e) => setFormation({ ...formation, description: e.target.value })}
+            className="w-full border px-3 py-2 rounded-md"
+            value={formation.description || ""}
+            onChange={(e) =>
+              setFormation({ ...formation, description: e.target.value })
+            }
           />
         </div>
 
-        {/* Description complète */}
+        {/* FULL DESC */}
         <div>
-          <label className="block font-medium mb-1">Description complète</label>
+          <label className="block font-medium mb-1">
+            Description complète
+          </label>
           <textarea
             rows={6}
-            className="w-full border px-3 py-2 rounded-md resize-none"
-            value={formation.fullDescription}
-            onChange={(e) => setFormation({ ...formation, fullDescription: e.target.value })}
+            className="w-full border px-3 py-2 rounded-md"
+            value={formation.fullDescription || ""}
+            onChange={(e) =>
+              setFormation({
+                ...formation,
+                fullDescription: e.target.value,
+              })
+            }
           />
         </div>
 
-        {/* Lien préinscription */}
+        {/* LINK */}
         <div>
-          <label className="block font-medium mb-1">Lien préinscription</label>
+          <label className="block font-medium mb-1">
+            Lien préinscription
+          </label>
           <input
             type="text"
             className="w-full border px-3 py-2 rounded-md"
             value={formation.preinscriptionLink || ""}
-            onChange={(e) => setFormation({ ...formation, preinscriptionLink: e.target.value })}
+            onChange={(e) =>
+              setFormation({
+                ...formation,
+                preinscriptionLink: e.target.value,
+              })
+            }
           />
         </div>
 
-        {/* Image */}
+        {/* IMAGE */}
         <div>
           <label className="block font-medium mb-1">Image</label>
           <input type="file" className="w-full" onChange={handleImageChange} />
+
           {preview && (
-            <img src={preview} alt="Prévisualisation" className="mt-2 w-48 h-32 object-cover rounded-md" />
+            <img
+              src={preview}
+              alt="preview"
+              className="mt-2 w-48 h-32 object-cover rounded-md"
+            />
           )}
         </div>
 
-        {/* Formation à la demande */}
+        {/* ON DEMAND */}
         <div className="flex items-center">
           <input
             type="checkbox"
             id="onDemand"
             className="mr-2"
             checked={formation.onDemand || false}
-            onChange={(e) => setFormation({ ...formation, onDemand: e.target.checked })}
+            onChange={(e) =>
+              setFormation({
+                ...formation,
+                onDemand: e.target.checked,
+              })
+            }
           />
-          <label htmlFor="onDemand">Formation à la demande</label>
+          <label htmlFor="onDemand">
+            Formation à la demande
+          </label>
         </div>
 
-        {/* Bouton enregistrer */}
+        {/* SUBMIT */}
         <button
           type="submit"
           disabled={saving}
-          className="bg-blue-800 text-white px-6 py-2 rounded-md hover:bg-blue-600 transition w-full"
+          className="bg-blue-800 text-white px-6 py-2 rounded-md w-full"
         >
-          {saving ? "Enregistrement..." : "Enregistrer les modifications"}
+          {saving ? "Enregistrement..." : "Enregistrer"}
         </button>
+
       </form>
     </div>
   );

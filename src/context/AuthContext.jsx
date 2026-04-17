@@ -45,40 +45,78 @@ export const AuthProvider = ({ children }) => {
     return () => listener?.subscription?.unsubscribe();
   }, []);
 
-  // 🔥 RESET
+  // 🔥 RESET USER
   const resetUser = () => {
     setUser(null);
   };
 
-  // 🔥 LOAD USER + ROLE
+  // 🔥 LOAD USER FROM SUPABASE DB
   const loadUser = async (authUser) => {
     console.log("🟣 LOAD USER DB...");
 
-    const { data, error } = await supabase
-      .from("users")
-      .select("full_name, is_admin, is_approved, email")
-      .eq("email", authUser.email)
-      .maybeSingle();
+    try {
+      const { data, error } = await supabase
+        .from("users")
+        .select("id, full_name, email, is_admin, is_approved, is_blocked, login_count, last_login")
+        .eq("id", authUser.id)   // ✅ FIX IMPORTANT (PLUS EMAIL)
+        .maybeSingle();
 
-    if (error || !data) {
-      console.warn("⚠️ USER NOT FOUND IN DB");
+      if (error || !data) {
+        console.warn("⚠️ USER NOT FOUND IN DB");
+
+        setUser({
+          id: authUser.id,
+          email: authUser.email,
+          fullName: authUser.email,
+          isAdmin: false,
+          isApproved: false,
+          isBlocked: false,
+        });
+
+        return;
+      }
+
+      // 🚨 BLOCKED USER CHECK
+      if (data.is_blocked) {
+        console.warn("⛔ USER BLOCKED");
+
+        await supabase.auth.signOut();
+        resetUser();
+        return;
+      }
+
+      // 🔥 UPDATE LOGIN STATS (OPTIONNEL MAIS PRO)
+      await supabase
+        .from("users")
+        .update({
+          login_count: (data.login_count || 0) + 1,
+          last_login: new Date().toISOString(),
+        })
+        .eq("id", authUser.id);
+
       setUser({
-        ...authUser,
+        id: authUser.id,
+        email: data.email,
+        fullName: data.full_name,
+        isAdmin: Boolean(data.is_admin),
+        isApproved: Boolean(data.is_approved),
+        isBlocked: Boolean(data.is_blocked),
+      });
+
+      console.log("✅ USER LOADED:", data);
+
+    } catch (err) {
+      console.error("❌ LOAD USER ERROR:", err);
+
+      setUser({
+        id: authUser.id,
+        email: authUser.email,
+        fullName: authUser.email,
         isAdmin: false,
         isApproved: false,
+        isBlocked: false,
       });
-      return;
     }
-
-    setUser({
-      ...authUser,
-      fullName: data.full_name,
-      email: data.email,
-      isAdmin: Boolean(data.is_admin),
-      isApproved: Boolean(data.is_approved),
-    });
-
-    console.log("✅ USER LOADED:", data);
   };
 
   // 🔐 LOGIN
@@ -97,14 +135,13 @@ export const AuthProvider = ({ children }) => {
     resetUser();
   };
 
-  console.log("🧠 STATE:", { user, loading });
-
   return (
     <AuthContext.Provider
       value={{
         user,
         isAdmin: user?.isAdmin || false,
         isApproved: user?.isApproved || false,
+        isBlocked: user?.isBlocked || false,
         login,
         logout,
         loading,

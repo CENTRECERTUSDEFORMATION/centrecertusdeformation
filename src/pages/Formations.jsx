@@ -6,7 +6,8 @@ import { useAuth } from "../context/AuthContext";
 
 export default function Formations() {
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const { user } = useAuth();
+  const isAdmin = user?.isAdmin;
 
   const [formations, setFormations] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -34,10 +35,17 @@ export default function Formations() {
   }, []);
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Voulez-vous vraiment supprimer cette formation ?")) return;
+    if (!isAdmin) return toast.error("Accès refusé");
+
+    if (!window.confirm("Voulez-vous vraiment supprimer cette formation ?"))
+      return;
 
     try {
-      const { error } = await supabase.from("formations").delete().eq("id", id);
+      const { error } = await supabase
+        .from("formations")
+        .delete()
+        .eq("id", id);
+
       if (error) throw error;
 
       setFormations((prev) => prev.filter((f) => f.id !== id));
@@ -53,13 +61,17 @@ export default function Formations() {
     return supabase.storage.from("uploads").getPublicUrl(path).data.publicUrl;
   };
 
-  const filteredFormations = formations.filter((f) =>
-    `${f.title} ${f.description}`.toLowerCase().includes(searchTerm.toLowerCase())
+  const filtered = formations.filter((f) =>
+    `${f.title} ${f.description}`
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase())
   );
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
-      <h2 className="text-3xl font-bold text-blue-800 mb-6">📚 Nos Formations</h2>
+      <h2 className="text-3xl font-bold text-blue-800 mb-6">
+        📚 Nos Formations
+      </h2>
 
       <div className="flex justify-between items-center mb-4">
         <input
@@ -96,11 +108,14 @@ export default function Formations() {
           </thead>
 
           <tbody>
-            {filteredFormations.map((f) => (
+            {filtered.map((f) => (
               <tr key={f.id}>
                 <td>
                   {f.imageUrl ? (
-                    <img src={getImageUrl(f.imageUrl)} className="w-20 h-16" />
+                    <img
+                      src={getImageUrl(f.imageUrl)}
+                      className="w-20 h-16"
+                    />
                   ) : (
                     "—"
                   )}
@@ -124,7 +139,9 @@ export default function Formations() {
                 {isAdmin && (
                   <td>
                     <button
-                      onClick={() => navigate(`/modifier-formation/${f.id}`)}
+                      onClick={() =>
+                        navigate(`/modifier-formation/${f.id}`)
+                      }
                       className="bg-yellow-500 text-white px-2 py-1 mr-2"
                     >
                       Modifier
