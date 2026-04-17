@@ -11,19 +11,27 @@ export const AuthProvider = ({ children }) => {
 
   // 🔐 charger session
   useEffect(() => {
-    const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+    const init = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
 
-      if (session?.user) {
-        await loadUser(session.user);
+        if (session?.user) {
+          await loadUser(session.user);
+        } else {
+          setUser(null);
+          setIsAdmin(false);
+          setIsApproved(false);
+        }
+      } catch (err) {
+        console.error("Erreur session:", err);
+      } finally {
+        setLoading(false); // 🔥 IMPORTANT → évite blocage
       }
-
-      setLoading(false);
     };
 
-    getSession();
+    init();
 
-    // 🔁 listen auth changes
+    // 🔁 écoute changements auth
     const { data: listener } = supabase.auth.onAuthStateChange(
       async (_, session) => {
         if (session?.user) {
@@ -39,21 +47,33 @@ export const AuthProvider = ({ children }) => {
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  // 🔥 load user profile
+  // 🔥 charger profil user
   const loadUser = async (authUser) => {
-    setUser(authUser);
+    try {
+      setUser(authUser);
 
-    const { data } = await supabase
-      .from("users")
-      .select("is_admin, is_approved")
-      .eq("id", authUser.id)
-      .single();
+      const { data, error } = await supabase
+        .from("users")
+        .select("is_admin, is_approved")
+        .eq("id", authUser.id)
+        .single();
 
-    setIsAdmin(data?.is_admin || false);
-    setIsApproved(data?.is_approved || false);
+      if (error) {
+        console.error(error);
+        setIsAdmin(false);
+        setIsApproved(false);
+        return;
+      }
+
+      setIsAdmin(Boolean(data?.is_admin));
+      setIsApproved(Boolean(data?.is_approved));
+
+    } catch (err) {
+      console.error("Erreur loadUser:", err);
+    }
   };
 
-  // 🔑 LOGIN (Supabase Auth)
+  // 🔑 LOGIN
   const login = async (email, password) => {
     const { error } = await supabase.auth.signInWithPassword({
       email,
@@ -72,14 +92,16 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      isAdmin,
-      isApproved,
-      login,
-      logout,
-      loading
-    }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isAdmin,
+        isApproved,
+        login,
+        logout,
+        loading,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

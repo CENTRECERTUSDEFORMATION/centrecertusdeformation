@@ -3,12 +3,9 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 export default function Navbar() {
-  const { user, logout, loading } = useAuth();
+  const { user, isAdmin, isApproved, logout, loading } = useAuth();
 
   if (loading) return <div className="p-4">Chargement...</div>;
-
-  const isAdmin = user?.is_admin;
-  const isApproved = user?.is_approved;
 
   return (
     <div className="flex gap-4 p-4 bg-white shadow">
@@ -19,13 +16,16 @@ export default function Navbar() {
       <Link to="/contact">Contact</Link>
       <Link to="/actualite">Actualité</Link>
 
+      {/* 🔓 NON CONNECTÉ */}
       {!user && <Link to="/connexion">Connexion</Link>}
 
+      {/* 👤 USER */}
       {user && isApproved && !isAdmin && (
         <Link to="/espace-participant">Espace</Link>
       )}
 
-      {user && isAdmin && (
+      {/* 👨‍💼 ADMIN */}
+      {user && isAdmin && isApproved && (
         <>
           <Link to="/admin">Admin</Link>
           <Link to="/ajouter-formation">+ Formation</Link>
@@ -33,8 +33,11 @@ export default function Navbar() {
         </>
       )}
 
+      {/* 🚪 LOGOUT */}
       {user && (
-        <button onClick={logout}>Déconnexion</button>
+        <button onClick={logout} className="text-red-500">
+          Déconnexion
+        </button>
       )}
     </div>
   );
