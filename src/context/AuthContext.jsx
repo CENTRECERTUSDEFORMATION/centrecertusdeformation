@@ -9,45 +9,48 @@ export const AuthProvider = ({ children }) => {
   const [isApproved, setIsApproved] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // 🔐 charger session
   useEffect(() => {
     const init = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const sessionData = await supabase.auth.getSession();
+
+        const session = sessionData?.data?.session;
 
         if (session?.user) {
           await loadUser(session.user);
         } else {
-          setUser(null);
-          setIsAdmin(false);
-          setIsApproved(false);
+          resetUser();
         }
+
       } catch (err) {
-        console.error("Erreur session:", err);
+        console.error("Erreur Auth:", err);
+        resetUser();
       } finally {
-        setLoading(false); // 🔥 IMPORTANT → évite blocage
+        setLoading(false); // 🔥 IMPORTANT
       }
     };
 
     init();
 
-    // 🔁 écoute changements auth
     const { data: listener } = supabase.auth.onAuthStateChange(
       async (_, session) => {
         if (session?.user) {
           await loadUser(session.user);
         } else {
-          setUser(null);
-          setIsAdmin(false);
-          setIsApproved(false);
+          resetUser();
         }
       }
     );
 
-    return () => listener.subscription.unsubscribe();
+    return () => listener?.subscription?.unsubscribe();
   }, []);
 
-  // 🔥 charger profil user
+  const resetUser = () => {
+    setUser(null);
+    setIsAdmin(false);
+    setIsApproved(false);
+  };
+
   const loadUser = async (authUser) => {
     try {
       setUser(authUser);
@@ -58,22 +61,23 @@ export const AuthProvider = ({ children }) => {
         .eq("id", authUser.id)
         .single();
 
-      if (error) {
-        console.error(error);
+      if (error || !data) {
+        console.error("Erreur user:", error);
         setIsAdmin(false);
         setIsApproved(false);
         return;
       }
 
-      setIsAdmin(Boolean(data?.is_admin));
-      setIsApproved(Boolean(data?.is_approved));
+      setIsAdmin(data.is_admin === true);
+      setIsApproved(data.is_approved === true);
 
     } catch (err) {
       console.error("Erreur loadUser:", err);
+      setIsAdmin(false);
+      setIsApproved(false);
     }
   };
 
-  // 🔑 LOGIN
   const login = async (email, password) => {
     const { error } = await supabase.auth.signInWithPassword({
       email,
@@ -83,12 +87,9 @@ export const AuthProvider = ({ children }) => {
     if (error) throw error;
   };
 
-  // 🚪 LOGOUT
   const logout = async () => {
     await supabase.auth.signOut();
-    setUser(null);
-    setIsAdmin(false);
-    setIsApproved(false);
+    resetUser();
   };
 
   return (
