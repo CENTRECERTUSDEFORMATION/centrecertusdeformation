@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "react-toastify";
-import { useNavigate } from "react-router-dom";
-import logo from "../assets/logo-certus.png";
 
-const Connexion = () => {
-  const { login, user, role, loading: authLoading } = useAuth();
+export default function Connexion() {
+  const { login, isAdmin, isApproved } = useAuth();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
@@ -17,71 +16,67 @@ const Connexion = () => {
     setLoading(true);
 
     try {
+      // 🔐 login via Supabase
       await login(email, password);
-      toast.success("Connexion réussie !");
+
+      // ⚠️ attendre chargement du contexte
+      setTimeout(() => {
+        if (!isApproved) {
+          toast.error("Votre compte n'est pas encore approuvé");
+          navigate("/");
+          return;
+        }
+
+        if (isAdmin) {
+          toast.success("Bienvenue Admin 👨‍💼");
+          navigate("/admin");
+        } else {
+          toast.success("Connexion réussie 👤");
+          navigate("/espace-participant");
+        }
+      }, 300);
+
     } catch (err) {
-      toast.error("Email ou mot de passe incorrect");
+      console.error(err);
+      toast.error(err.message || "Erreur de connexion");
     } finally {
       setLoading(false);
     }
   };
 
-  // 🔥 REDIRECTION PROPRE (IMPORTANT)
-  useEffect(() => {
-    if (!user) return;
-
-    if (role === "admin") {
-      navigate("/admin");
-    } else {
-      navigate("/espace-participant");
-    }
-  }, [user, role, navigate]);
-
   return (
-    <>
-      <header className="flex items-center gap-4 p-6 border-b max-w-md mx-auto mt-10">
-        <img src={logo} alt="Logo Certus" className="h-12 w-auto" />
-        <div>
-          <h1 className="text-2xl font-bold text-blue-800">
-            CENTRE CERTUS DE FORMATION
-          </h1>
-          <p className="text-sm text-gray-600">
-            Structure privée - N° 52-193-17
-          </p>
-        </div>
-      </header>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="w-full max-w-md bg-white p-8 rounded-lg shadow-lg">
+        <h1 className="text-2xl font-bold mb-6 text-center">Connexion</h1>
 
-      <main className="max-w-sm mx-auto p-6">
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form onSubmit={handleSubmit} className="space-y-5">
           <input
             type="email"
+            placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            className="w-full border px-3 py-2 rounded-md"
             required
-            placeholder="Email"
-            className="w-full p-2 border rounded"
           />
 
           <input
             type="password"
+            placeholder="Mot de passe"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            className="w-full border px-3 py-2 rounded-md"
             required
-            placeholder="Mot de passe"
-            className="w-full p-2 border rounded"
           />
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
+            className="w-full bg-blue-800 text-white py-2 rounded-md hover:bg-blue-600"
           >
             {loading ? "Connexion..." : "Se connecter"}
           </button>
         </form>
-      </main>
-    </>
+      </div>
+    </div>
   );
-};
-
-export default Connexion;
+}
