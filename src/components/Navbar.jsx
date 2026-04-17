@@ -16,7 +16,14 @@ export default function Navbar() {
     setMenuOpen(false);
   };
 
-  if (loading) return null;
+  // LOADING SAFE UI
+  if (loading) {
+    return (
+      <div className="h-16 flex items-center justify-center bg-white shadow">
+        Chargement...
+      </div>
+    );
+  }
 
   const showUserSpace = user && isApproved && !isAdmin;
   const showAdmin = user && isAdmin && isApproved;
@@ -29,14 +36,14 @@ export default function Navbar() {
       <Link onClick={toggleMenu} to="/contact">Contact</Link>
       <Link onClick={toggleMenu} to="/actualite">Actualité</Link>
 
-      {/* USER */}
+      {/* USER SPACE */}
       {showUserSpace && (
         <Link onClick={toggleMenu} to="/espace-participant">
           Espace
         </Link>
       )}
 
-      {/* ADMIN */}
+      {/* ADMIN MENU */}
       {showAdmin && (
         <>
           <Link className="text-green-600" onClick={toggleMenu} to="/admin">
@@ -100,7 +107,7 @@ export default function Navbar() {
 
       </div>
 
-      {/* MOBILE */}
+      {/* MOBILE MENU */}
       {menuOpen && (
         <div className="md:hidden border-t bg-white p-4 flex flex-col gap-4">
           <NavLinks />

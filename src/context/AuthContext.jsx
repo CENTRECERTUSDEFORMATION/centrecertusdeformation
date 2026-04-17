@@ -11,21 +11,16 @@ export const AuthProvider = ({ children }) => {
     const init = async () => {
       console.log("🔵 INIT AUTH...");
 
-      try {
-        const { data } = await supabase.auth.getSession();
-        const session = data?.session;
+      const { data } = await supabase.auth.getSession();
+      const session = data?.session;
 
-        if (session?.user) {
-          await loadUser(session.user);
-        } else {
-          resetUser();
-        }
-      } catch (err) {
-        console.error("❌ AUTH ERROR:", err);
+      if (session?.user) {
+        await loadUser(session.user);
+      } else {
         resetUser();
-      } finally {
-        setLoading(false);
       }
+
+      setLoading(false);
     };
 
     init();
@@ -39,74 +34,33 @@ export const AuthProvider = ({ children }) => {
         } else {
           resetUser();
         }
+
+        setLoading(false);
       }
     );
 
     return () => listener?.subscription?.unsubscribe();
   }, []);
 
-  // 🔥 RESET USER
+  // RESET USER
   const resetUser = () => {
     setUser(null);
   };
 
-  // 🔥 LOAD USER FROM SUPABASE DB
+  // LOAD USER FROM DB
   const loadUser = async (authUser) => {
-    console.log("🟣 LOAD USER DB...");
+    console.log("🟣 LOAD USER DB...", authUser.id);
 
-    try {
-      const { data, error } = await supabase
-        .from("users")
-        .select("id, full_name, email, is_admin, is_approved, is_blocked, login_count, last_login")
-        .eq("id", authUser.id)   // ✅ FIX IMPORTANT (PLUS EMAIL)
-        .maybeSingle();
+    const { data, error } = await supabase
+      .from("users")
+      .select("*")
+      .eq("id", authUser.id)
+      .maybeSingle();
 
-      if (error || !data) {
-        console.warn("⚠️ USER NOT FOUND IN DB");
+    console.log("DB RESULT:", data, error);
 
-        setUser({
-          id: authUser.id,
-          email: authUser.email,
-          fullName: authUser.email,
-          isAdmin: false,
-          isApproved: false,
-          isBlocked: false,
-        });
-
-        return;
-      }
-
-      // 🚨 BLOCKED USER CHECK
-      if (data.is_blocked) {
-        console.warn("⛔ USER BLOCKED");
-
-        await supabase.auth.signOut();
-        resetUser();
-        return;
-      }
-
-      // 🔥 UPDATE LOGIN STATS (OPTIONNEL MAIS PRO)
-      await supabase
-        .from("users")
-        .update({
-          login_count: (data.login_count || 0) + 1,
-          last_login: new Date().toISOString(),
-        })
-        .eq("id", authUser.id);
-
-      setUser({
-        id: authUser.id,
-        email: data.email,
-        fullName: data.full_name,
-        isAdmin: Boolean(data.is_admin),
-        isApproved: Boolean(data.is_approved),
-        isBlocked: Boolean(data.is_blocked),
-      });
-
-      console.log("✅ USER LOADED:", data);
-
-    } catch (err) {
-      console.error("❌ LOAD USER ERROR:", err);
+    if (error || !data) {
+      console.warn("❌ USER NOT FOUND IN DB");
 
       setUser({
         id: authUser.id,
@@ -116,10 +70,42 @@ export const AuthProvider = ({ children }) => {
         isApproved: false,
         isBlocked: false,
       });
+
+      return;
     }
+
+    // BLOCKED USER
+    if (data.is_blocked) {
+      console.warn("⛔ USER BLOCKED");
+      await supabase.auth.signOut();
+      resetUser();
+      return;
+    }
+
+    // UPDATE LOGIN STATS (OPTIONAL)
+    await supabase
+      .from("users")
+      .update({
+        login_count: (data.login_count || 0) + 1,
+        last_login: new Date().toISOString(),
+      })
+      .eq("id", authUser.id);
+
+    const finalUser = {
+      id: authUser.id,
+      email: data.email,
+      fullName: data.full_name,
+      isAdmin: data.is_admin === true,
+      isApproved: data.is_approved === true,
+      isBlocked: data.is_blocked === true,
+    };
+
+    console.log("✅ USER LOADED:", finalUser);
+
+    setUser(finalUser);
   };
 
-  // 🔐 LOGIN
+  // LOGIN
   const login = async (email, password) => {
     const { error } = await supabase.auth.signInWithPassword({
       email,
@@ -129,7 +115,7 @@ export const AuthProvider = ({ children }) => {
     if (error) throw error;
   };
 
-  // 🚪 LOGOUT
+  // LOGOUT
   const logout = async () => {
     await supabase.auth.signOut();
     resetUser();
