@@ -14,24 +14,22 @@ export const AuthProvider = ({ children }) => {
       console.log("🔵 INIT AUTH...");
 
       try {
-        const sessionData = await supabase.auth.getSession();
-        console.log("🟡 SESSION DATA:", sessionData);
-
-        const session = sessionData?.data?.session;
+        const { data } = await supabase.auth.getSession();
+        const session = data?.session;
 
         if (session?.user) {
           console.log("🟢 USER FOUND:", session.user);
-          await loadUser(session.user);
+          loadUser(session.user); // ❗ PAS de await (évite boucle)
         } else {
           console.log("🔴 NO SESSION USER");
           resetUser();
         }
 
       } catch (err) {
-        console.error("❌ ERREUR AUTH:", err);
+        console.error("❌ AUTH ERROR:", err);
         resetUser();
       } finally {
-        console.log("✅ SET LOADING FALSE");
+        console.log("✅ LOADING FALSE");
         setLoading(false);
       }
     };
@@ -39,12 +37,12 @@ export const AuthProvider = ({ children }) => {
     init();
 
     const { data: listener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         console.log("🔄 AUTH CHANGE:", event);
 
         if (session?.user) {
           console.log("🟢 USER CHANGE:", session.user);
-          await loadUser(session.user);
+          loadUser(session.user); // ❗ PAS await
         } else {
           console.log("🔴 USER LOGOUT");
           resetUser();
@@ -52,38 +50,42 @@ export const AuthProvider = ({ children }) => {
       }
     );
 
-    return () => listener?.subscription?.unsubscribe();
+    return () => {
+      listener?.subscription?.unsubscribe();
+    };
   }, []);
 
+  // 🔥 RESET USER
   const resetUser = () => {
     setUser(null);
     setIsAdmin(false);
     setIsApproved(false);
   };
 
+  // 🔥 LOAD USER FROM DB
   const loadUser = async (authUser) => {
     console.log("🟣 LOAD USER DB...");
 
-    try {
-      setUser(authUser);
+    setUser(authUser);
 
+    try {
       const { data, error } = await supabase
         .from("users")
         .select("is_admin, is_approved")
-        .eq("email", authUser.email) // 🔥 IMPORTANT (pas id)
-        .single();
+        .eq("email", authUser.email)
+        .maybeSingle(); // ✅ plus safe que single()
 
       console.log("📦 USER DB RESULT:", data);
 
       if (error || !data) {
-        console.error("❌ USER DB ERROR:", error);
+        console.warn("⚠️ USER NOT FOUND IN DB");
         setIsAdmin(false);
         setIsApproved(false);
         return;
       }
 
-      setIsAdmin(data.is_admin === true);
-      setIsApproved(data.is_approved === true);
+      setIsAdmin(Boolean(data.is_admin));
+      setIsApproved(Boolean(data.is_approved));
 
       console.log("✅ ADMIN:", data.is_admin, "APPROVED:", data.is_approved);
 
@@ -94,6 +96,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // 🔑 LOGIN
   const login = async (email, password) => {
     console.log("🔐 LOGIN...");
 
@@ -108,8 +111,9 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // 🚪 LOGOUT
   const logout = async () => {
-    console.log("🚪 LOGOUT");
+    console.log("🚪 LOGOUT...");
     await supabase.auth.signOut();
     resetUser();
   };
