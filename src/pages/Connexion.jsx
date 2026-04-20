@@ -1,46 +1,57 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "react-toastify";
 
 export default function Connexion() {
-  const { login, isAdmin, isApproved } = useAuth();
+  const { login, user, isAdmin, isApproved, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [loginRequested, setLoginRequested] = useState(false);
+
+  useEffect(() => {
+    if (!loginRequested || authLoading) return;
+
+    if (!user) {
+      setLoginRequested(false);
+      setSubmitting(false);
+      return;
+    }
+
+    if (!isApproved && !isAdmin) {
+      toast.error("Votre compte n'est pas encore approuve");
+      navigate("/");
+      setLoginRequested(false);
+      setSubmitting(false);
+      return;
+    }
+
+    if (isAdmin) {
+      toast.success("Bienvenue Admin");
+      navigate("/admin");
+    } else {
+      toast.success("Connexion reussie");
+      navigate("/espace-participant");
+    }
+
+    setLoginRequested(false);
+    setSubmitting(false);
+  }, [loginRequested, authLoading, user, isAdmin, isApproved, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
+    setSubmitting(true);
 
     try {
-      // 🔐 login via Supabase
       await login(email, password);
-
-      // ⚠️ attendre chargement du contexte
-      setTimeout(() => {
-        if (!isApproved) {
-          toast.error("Votre compte n'est pas encore approuvé");
-          navigate("/");
-          return;
-        }
-
-        if (isAdmin) {
-          toast.success("Bienvenue Admin 👨‍💼");
-          navigate("/admin");
-        } else {
-          toast.success("Connexion réussie 👤");
-          navigate("/espace-participant");
-        }
-      }, 300);
-
+      setLoginRequested(true);
     } catch (err) {
       console.error(err);
       toast.error(err.message || "Erreur de connexion");
-    } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
@@ -70,10 +81,10 @@ export default function Connexion() {
 
           <button
             type="submit"
-            disabled={loading}
-            className="w-full bg-blue-800 text-white py-2 rounded-md hover:bg-blue-600"
+            disabled={submitting || authLoading}
+            className="w-full bg-blue-800 text-white py-2 rounded-md hover:bg-blue-600 disabled:opacity-60"
           >
-            {loading ? "Connexion..." : "Se connecter"}
+            {submitting ? "Connexion..." : "Se connecter"}
           </button>
         </form>
       </div>
