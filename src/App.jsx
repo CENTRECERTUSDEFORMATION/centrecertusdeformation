@@ -16,7 +16,6 @@ const AproposDeCertus = lazy(() => import("./pages/AproposDeCertus"));
 const Actualite = lazy(() => import("./pages/Actualite"));
 const Inscription = lazy(() => import("./pages/Inscription"));
 const ModifierFormation = lazy(() => import("./pages/ModifierFormation"));
-const Paiement = lazy(() => import("./pages/Paiement"));
 const TableauDeBordAdmin = lazy(() => import("./pages/TableauDeBordAdmin"));
 const AdminUsers = lazy(() => import("./pages/AdminUsers"));
 
@@ -24,12 +23,9 @@ export default function App() {
   return (
     <BrowserRouter>
 
-      {/* ✅ NAVBAR toujours visible */}
       <Navbar />
 
-      {/* ⏳ Lazy loading */}
       <Suspense fallback={<div className="text-center py-10">Chargement...</div>}>
-
         <Routes>
 
           {/* 🌍 PUBLIC */}
@@ -39,7 +35,6 @@ export default function App() {
           <Route path="/a-propos" element={<AproposDeCertus />} />
           <Route path="/actualite" element={<Actualite />} />
           <Route path="/inscription" element={<Inscription />} />
-          <Route path="/paiement" element={<Paiement />} />
 
           {/* 📚 FORMATIONS */}
           <Route path="/formations" element={<Formations />} />
@@ -55,7 +50,7 @@ export default function App() {
             }
           />
 
-          {/* 🧑‍💼 ADMIN DASHBOARD */}
+          {/* 🧑‍💼 ADMIN */}
           <Route
             path="/admin"
             element={
@@ -65,7 +60,6 @@ export default function App() {
             }
           />
 
-          {/* 👥 ADMIN USERS */}
           <Route
             path="/admin/users"
             element={
@@ -75,12 +69,21 @@ export default function App() {
             }
           />
 
-          {/* ➕ ADMIN FORMATIONS */}
+          {/* ➕ ADMIN */}
           <Route
             path="/ajouter-formation"
             element={
               <PrivateRoute adminOnly>
                 <AjouterFormation />
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/ajouter-actualite"
+            element={
+              <PrivateRoute adminOnly>
+                <AjouterActualite />
               </PrivateRoute>
             }
           />
@@ -94,21 +97,10 @@ export default function App() {
             }
           />
 
-          {/* 📰 ADMIN ACTUALITES */}
-          <Route
-            path="/ajouter-actualite"
-            element={
-              <PrivateRoute adminOnly>
-                <AjouterActualite />
-              </PrivateRoute>
-            }
-          />
-
-          {/* 🔁 FALLBACK */}
-          <Route path="*" element={<Home />} />
+          {/* ❌ 404 */}
+          <Route path="*" element={<div className="text-center py-10">Page non trouvée</div>} />
 
         </Routes>
-
       </Suspense>
 
     </BrowserRouter>

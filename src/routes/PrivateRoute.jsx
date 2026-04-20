@@ -6,7 +6,7 @@ export default function PrivateRoute({ children, adminOnly = false }) {
   const { user, isAdmin, isApproved, loading } = useAuth();
   const location = useLocation();
 
-  // ⏳ loading
+  // ⏳ Chargement
   if (loading) {
     return (
       <div className="flex justify-center items-center h-40">
@@ -15,23 +15,21 @@ export default function PrivateRoute({ children, adminOnly = false }) {
     );
   }
 
-  // ❌ not logged in
+  // ❌ Non connecté
   if (!user) {
     return <Navigate to="/connexion" replace state={{ from: location }} />;
   }
 
-  // 👮 ADMIN ROUTE PROTECTION (PRIORITY)
-  if (adminOnly) {
-    if (!isAdmin) {
-      return <Navigate to="/espace-participant" replace />;
-    }
-    return children;
-  }
-
-  // 👤 USER APPROVAL CHECK (ONLY FOR NON ADMIN ROUTES)
-  if (!isAdmin && !isApproved) {
+  // 👮 Accès ADMIN uniquement
+  if (adminOnly && !isAdmin) {
     return <Navigate to="/espace-participant" replace />;
   }
 
+  // 👤 Utilisateur non approuvé (hors admin)
+  if (!adminOnly && !isAdmin && !isApproved) {
+    return <Navigate to="/espace-participant" replace />;
+  }
+
+  // ✅ Accès autorisé
   return children;
 }
