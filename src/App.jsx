@@ -1,9 +1,6 @@
 import React, { Suspense, lazy } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Navbar from "./components/Navbar";
-import { AuthProvider } from "./context/AuthContext";
-import { FormationsProvider } from "./context/FormationsContext";
-import { ActualitesProvider } from "./context/ActualitesContext";
 import PrivateRoute from "./routes/PrivateRoute";
 
 // Pages
@@ -23,15 +20,12 @@ const Paiement = lazy(() => import("./pages/Paiement"));
 const TableauDeBordAdmin = lazy(() => import("./pages/TableauDeBordAdmin"));
 const AdminUsers = lazy(() => import("./pages/AdminUsers"));
 
-/* ---------------- APP CONTENT ---------------- */
-function AppContent() {
+export default function App() {
   return (
     <BrowserRouter>
 
-      {/* Navbar dans Suspense SAFE */}
-      <Suspense fallback={null}>
-        <Navbar />
-      </Suspense>
+      {/* ✅ Navbar toujours visible */}
+      <Navbar />
 
       <Suspense fallback={<div className="text-center py-10">Chargement...</div>}>
 
@@ -70,7 +64,7 @@ function AppContent() {
             }
           />
 
-          {/* 👥 USERS ADMIN */}
+          {/* 👥 USERS */}
           <Route
             path="/admin/users"
             element={
@@ -109,7 +103,7 @@ function AppContent() {
             }
           />
 
-          {/* fallback */}
+          {/* 🔁 FALLBACK */}
           <Route path="*" element={<Home />} />
 
         </Routes>
@@ -117,18 +111,5 @@ function AppContent() {
       </Suspense>
 
     </BrowserRouter>
-  );
-}
-
-/* ---------------- ROOT ---------------- */
-export default function App() {
-  return (
-    <AuthProvider>
-      <FormationsProvider>
-        <ActualitesProvider>
-          <AppContent />
-        </ActualitesProvider>
-      </FormationsProvider>
-    </AuthProvider>
   );
 }
