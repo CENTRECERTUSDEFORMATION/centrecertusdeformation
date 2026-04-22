@@ -1,157 +1,175 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { useFormations } from "../context/FormationsContext";
-import { useActualites } from "../context/ActualitesContext";
+import { supabase } from "../supabaseClient";
 import { toast } from "react-toastify";
 
 const TableauDeBordAdmin = () => {
-  const { user, isAdmin } = useAuth(); // ✅ FIX ICI
-  const { formations, deleteFormation } = useFormations();
-  const { actualites, deleteActualite } = useActualites();
+  const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
 
+  const [formations, setFormations] = useState([]);
+  const [actualites, setActualites] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Charger les données
+  const fetchData = async () => {
+    setLoading(true);
+
+    // Charger formations
+    const { data: formationsData, error: formationsError } = await supabase
+      .from("formations")
+      .select("*")
+      .order("id", { ascending: false });
+
+    if (formationsError) {
+      console.error(formationsError);
+      toast.error("Erreur chargement formations");
+    } else {
+      setFormations(formationsData || []);
+    }
+
+    // Charger actualites
+    const { data: actualitesData, error: actualitesError } = await supabase
+      .from("actualites")
+      .select("*")
+      .order("id", { ascending: false });
+
+    if (actualitesError) {
+      console.error(actualitesError);
+      toast.error("Erreur chargement actualités");
+    } else {
+      setActualites(actualitesData || []);
+    }
+
+    setLoading(false);
+  };
+
+  // Supprimer une formation
+  const deleteFormation = async (id) => {
+    if (!window.confirm("Supprimer cette formation ?")) return;
+
+    const { error } = await supabase
+      .from("formations")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      toast.error("Erreur lors de la suppression");
+    } else {
+      setFormations((prev) => prev.filter((f) => f.id !== id));
+      toast.success("Formation supprimée");
+    }
+  };
+
+  // Supprimer une actualité
+  const deleteActualite = async (id) => {
+    if (!window.confirm("Supprimer cette actualité ?")) return;
+
+    const { error } = await supabase
+      .from("actualites")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      toast.error("Erreur lors de la suppression");
+    } else {
+      setActualites((prev) => prev.filter((a) => a.id !== id));
+      toast.success("Actualité supprimée");
+    }
+  };
+
+  // Vérification admin
   useEffect(() => {
     if (!user) {
-      toast.error("Veuillez vous connecter");
       navigate("/connexion");
       return;
     }
 
-    if (!isAdmin) { // ✅ FIX ICI
-      toast.error("Accès refusé");
+    if (!isAdmin) {
       navigate("/espace-participant");
+      return;
     }
-  }, [user, isAdmin, navigate]);
+
+    fetchData();
+  }, [user, isAdmin]);
 
   if (!user || !isAdmin) return null;
+  if (loading) return <p className="text-center mt-20">Chargement...</p>;
 
   return (
     <div className="max-w-6xl mx-auto p-4">
+      <h1 className="text-3xl font-bold mb-6">Dashboard Admin</h1>
 
-      {/* HEADER */}
-      <h1 className="text-3xl font-bold text-blue-800 mb-2">
-        Tableau de bord Administrateur
-      </h1>
-
-      <p className="mb-6 text-gray-600">
-        Bienvenue <strong>{user.email}</strong>
-      </p>
-
-      {/* 📊 STATS */}
-      <div className="grid md:grid-cols-3 gap-4 mb-8">
-
-        <div className="bg-blue-100 p-4 rounded shadow">
-          <h3 className="text-lg font-semibold">📚 Formations</h3>
-          <p className="text-3xl font-bold text-blue-800">
-            {formations.length}
-          </p>
-        </div>
-
-        <div className="bg-green-100 p-4 rounded shadow">
-          <h3 className="text-lg font-semibold">📰 Actualités</h3>
-          <p className="text-3xl font-bold text-green-700">
-            {actualites.length}
-          </p>
-        </div>
-
-        <div className="bg-gray-100 p-4 rounded shadow">
-          <h3 className="text-lg font-semibold">⚙️ Statut</h3>
-          <p className="text-green-600 font-bold">Admin actif</p>
-        </div>
-
-      </div>
-
-      {/* FORMATIONS */}
       <div className="grid md:grid-cols-2 gap-8">
-
-        <div className="border rounded p-4 shadow-sm">
-          <h2 className="text-2xl font-semibold mb-4">📚 Formations</h2>
+        {/* FORMATIONS */}
+        <div>
+          <h2 className="text-xl mb-2 font-semibold">Formations</h2>
 
           <button
             onClick={() => navigate("/ajouter-formation")}
-            className="mb-4 px-4 py-2 bg-green-600 text-white rounded"
+            className="mb-4 bg-green-600 text-white px-4 py-2 rounded"
           >
-            ➕ Ajouter une formation
+            ➕ Ajouter
           </button>
 
-          <ul className="space-y-2">
-            {formations.map((f) => (
-              <li
-                key={f._id}
-                className="flex justify-between items-center border p-2 rounded"
+          {formations.length === 0 ? (
+            <p className="text-gray-500">Aucune formation</p>
+          ) : (
+            formations.map((f) => (
+              <div
+                key={f.id}
+                className="flex justify-between items-center border p-2 mb-2 rounded"
               >
                 <span
                   className="cursor-pointer text-blue-600 hover:underline"
-                  onClick={() => navigate(`/modifier-formation/${f._id}`)}
+                  onClick={() => navigate(`/modifier-formation/${f.id}`)}
                 >
-                  {f.title}
+                  {f.title || f.titre}
                 </span>
 
                 <button
-                  onClick={async () => {
-                    if (window.confirm("Supprimer cette formation ?")) {
-                      try {
-                        await deleteFormation(f._id);
-                        toast.success("Formation supprimée !");
-                      } catch (err) {
-                        toast.error("Erreur lors de la suppression");
-                      }
-                    }
-                  }}
-                  className="px-2 py-1 bg-red-600 text-white rounded"
+                  onClick={() => deleteFormation(f.id)}
+                  className="bg-red-600 text-white px-2 py-1 rounded text-sm"
                 >
                   Supprimer
                 </button>
-              </li>
-            ))}
-          </ul>
+              </div>
+            ))
+          )}
         </div>
 
-        {/* ACTUALITÉS */}
-        <div className="border rounded p-4 shadow-sm">
-          <h2 className="text-2xl font-semibold mb-4">📰 Actualités</h2>
+        {/* ACTUALITES */}
+        <div>
+          <h2 className="text-xl mb-2 font-semibold">Actualités</h2>
 
           <button
             onClick={() => navigate("/ajouter-actualite")}
-            className="mb-4 px-4 py-2 bg-green-600 text-white rounded"
+            className="mb-4 bg-green-600 text-white px-4 py-2 rounded"
           >
-            ➕ Ajouter une actualité
+            ➕ Ajouter
           </button>
 
-          <ul className="space-y-2">
-            {actualites.map((a) => (
-              <li
-                key={a._id}
-                className="flex justify-between items-center border p-2 rounded"
+          {actualites.length === 0 ? (
+            <p className="text-gray-500">Aucune actualité</p>
+          ) : (
+            actualites.map((a) => (
+              <div
+                key={a.id}
+                className="flex justify-between items-center border p-2 mb-2 rounded"
               >
-                <span
-                  className="cursor-pointer text-blue-600 hover:underline"
-                  onClick={() => navigate(`/modifier-actualite/${a._id}`)}
-                >
-                  {a.titre}
-                </span>
+                <span>{a.titre}</span>
 
                 <button
-                  onClick={async () => {
-                    if (window.confirm("Supprimer cette actualité ?")) {
-                      try {
-                        await deleteActualite(a._id);
-                        toast.success("Actualité supprimée !");
-                      } catch (err) {
-                        toast.error("Erreur lors de la suppression");
-                      }
-                    }
-                  }}
-                  className="px-2 py-1 bg-red-600 text-white rounded"
+                  onClick={() => deleteActualite(a.id)}
+                  className="bg-red-600 text-white px-2 py-1 rounded text-sm"
                 >
                   Supprimer
                 </button>
-              </li>
-            ))}
-          </ul>
+              </div>
+            ))
+          )}
         </div>
-
       </div>
     </div>
   );

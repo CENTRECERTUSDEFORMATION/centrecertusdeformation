@@ -7,9 +7,15 @@ import logo from "../assets/logo-certus.png";
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const { user, isAdmin, isApproved, logout } = useAuth();
+  // ✅ PROTECTION MAX (évite menu vide + crash)
+  const auth = useAuth();
 
-  const toggleMenu = () => setMenuOpen(!menuOpen);
+  const user = auth?.user ?? null;
+  const isAdmin = auth?.isAdmin ?? false;
+  const isApproved = auth?.isApproved ?? false;
+  const logout = auth?.logout ?? (() => {});
+
+  const toggleMenu = () => setMenuOpen((prev) => !prev);
 
   const handleLogout = async () => {
     await logout();
@@ -45,31 +51,28 @@ export default function Navbar() {
           <Link to="/">Accueil</Link>
           <Link to="/a-propos">À propos</Link>
           <Link to="/formations">Formations</Link>
-          <Link to="/contact">Contact</Link>
           <Link to="/actualite">Actualité</Link>
+          <Link to="/contact">Contact</Link>
 
-          {/* 👤 USER (version SAFE) */}
-          {user && isApproved === true && isAdmin === false && (
-            <Link to="/espace-participant">
+          {/* USER */}
+          {user && isApproved && !isAdmin && (
+            <Link className="text-blue-700 font-medium" to="/espace-participant">
               Espace
             </Link>
           )}
 
-          {/* 👨‍💼 ADMIN (version SAFE) */}
-          {user && isAdmin === true && (
+          {/* ADMIN */}
+          {user && isAdmin && (
             <>
-              <Link className="text-green-600" to="/admin">
+              <Link className="text-green-600 font-semibold" to="/admin">
                 Admin
               </Link>
-
               <Link className="text-green-600" to="/admin/users">
                 Utilisateurs
               </Link>
-
               <Link className="text-green-600" to="/ajouter-formation">
                 + Formation
               </Link>
-
               <Link className="text-green-600" to="/ajouter-actualite">
                 + Actualité
               </Link>
@@ -86,9 +89,7 @@ export default function Navbar() {
               Déconnexion
             </button>
           )}
-
         </nav>
-
       </div>
 
       {/* MOBILE MENU */}
@@ -98,19 +99,18 @@ export default function Navbar() {
           <Link onClick={toggleMenu} to="/">Accueil</Link>
           <Link onClick={toggleMenu} to="/a-propos">À propos</Link>
           <Link onClick={toggleMenu} to="/formations">Formations</Link>
-          <Link onClick={toggleMenu} to="/contact">Contact</Link>
           <Link onClick={toggleMenu} to="/actualite">Actualité</Link>
+          <Link onClick={toggleMenu} to="/contact">Contact</Link>
 
-          {user && isApproved === true && isAdmin === false && (
+          {user && isApproved && !isAdmin && (
             <Link onClick={toggleMenu} to="/espace-participant">
-              Espace
+              Espace participant
             </Link>
           )}
 
-          {user && isAdmin === true && (
+          {user && isAdmin && (
             <>
               <hr />
-
               <Link onClick={toggleMenu} to="/admin">Admin</Link>
               <Link onClick={toggleMenu} to="/admin/users">Utilisateurs</Link>
               <Link onClick={toggleMenu} to="/ajouter-formation">+ Formation</Link>

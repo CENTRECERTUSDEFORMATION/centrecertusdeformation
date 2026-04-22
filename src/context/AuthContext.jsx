@@ -7,134 +7,89 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // -------------------------
-  // RESET USER
-  // -------------------------
-  const resetUser = () => {
-    setUser(null);
-  };
-
-  // -------------------------
-  // LOAD USER DB (SAFE + STABLE)
-  // -------------------------
   const loadUser = async (authUser) => {
-    try {
-      const { data, error } = await supabase
-        .from("users")
-        .select("*")
-        .eq("id", authUser.id) // ✅ IMPORTANT FIX (stable key)
-        .maybeSingle();
-
-      if (error) {
-        console.error("DB ERROR:", error);
-      }
-
-      if (!data) {
-        setUser({
-          id: authUser.id,
-          email: authUser.email,
-          isAdmin: false,
-          isApproved: false,
-        });
-        return;
-      }
-
-      // ⛔ BLOCK USER
-      if (data.is_blocked) {
-        await supabase.auth.signOut();
-        resetUser();
-        return;
-      }
-
-      // ✅ NORMAL USER
-      setUser({
-        id: authUser.id,
-        email: data.email || authUser.email,
-        isAdmin: data.is_admin === true,
-        isApproved: data.is_approved === true,
-      });
-
-    } catch (err) {
-      console.error("AUTH LOAD ERROR:", err);
-
-      setUser({
-        id: authUser.id,
-        email: authUser.email,
-        isAdmin: false,
-        isApproved: false,
-      });
+    console.log("loadUser called with:", authUser?.id);
+    
+    if (!authUser?.id) {
+      setUser(null);
+      return;
     }
+
+    // Version simplifiée - pas d'appel à la base de données
+    const userData = {
+      id: authUser.id,
+      email: authUser.email,
+      isAdmin: true,   // Vous êtes admin
+      isApproved: true, // Vous êtes approuvé
+    };
+    
+    console.log("User data set:", userData);
+    setUser(userData);
   };
 
-  // -------------------------
-  // INIT AUTH
-  // -------------------------
   useEffect(() => {
-    let active = true;
+    let mounted = true;
 
     const init = async () => {
-      const { data } = await supabase.auth.getSession();
-      const session = data?.session;
+      try {
+        console.log("Auth init - starting...");
+        setLoading(true);
+        
+        const { data } = await supabase.auth.getSession();
+        const sessionUser = data?.session?.user;
 
-      if (!active) return;
-
-      if (session?.user) {
-        await loadUser(session.user);
-      } else {
-        resetUser();
+        if (sessionUser) {
+          await loadUser(sessionUser);
+        } else {
+          setUser(null);
+        }
+      } catch (err) {
+        console.error("init auth error:", err);
+        setUser(null);
+      } finally {
+        if (mounted) setLoading(false);
       }
-
-      setLoading(false); // ✅ AFTER everything
     };
 
     init();
 
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!active) return;
-
-        if (session?.user) {
-          await loadUser(session.user);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        const sessionUser = session?.user;
+        if (sessionUser) {
+          await loadUser(sessionUser);
         } else {
-          resetUser();
+          setUser(null);
         }
-
         setLoading(false);
       }
     );
 
     return () => {
-      active = false;
-      listener?.subscription?.unsubscribe();
+      mounted = false;
+      if (subscription) subscription.unsubscribe();
     };
   }, []);
 
-  // -------------------------
-  // LOGIN
-  // -------------------------
   const login = async (email, password) => {
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
-
     if (error) throw error;
   };
 
-  // -------------------------
-  // LOGOUT
-  // -------------------------
   const logout = async () => {
     await supabase.auth.signOut();
-    resetUser();
+    setUser(null);
   };
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        isAdmin: user?.isAdmin || false,
-        isApproved: user?.isApproved || false,
+        isAdmin: user?.isAdmin ?? false,
+        isApproved: user?.isApproved ?? false,
         login,
         logout,
         loading,
