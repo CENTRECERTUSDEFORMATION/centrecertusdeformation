@@ -15,10 +15,12 @@ import {
   Legend,
   PointElement,
   LineElement,
+  Filler  // ← IMPORTANT : Ajouter Filler
 } from 'chart.js';
 import { Pie, Bar, Line, Doughnut } from 'react-chartjs-2';
 import { motion } from "framer-motion";
 
+// Enregistrer tous les composants nécessaires
 ChartJS.register(
   ArcElement,
   CategoryScale,
@@ -28,7 +30,8 @@ ChartJS.register(
   Tooltip,
   Legend,
   PointElement,
-  LineElement
+  LineElement,
+  Filler  // ← IMPORTANT : Enregistrer Filler
 );
 
 export default function StatisticsDashboard() {
@@ -162,6 +165,7 @@ export default function StatisticsDashboard() {
   const browserChartData = {
     labels: stats.browsers.slice(0, 5).map(b => b[0]),
     datasets: [{
+      label: 'Utilisateurs',
       data: stats.browsers.slice(0, 5).map(b => b[1]),
       backgroundColor: '#3b82f6',
     }]
@@ -175,6 +179,7 @@ export default function StatisticsDashboard() {
       borderColor: '#3b82f6',
       backgroundColor: 'rgba(59, 130, 246, 0.1)',
       fill: true,
+      tension: 0.4,
     }]
   };
 
@@ -186,6 +191,7 @@ export default function StatisticsDashboard() {
       borderColor: '#10b981',
       backgroundColor: 'rgba(16, 185, 129, 0.1)',
       fill: true,
+      tension: 0.4,
     }]
   };
 
@@ -247,12 +253,12 @@ export default function StatisticsDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         <div className="bg-white rounded-xl shadow-md p-6">
           <h3 className="font-semibold text-lg mb-4">Activité par heure</h3>
-          <Line data={hourlyChartData} options={{ responsive: true }} />
+          <Line data={hourlyChartData} options={{ responsive: true, maintainAspectRatio: true }} />
         </div>
         
         <div className="bg-white rounded-xl shadow-md p-6">
           <h3 className="font-semibold text-lg mb-4">Évolution quotidienne</h3>
-          <Line data={dailyChartData} options={{ responsive: true }} />
+          <Line data={dailyChartData} options={{ responsive: true, maintainAspectRatio: true }} />
         </div>
         
         <div className="bg-white rounded-xl shadow-md p-6">
@@ -271,7 +277,7 @@ export default function StatisticsDashboard() {
         
         <div className="bg-white rounded-xl shadow-md p-6">
           <h3 className="font-semibold text-lg mb-4">🌐 Navigateurs</h3>
-          <Bar data={browserChartData} options={{ responsive: true }} />
+          <Bar data={browserChartData} options={{ responsive: true, maintainAspectRatio: true }} />
         </div>
         
         <div className="bg-white rounded-xl shadow-md p-6">
