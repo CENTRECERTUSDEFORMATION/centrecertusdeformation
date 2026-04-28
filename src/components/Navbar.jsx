@@ -182,6 +182,16 @@ export default function Navbar() {
                 >
                   Utilisateurs
                 </Link>
+                <Link 
+                  to="/admin/statistics" 
+                  className={`px-3 py-2 rounded-lg transition-all duration-200 font-medium ${
+                    isActive("/admin/statistics") 
+                      ? "text-[#76c21f]" 
+                      : "text-gray-600 hover:text-[#76c21f]"
+                  }`}
+                >
+                  📊 Statistiques
+                </Link>
               </>
             )}
 
@@ -279,6 +289,9 @@ export default function Navbar() {
                   </Link>
                   <Link onClick={toggleMenu} to="/admin/users" className="px-3 py-2 text-[#76c21f] rounded-lg hover:bg-green-50 transition">
                     👥 Utilisateurs
+                  </Link>
+                  <Link onClick={toggleMenu} to="/admin/statistics" className="px-3 py-2 text-[#76c21f] rounded-lg hover:bg-green-50 transition">
+                    📊 Statistiques
                   </Link>
                 </>
               )}

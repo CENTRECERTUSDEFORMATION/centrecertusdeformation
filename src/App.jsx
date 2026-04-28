@@ -21,6 +21,7 @@ import AdminUsers from "./pages/AdminUsers";
 import AjouterFormation from "./pages/AjouterFormation";
 import AjouterActualite from "./pages/AjouterActualite";
 import ModifierFormation from "./pages/ModifierFormation";
+import StatisticsDashboard from "./pages/StatisticsDashboard";
 
 export default function App() {
   return (
@@ -48,6 +49,11 @@ export default function App() {
         <Route path="/admin/users" element={
           <PrivateRoute adminOnly>
             <AdminUsers />
+          </PrivateRoute>
+        } />
+        <Route path="/admin/statistics" element={
+          <PrivateRoute adminOnly>
+            <StatisticsDashboard />
           </PrivateRoute>
         } />
         <Route path="/ajouter-formation" element={
