@@ -5,6 +5,14 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { motion, AnimatePresence } from "framer-motion";
 
+// Couleurs officielles CERTUS
+const CERTUS_COLORS = [
+  { name: "Bleu Certus", hex: "#1a56db" },
+  { name: "Vert Certus", hex: "#76c21f" },
+  { name: "Orange Certus", hex: "#f59e0b" },
+  { name: "Noir Certus", hex: "#374151" }
+];
+
 export default function Actualite() {
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
@@ -14,32 +22,35 @@ export default function Actualite() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filteredActualites, setFilteredActualites] = useState([]);
   const [selectedImage, setSelectedImage] = useState(null);
-  const [selectedActualite, setSelectedActualite] = useState(null);
 
   useEffect(() => {
     const fetchActualites = async () => {
       setLoading(true);
 
-      const { data, error } = await supabase
-        .from("actualites")
-        .select("*")
-        .order("created_at", { ascending: false });
+      try {
+        const { data, error } = await supabase
+          .from("actualites")
+          .select("*")
+          .order("created_at", { ascending: false });
 
-      if (error) {
-        console.error(error);
-        toast.error("Erreur chargement actualités");
-      } else {
-        setActualites(data || []);
-        setFilteredActualites(data || []);
+        if (error) {
+          console.error(error);
+          toast.error("Erreur chargement actualités");
+        } else {
+          setActualites(data || []);
+          setFilteredActualites(data || []);
+        }
+      } catch (err) {
+        console.error("Erreur réseau:", err);
+        toast.error("Problème de connexion à Supabase");
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     };
 
     fetchActualites();
   }, []);
 
-  // Recherche
   useEffect(() => {
     if (searchTerm === "") {
       setFilteredActualites(actualites);
@@ -54,8 +65,12 @@ export default function Actualite() {
 
   const getImageUrl = (path) => {
     if (!path) return null;
-    const { data } = supabase.storage.from("uploads").getPublicUrl(path);
-    return data.publicUrl;
+    try {
+      const { data } = supabase.storage.from("uploads").getPublicUrl(path);
+      return data.publicUrl;
+    } catch (err) {
+      return null;
+    }
   };
 
   const handleDelete = async (id, imagesPaths) => {
@@ -63,13 +78,7 @@ export default function Actualite() {
     if (!window.confirm("Supprimer cette actualité ?")) return;
 
     if (imagesPaths && imagesPaths.length > 0) {
-      const { error: storageError } = await supabase.storage
-        .from("uploads")
-        .remove(imagesPaths);
-      
-      if (storageError) {
-        console.error("Erreur suppression images:", storageError);
-      }
+      await supabase.storage.from("uploads").remove(imagesPaths);
     }
 
     const { error } = await supabase
@@ -85,306 +94,245 @@ export default function Actualite() {
     }
   };
 
-  // Rendu des images superposées (style empilement)
-  const renderStackedImages = (images) => {
-    if (!images || images.length === 0) return null;
-    
-    const displayImages = images.slice(0, 4);
-    const remainingCount = images.length - 4;
-    
-    return (
-      <div className="relative h-48 w-full">
-        {displayImages.map((img, idx) => {
-          // Calcul des rotations et décalages pour effet polaroid
-          const rotations = [-6, -3, 3, 6];
-          const offsets = [8, 4, -4, -8];
-          const zIndex = idx;
-          
-          return (
-            <motion.div
-              key={idx}
-              initial={{ opacity: 0, scale: 0.9, rotate: 0 }}
-              animate={{ 
-                opacity: 1, 
-                scale: 1,
-                rotate: rotations[idx] || 0,
-                x: offsets[idx] || 0,
-                y: -Math.abs(offsets[idx]) / 2
-              }}
-              transition={{ delay: idx * 0.05, duration: 0.3 }}
-              whileHover={{ 
-                scale: 1.05, 
-                rotate: 0, 
-                x: 0, 
-                y: -10,
-                zIndex: 10,
-                transition: { duration: 0.2 }
-              }}
-              style={{ 
-                position: 'absolute',
-                left: `${idx * 12}px`,
-                top: `${idx * 8}px`,
-                zIndex: zIndex,
-                boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-              }}
-              className="bg-white p-2 rounded-lg cursor-pointer"
-              onClick={() => {
-                setSelectedActualite(null);
-                setSelectedImage({ images, index: idx });
-              }}
-            >
-              <img
-                src={getImageUrl(img)}
-                alt={`Image ${idx + 1}`}
-                className="w-40 h-32 object-cover rounded"
-              />
-            </motion.div>
-          );
-        })}
-        
-        {/* Indicateur d'images supplémentaires */}
-        {remainingCount > 0 && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            style={{ 
-              position: 'absolute',
-              left: `${displayImages.length * 12}px`,
-              top: `${displayImages.length * 8}px`,
-              zIndex: displayImages.length
-            }}
-            className="bg-gray-800 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold"
-          >
-            +{remainingCount}
-          </motion.div>
-        )}
-      </div>
-    );
+  const applyTextColor = async (id, colorHex) => {
+    try {
+      const { error } = await supabase
+        .from("actualites")
+        .update({ text_color: colorHex })
+        .eq("id", id);
+
+      if (error) {
+        console.error("Erreur Supabase:", error);
+        toast.error("Erreur lors de l'application");
+        return;
+      }
+
+      setActualites(prev => prev.map(a => 
+        a.id === id ? { ...a, text_color: colorHex } : a
+      ));
+      
+      setFilteredActualites(prev => prev.map(a => 
+        a.id === id ? { ...a, text_color: colorHex } : a
+      ));
+      
+      toast.success("Couleur appliquée !");
+    } catch (err) {
+      console.error(err);
+      toast.error("Erreur de connexion");
+    }
   };
 
   if (loading) return (
-    <div className="flex justify-center items-center h-64 mt-20">
-      <motion.div
-        animate={{ rotate: 360 }}
-        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-        className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full"
-      />
+    <div className="flex justify-center items-center h-96">
+      <div className="w-10 h-10 border-3 border-[#76c21f] border-t-transparent rounded-full animate-spin" />
     </div>
   );
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="p-6 mt-20"
-    >
-      <div className="max-w-6xl mx-auto">
-        {/* En-tête */}
-        <motion.div
-          initial={{ y: -20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.5 }}
-          className="flex justify-between items-center mb-8 flex-wrap gap-4"
-        >
-          <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            Actualités
-          </h2>
-          
-          {isAdmin && (
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition shadow-lg"
-              onClick={() => navigate("/ajouter-actualite")}
-            >
-              ➕ Ajouter une actualité
-            </motion.button>
-          )}
-        </motion.div>
-
-        {/* Barre de recherche */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.2, duration: 0.5 }}
-          className="mb-6"
-        >
-          <div className="relative max-w-md">
-            <input
-              type="text"
-              placeholder="🔍 Rechercher une actualité..."
-              className="w-full border border-gray-300 rounded-lg px-4 py-2 pl-10 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <svg
-              className="absolute left-3 top-2.5 w-5 h-5 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-screen bg-[#eff6ff] pt-20">
+      {/* Header - Bleu Certus */}
+      <div className="bg-[#1a56db] text-white shadow-md">
+        <div className="max-w-6xl mx-auto px-6 py-5">
+          <div className="flex justify-between items-center flex-wrap gap-4">
+            <div>
+              <h1 className="text-2xl font-bold">Actualités CERTUS</h1>
+              <p className="text-blue-100 text-sm mt-1">Devenez ce que vous avez choisi avec CERTUS</p>
+            </div>
+            
+            <div className="flex gap-3">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Rechercher..."
+                  className="bg-white/20 border border-white/30 rounded-lg px-4 py-2 pl-9 text-sm text-white placeholder:text-blue-200 focus:outline-none focus:ring-2 focus:ring-white/50"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+                <svg className="absolute left-3 top-2.5 w-4 h-4 text-blue-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              
+              {isAdmin && (
+                <button
+                  className="bg-[#76c21f] text-white px-4 py-2 rounded-lg hover:bg-[#5fa018] transition text-sm font-medium flex items-center gap-1"
+                  onClick={() => navigate("/ajouter-actualite")}
+                >
+                  <span className="text-lg">+</span> Nouvelle
+                </button>
+              )}
+            </div>
           </div>
-        </motion.div>
+        </div>
+      </div>
 
-        {/* Grille des actualités */}
+      <div className="max-w-6xl mx-auto px-6 py-8">
         {filteredActualites.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="text-center py-20"
-          >
-            <motion.div
-              animate={{ y: [0, -10, 0] }}
-              transition={{ duration: 2, repeat: Infinity }}
-              className="text-6xl mb-4"
-            >
-              📭
-            </motion.div>
+          <div className="text-center py-16 bg-white rounded-xl shadow-sm">
+            <div className="text-5xl mb-3">📭</div>
             <p className="text-gray-500">Aucune actualité trouvée</p>
-          </motion.div>
+          </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="space-y-5">
             <AnimatePresence>
               {filteredActualites.map((a, index) => (
-                <motion.div
+                <motion.article
                   key={a.id}
-                  initial={{ opacity: 0, y: 30 }}
+                  initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
-                  transition={{ duration: 0.4, delay: index * 0.05 }}
-                  whileHover={{ y: -8, transition: { duration: 0.2 } }}
-                  className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300"
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.3, delay: index * 0.05 }}
+                  className="bg-white rounded-xl border border-gray-100 overflow-hidden hover:shadow-lg transition-shadow"
                 >
-                  {/* Images superposées */}
-                  {a.images && a.images.length > 0 ? (
-                    <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-4">
-                      {renderStackedImages(a.images)}
+                  <div className="p-6">
+                    {/* En-tête avec date et boutons admin */}
+                    <div className="flex items-start justify-between gap-4 flex-wrap mb-3">
+                      <div className="flex items-center gap-2 text-xs text-gray-400">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        {a.created_at ? new Date(a.created_at).toLocaleDateString('fr-FR', {
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric'
+                        }) : 'Date inconnue'}
+                      </div>
+                      
+                      {/* Boutons admin - 4 boutons de couleur en ligne */}
+                      {isAdmin && (
+                        <div className="flex gap-2 items-center">
+                          <span className="text-xs text-gray-400 mr-1">Couleur:</span>
+                          {CERTUS_COLORS.map((color) => (
+                            <button
+                              key={color.hex}
+                              onClick={() => applyTextColor(a.id, color.hex)}
+                              className="w-8 h-8 rounded-full transition-transform hover:scale-110 shadow-sm border border-white"
+                              style={{ backgroundColor: color.hex }}
+                              title={color.name}
+                            />
+                          ))}
+                          <button
+                            onClick={() => handleDelete(a.id, a.images)}
+                            className="ml-2 text-red-400 hover:text-red-600 text-sm px-2 py-1 rounded-lg border border-gray-200 bg-white"
+                            title="Supprimer"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  ) : (
-                    <div className="h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-                      <span className="text-4xl">📰</span>
-                    </div>
-                  )}
-
-                  {/* Contenu */}
-                  <div className="p-4">
-                    <motion.h3 
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: index * 0.05 + 0.1 }}
-                      className="font-bold text-xl mb-2 line-clamp-2 text-gray-800"
+                    
+                    {/* Titre avec couleur */}
+                    <h2 
+                      className="text-xl font-bold mb-3"
+                      style={{ color: a.text_color || "#374151" }}
                     >
                       {a.titre}
-                    </motion.h3>
+                    </h2>
                     
-                    {a.contenu && (
-                      <motion.p 
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: index * 0.05 + 0.2 }}
-                        className="text-gray-600 text-sm line-clamp-3 mb-3"
-                      >
-                        {a.contenu}
-                      </motion.p>
-                    )}
-                    
-                    <motion.div 
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: index * 0.05 + 0.3 }}
-                      className="flex justify-between items-center"
-                    >
-                      <p className="text-xs text-gray-400">
-                        {a.created_at 
-                          ? new Date(a.created_at).toLocaleDateString('fr-FR', {
-                              day: 'numeric',
-                              month: 'long',
-                              year: 'numeric'
-                            })
-                          : "Date non disponible"}
-                      </p>
-                      
-                      {isAdmin && (
-                        <motion.button
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          className="bg-red-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-red-700 transition"
-                          onClick={() => handleDelete(a.id, a.images)}
+                    {/* Contenu avec couleur */}
+                    <div className="flex flex-col md:flex-row gap-5">
+                      <div className={`flex-1 ${a.images && a.images.length > 0 ? 'md:w-2/3' : 'w-full'}`}>
+                        <p 
+                          className="leading-relaxed whitespace-pre-line"
+                          style={{ color: a.text_color || "#374151" }}
                         >
-                          🗑️ Supprimer
-                        </motion.button>
+                          {a.contenu || "Aucun contenu"}
+                        </p>
+                      </div>
+                      
+                      {/* Images */}
+                      {a.images && a.images.length > 0 && (
+                        <div className="md:w-1/3">
+                          <div className="flex gap-2 flex-wrap">
+                            {a.images.slice(0, 3).map((img, idx) => (
+                              <img
+                                key={idx}
+                                src={getImageUrl(img)}
+                                alt={`Illustration ${idx + 1}`}
+                                className="w-24 h-24 object-cover rounded-lg cursor-pointer hover:opacity-90 transition border-2 border-[#1a56db]/20"
+                                onClick={() => setSelectedImage({ images: a.images, index: idx })}
+                              />
+                            ))}
+                            {a.images.length > 3 && (
+                              <div className="w-24 h-24 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-sm">
+                                +{a.images.length - 3}
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       )}
-                    </motion.div>
+                    </div>
                   </div>
-                </motion.div>
+                </motion.article>
               ))}
             </AnimatePresence>
           </div>
         )}
       </div>
 
-      {/* Modal pour afficher l'image en grand */}
-      {selectedImage && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
-          onClick={() => setSelectedImage(null)}
-        >
+      {/* Modal image */}
+      <AnimatePresence>
+        {selectedImage && (
           <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            className="relative max-w-4xl w-full"
-            onClick={(e) => e.stopPropagation()}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+            onClick={() => setSelectedImage(null)}
           >
-            <img
-              src={getImageUrl(selectedImage.images[selectedImage.index])}
-              alt="Agrandissement"
-              className="w-full rounded-lg shadow-2xl"
-            />
-            
-            {/* Navigation entre images */}
-            {selectedImage.images.length > 1 && (
-              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between px-4">
+            <motion.div
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.9 }}
+              className="relative max-w-4xl w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="bg-white rounded-xl p-2">
+                <img
+                  src={getImageUrl(selectedImage.images[selectedImage.index])}
+                  alt="Agrandissement"
+                  className="w-full rounded-lg"
+                />
+                
+                {selectedImage.images.length > 1 && (
+                  <>
+                    <button
+                      onClick={() => setSelectedImage({
+                        ...selectedImage,
+                        index: (selectedImage.index - 1 + selectedImage.images.length) % selectedImage.images.length
+                      })}
+                      className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full p-2 hover:bg-black/70 transition"
+                    >
+                      ◀
+                    </button>
+                    <button
+                      onClick={() => setSelectedImage({
+                        ...selectedImage,
+                        index: (selectedImage.index + 1) % selectedImage.images.length
+                      })}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full p-2 hover:bg-black/70 transition"
+                    >
+                      ▶
+                    </button>
+                  </>
+                )}
+                
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white px-3 py-1 rounded-full text-sm">
+                  {selectedImage.index + 1} / {selectedImage.images.length}
+                </div>
+                
                 <button
-                  onClick={() => setSelectedImage({
-                    ...selectedImage,
-                    index: (selectedImage.index - 1 + selectedImage.images.length) % selectedImage.images.length
-                  })}
-                  className="bg-black/50 text-white rounded-full p-2 hover:bg-black/70 transition"
+                  onClick={() => setSelectedImage(null)}
+                  className="absolute top-4 right-4 bg-black/50 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-black/70 transition"
                 >
-                  ◀
-                </button>
-                <button
-                  onClick={() => setSelectedImage({
-                    ...selectedImage,
-                    index: (selectedImage.index + 1) % selectedImage.images.length
-                  })}
-                  className="bg-black/50 text-white rounded-full p-2 hover:bg-black/70 transition"
-                >
-                  ▶
+                  ✕
                 </button>
               </div>
-            )}
-            
-            {/* Indicateur */}
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
-              {selectedImage.index + 1} / {selectedImage.images.length}
-            </div>
-            
-            <button
-              onClick={() => setSelectedImage(null)}
-              className="absolute top-4 right-4 bg-black/50 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-black/70 transition"
-            >
-              ✕
-            </button>
+            </motion.div>
           </motion.div>
-        </motion.div>
-      )}
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
