@@ -8,8 +8,8 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Liste des administrateurs (à maintenir manuellement)
-  const ADMIN_EMAILS = ["admin@certus.tn", "rim@certus.tn"];
+  // Liste des administrateurs - GARDER À JOUR
+  const ADMIN_EMAILS = ["admin@certus.tn", "rim@certus.tn", "ines@assist.tn"];
 
   useEffect(() => {
     let isMounted = true;
@@ -21,7 +21,6 @@ export const AuthProvider = ({ children }) => {
         const { data: { session } } = await supabase.auth.getSession();
         
         if (session?.user && isMounted) {
-          // Version simple et fiable - pas d'appel base
           setUser({
             id: session.user.id,
             email: session.user.email,
@@ -53,6 +52,7 @@ export const AuthProvider = ({ children }) => {
         } else if (event === "SIGNED_OUT" && isMounted) {
           setUser(null);
         }
+        setLoading(false);
       }
     );
 
@@ -86,6 +86,8 @@ export const AuthProvider = ({ children }) => {
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) throw new Error("useAuth must be used within AuthProvider");
+  if (!context) {
+    throw new Error("useAuth must be used within AuthProvider");
+  }
   return context;
 };
