@@ -1,11 +1,12 @@
 // frontend/src/App.jsx
-import React, { Suspense, lazy } from "react";
-import { Routes, Route } from "react-router-dom";
+import React, { Suspense, lazy, useEffect } from "react";
+import { Routes, Route, useLocation } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import Navbar from "./components/Navbar";
 import PrivateRoute from "./routes/PrivateRoute";
-import { AuthProvider } from "./context/AuthContext";
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import { trackingService } from "./services/TrackingService";
 
 // Loader component
 const PageLoader = () => (
@@ -31,9 +32,18 @@ const AjouterActualite = lazy(() => import("./pages/AjouterActualite"));
 const ModifierFormation = lazy(() => import("./pages/ModifierFormation"));
 const StatisticsDashboard = lazy(() => import("./pages/StatisticsDashboard"));
 
-export default function App() {
+// Composant interne pour le tracking
+function AppContent() {
+  const location = useLocation();
+  const { user } = useAuth();
+
+  useEffect(() => {
+    // Tracker chaque changement de page
+    trackingService.trackPageView(location.pathname, user?.email);
+  }, [location, user]);
+
   return (
-    <AuthProvider>
+    <>
       <Navbar />
       <Suspense fallback={<PageLoader />}>
         <Routes>
@@ -84,6 +94,14 @@ export default function App() {
         </Routes>
       </Suspense>
       <ToastContainer position="bottom-right" />
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
     </AuthProvider>
   );
 }

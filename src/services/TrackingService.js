@@ -15,23 +15,28 @@ class TrackingService {
     return sessionId;
   }
 
-  trackPageView(page, userEmail = null) {
-    // Non bloquant
-    setTimeout(async () => {
-      try {
-        await supabase
-          .from("tracking_page_views")
-          .insert([{
-            session_id: this.sessionId,
-            page_url: window.location.pathname,
-            page_title: page,
-            created_at: new Date().toISOString(),
-            user_email: userEmail
-          }]);
-      } catch (error) {
-        // Ignorer
+  async trackPageView(page, userEmail = null) {
+    try {
+      console.log("📊 Tracking page:", page);
+      
+      const { error } = await supabase
+        .from("tracking_page_views")
+        .insert([{
+          session_id: this.sessionId,
+          page_url: window.location.pathname,
+          page_title: page,
+          created_at: new Date().toISOString(),
+          user_email: userEmail
+        }]);
+      
+      if (error) {
+        console.error("Erreur tracking:", error);
+      } else {
+        console.log("✅ Visite enregistrée");
       }
-    }, 500);
+    } catch (err) {
+      console.error("Erreur tracking:", err);
+    }
   }
 }
 
