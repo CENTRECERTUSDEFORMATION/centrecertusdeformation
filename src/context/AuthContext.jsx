@@ -1,3 +1,4 @@
+// frontend/src/context/AuthContext.jsx
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 
@@ -7,48 +8,8 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const ADMINS = ["admin@certus.tn", "rim@certus.tn"];
-
-  const loadUser = async (sessionUser) => {
-    if (!sessionUser?.id) return null;
-
-    const fallbackUser = {
-      id: sessionUser.id,
-      email: sessionUser.email,
-      isAdmin: ADMINS.includes(sessionUser.email),
-      isApproved: true,
-      full_name: sessionUser.user_metadata?.full_name || sessionUser.email?.split("@")[0],
-    };
-
-    try {
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Timeout")), 3000)
-      );
-
-      const queryPromise = supabase
-        .from("users")
-        .select("is_admin, is_approved, full_name")
-        .eq("id", sessionUser.id)
-        .maybeSingle();
-
-      const result = await Promise.race([queryPromise, timeoutPromise]);
-      const { data: userData, error } = result;
-
-      if (!error && userData) {
-        return {
-          id: sessionUser.id,
-          email: sessionUser.email,
-          isAdmin: userData.is_admin === true,
-          isApproved: userData.is_approved === true,
-          full_name: userData.full_name,
-        };
-      }
-    } catch (err) {
-      console.log("⚠️ Timeout, fallback utilisé");
-    }
-
-    return fallbackUser;
-  };
+  // Liste des administrateurs (à maintenir manuellement)
+  const ADMIN_EMAILS = ["admin@certus.tn", "rim@certus.tn"];
 
   useEffect(() => {
     let isMounted = true;
@@ -56,14 +17,21 @@ export const AuthProvider = ({ children }) => {
     const initAuth = async () => {
       try {
         setLoading(true);
+        
         const { data: { session } } = await supabase.auth.getSession();
         
         if (session?.user && isMounted) {
-          const userData = await loadUser(session.user);
-          if (isMounted) setUser(userData);
+          // Version simple et fiable - pas d'appel base
+          setUser({
+            id: session.user.id,
+            email: session.user.email,
+            isAdmin: ADMIN_EMAILS.includes(session.user.email),
+            isApproved: true,
+            full_name: session.user.user_metadata?.full_name || session.user.email?.split("@")[0],
+          });
         }
       } catch (err) {
-        console.error(err);
+        console.error("Erreur:", err);
         setUser(null);
       } finally {
         if (isMounted) setLoading(false);
@@ -73,15 +41,17 @@ export const AuthProvider = ({ children }) => {
     initAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         if (event === "SIGNED_IN" && session?.user && isMounted) {
-          setLoading(true);
-          const userData = await loadUser(session.user);
-          if (isMounted) setUser(userData);
-          setLoading(false);
+          setUser({
+            id: session.user.id,
+            email: session.user.email,
+            isAdmin: ADMIN_EMAILS.includes(session.user.email),
+            isApproved: true,
+            full_name: session.user.user_metadata?.full_name || session.user.email?.split("@")[0],
+          });
         } else if (event === "SIGNED_OUT" && isMounted) {
           setUser(null);
-          setLoading(false);
         }
       }
     );
