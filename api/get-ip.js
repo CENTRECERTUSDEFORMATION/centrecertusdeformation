@@ -1,4 +1,4 @@
-// api/get-ip.js
+ 
 export default async function handler(req, res) {
   // Ajouter les headers CORS pour la sécurité
   res.setHeader('Access-Control-Allow-Origin', '*');
