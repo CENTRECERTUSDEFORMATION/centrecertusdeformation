@@ -43,20 +43,21 @@ class TrackingService {
   }
 
   async getCountry() {
-    // Vérifier si déjà en cache
-    if (sessionStorage.getItem('user_country')) {
-      return sessionStorage.getItem('user_country');
+    // Cache en sessionStorage
+    const cachedCountry = sessionStorage.getItem('user_country');
+    if (cachedCountry) {
+      return cachedCountry;
     }
     
     try {
       const response = await fetch('https://ipapi.co/json/');
       const data = await response.json();
-      const country = data.country_name || 'Inconnu';
+      const country = data.country_name || 'France';
       sessionStorage.setItem('user_country', country);
       return country;
     } catch (error) {
-      console.error("Erreur géolocalisation:", error);
-      return 'Inconnu';
+      console.warn('⚠️ Géolocalisation non disponible');
+      return 'France';
     }
   }
 
@@ -64,8 +65,6 @@ class TrackingService {
     try {
       const country = await this.getCountry();
       const { deviceType, browser, os } = this.deviceInfo;
-      
-      console.log("📊 Tracking:", { page, country, deviceType, browser });
       
       const { error } = await supabase
         .from("tracking_page_views")
@@ -82,12 +81,11 @@ class TrackingService {
         }]);
       
       if (error) {
-        console.error("❌ Erreur tracking:", error);
-      } else {
-        console.log("✅ Visite enregistrée - Pays:", country, "Appareil:", deviceType);
+        console.error('❌ Erreur tracking:', error.message);
       }
     } catch (err) {
-      console.error("❌ Erreur tracking:", err);
+      // Silencieux - ne pas bloquer l'utilisateur
+      console.debug('Tracking ignoré:', err.message);
     }
   }
 }
