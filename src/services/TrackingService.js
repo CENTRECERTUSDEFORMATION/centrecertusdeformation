@@ -43,20 +43,20 @@ class TrackingService {
   }
 
   async getCountry() {
-    // Cache en sessionStorage
-    const cachedCountry = sessionStorage.getItem('user_country');
-    if (cachedCountry) {
-      return cachedCountry;
+    // Vérifier si déjà en cache
+    if (sessionStorage.getItem('user_country')) {
+      return sessionStorage.getItem('user_country');
     }
     
     try {
-      const response = await fetch('https://ipapi.co/json/');
+      // Utiliser l'API route Vercel pour éviter CORS
+      const response = await fetch('/api/get-ip');
       const data = await response.json();
       const country = data.country_name || 'France';
       sessionStorage.setItem('user_country', country);
       return country;
     } catch (error) {
-      console.warn('⚠️ Géolocalisation non disponible');
+      console.warn('⚠️ Erreur géolocalisation:', error);
       return 'France';
     }
   }
