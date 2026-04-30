@@ -47,24 +47,10 @@ const images = [
 const testimonials = [
   { name: "Mariem Aouissaoui", role: "Stagiaire", text: "Formation au top ! J'ai beaucoup appris merci. Votre accompagnement et votre bienveillance m'ont beaucoup aidée.", rating: 5, date: "2026-04-29" },
   { name: "Latifa Touzi", role: "Designer", text: "I learned graphic design and photography in this center and i really recommend it ❤️❤️", rating: 5, date: "2026-04-28" },
-  { name: "Sabrine Chalbi", role: "Designer Graphique", text: "Un grand merci au centre certus pour sa belle expérience. J'étudie 2 pack de design graphique et assistant manager. Je suis très satisfaite ✨", rating: 5, date: "2026-04-27" },
+  { name: "Sabrine Chalbi", role: "Designer Graphique", text: "Un grand merci au centre certus pour sa belle expérience. J'étudie 2 pack de design graphique et assistant manager.", rating: 5, date: "2026-04-27" },
   { name: "Màrîem Bâchâ", role: "Stagiaire", text: "Votre accompagnement et votre bienveillance m'ont beaucoup aidée. Merci de tout cœur.", rating: 5, date: "2026-04-26" },
-  { name: "Ahmed Ben Slimane", role: "Développeur Web", text: "Excellente formation ! Les formateurs sont très compétents et à l'écoute. Je recommande vivement.", rating: 5, date: "2026-04-25" },
-  { name: "Nour Chaker", role: "Chef de projet", text: "Une expérience enrichissante avec des professionnels passionnés. Merci CERTUS !", rating: 5, date: "2026-04-24" },
-  { name: "Mhamed Zaoui", role: "Ingénieur", text: "Formation de qualité, formateurs experts. Je recommande cette centre à 100%", rating: 5, date: "2026-04-23" },
-  { name: "Houda Mansour", role: "Consultante", text: "Une équipe à l'écoute et des formations adaptées aux besoins du marché. Merci !", rating: 5, date: "2026-04-22" },
-  { name: "Belsem Mansour", role: "Manager", text: "vous êtes les meilleurs 😉 excellent travail , bravo", rating: 5, date: "2026-04-21" },
-  { name: "Hichem Harrabi", role: "Entrepreneur", text: "Bonne continuation mes chers, vous faites un travail remarquable !", rating: 5, date: "2026-04-20" },
-  { name: "Walid Ben Amor", role: "Technicien", text: "Formation très enrichissante, je recommande vivement CERTUS.", rating: 5, date: "2026-04-19" },
-  { name: "Sonia Mejri", role: "Comptable", text: "Super centre de formation, professionnel et à l'écoute.", rating: 5, date: "2026-04-18" },
-  { name: "Khaled Trabelsi", role: "Chef d'entreprise", text: "Nos équipes ont beaucoup apprécié la formation. Merci CERTUS !", rating: 5, date: "2026-04-17" },
-  { name: "Ines Hammami", role: "Marketing Digital", text: "Formation complète et très pratique. Je suis ravie !", rating: 5, date: "2026-04-16" },
-  { name: "Fares Ben Ali", role: "Développeur", text: "Les formateurs sont des experts dans leur domaine. Excellente expérience.", rating: 5, date: "2026-04-15" },
-  { name: "Mouna Karray", role: "Designer UX/UI", text: "J'ai acquis des compétences solides. Merci CERTUS !", rating: 5, date: "2026-04-14" },
-  { name: "Riadh Chaabane", role: "Data Analyst", text: "Formation à la pointe de la technologie. Très satisfait.", rating: 5, date: "2026-04-13" },
-  { name: "Olfa Ben Salem", role: "RH", text: "Un grand professionnalisme et un suivi personnalisé.", rating: 5, date: "2026-04-12" },
-  { name: "Seif Eddine", role: "Étudiant", text: "Je recommande CERTUS pour tous ceux qui veulent se former.", rating: 5, date: "2026-04-11" },
-  { name: "Amira Bouazizi", role: "Graphiste", text: "Formation complète et formateurs passionnés !", rating: 5, date: "2026-04-10" },
+  { name: "Ahmed Ben Slimane", role: "Développeur Web", text: "Excellente formation ! Les formateurs sont très compétents.", rating: 5, date: "2026-04-25" },
+  { name: "Nour Chaker", role: "Chef de projet", text: "Une expérience enrichissante avec des professionnels passionnés.", rating: 5, date: "2026-04-24" },
 ];
 
 const services = [
@@ -77,21 +63,21 @@ const services = [
 ];
 
 const servicesDetail = [
-  { icon: "💻", title: "Digital & Web", desc: "Développement web, marketing digital, e-commerce" },
+  { icon: "💻", title: "Digital & Web", desc: "Développement web, marketing digital" },
   { icon: "📊", title: "Data & IA", desc: "Science des données, intelligence artificielle" },
-  { icon: "🎨", title: "Design & Créativité", desc: "UI/UX design, graphisme, motion design" },
-  { icon: "📈", title: "Management & Leadership", desc: "Gestion d'équipe, prise de parole" },
-  { icon: "💰", title: "Finance & Comptabilité", desc: "Gestion financière, comptabilité" },
-  { icon: "🌱", title: "Énergies renouvelables", desc: "Développement durable, green tech" },
+  { icon: "🎨", title: "Design & Créativité", desc: "UI/UX design, graphisme" },
+  { icon: "📈", title: "Management & Leadership", desc: "Gestion d'équipe" },
+  { icon: "💰", title: "Finance & Comptabilité", desc: "Gestion financière" },
+  { icon: "🌱", title: "Énergies renouvelables", desc: "Développement durable" },
 ];
 
 const partners = [
   { name: "GRAVIC Tunitec", logo: "/logo_references/gravictunitec_logo.jpg" },
   { name: "Thyna Petroleum Services", logo: "/logo_references/tps.jpg" },
   { name: "BETI Moknine", logo: "/logo_references/beti-moknine.png" },
-  { name: "Mauritanie Airlines", logo: "/logo_references/mauritainia-airlines.png" },
+  { name: "Mauritania Airlines", logo: "/logo_references/mauritainia-airlines.png" },
   { name: "POLYCLINIQUE OKBA", logo: "/logo_references/polyclinique-okba.jpg" },
-  { name: "Draexlmaier", logo: "/logo_references/draexelmaier.png" },
+  { name: "DRÄXLMAIER Tunisie", logo: "/logo_references/draexelmaier.png" },
   { name: "Agil", logo: "/logo_references/Agil_Logo.gif" },
   { name: "SARTEX Monastir", logo: "/logo_references/sartex.png" },
   { name: "ALSICO Tunisia", logo: "/logo_references/alsico.jpg" },
@@ -196,7 +182,7 @@ const Home = () => {
             DEVENEZ CE QUE VOUS AVEZ CHOISI AVEC CERTUS
           </motion.p>
           <motion.p className="text-white text-base md:text-lg max-w-2xl" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.6, duration: 1 }}>
-            Centre de formation professionnelle au centre ville de Monastir, Tunisie. Innovation, excellence et performance au cœur de votre réussite.
+            Centre de formation professionnelle au centre ville de Monastir, Tunisie.
           </motion.p>
           <motion.div className="flex flex-wrap gap-4 justify-center mt-8" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.9 }}>
             <button onClick={() => navigate('/formations')} className="px-8 py-3 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-full font-semibold hover:shadow-lg hover:scale-105 transition-all duration-300">
@@ -228,16 +214,16 @@ const Home = () => {
       <div className="py-16">
         <div className="max-w-6xl mx-auto px-4">
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-12">
-            <span className="text-blue-600 font-semibold text-sm uppercase tracking-wider">À propos</span>
+            <span className="text-blue-600 font-semibold text-sm uppercase">À propos</span>
             <h2 className="text-3xl md:text-4xl font-bold mt-2 mb-4">Pourquoi choisir CERTUS ?</h2>
             <div className="w-20 h-1 bg-blue-500 mx-auto rounded-full" />
           </motion.div>
           <p className="text-gray-600 text-center max-w-3xl mx-auto mb-12 leading-relaxed">
-            Fondé en 2017, CERTUS propose des formations professionnalisantes dans des domaines clés tels que le digital, l'informatique, la comptabilité, le design ou encore les énergies renouvelables. Grâce à une pédagogie active et des formateurs expérimentés, nous accompagnons particuliers et entreprises vers l'excellence.
+            Fondé en 2017, CERTUS propose des formations professionnalisantes dans des domaines clés.
           </p>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {services.map((service, i) => (
-              <motion.div key={i} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1, duration: 0.5 }} viewport={{ once: true }} whileHover={{ y: -8 }} className="bg-white rounded-2xl shadow-lg p-6 text-center border border-gray-100 hover:shadow-xl transition-all duration-300">
+              <motion.div key={i} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1, duration: 0.5 }} viewport={{ once: true }} whileHover={{ y: -8 }} className="bg-white rounded-2xl shadow-lg p-6 text-center">
                 <div className="text-5xl mb-4">{service.icon}</div>
                 <h3 className="text-lg font-bold text-gray-800 mb-2">{service.title}</h3>
                 <p className="text-gray-500 text-sm">{service.desc}</p>
@@ -251,7 +237,7 @@ const Home = () => {
       <div className="py-16 bg-gray-50">
         <div className="max-w-6xl mx-auto px-4">
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-12">
-            <span className="text-blue-600 font-semibold text-sm uppercase tracking-wider">Galerie</span>
+            <span className="text-blue-600 font-semibold text-sm uppercase">Galerie</span>
             <h2 className="text-3xl md:text-4xl font-bold mt-2 mb-4">Découvrez nos formations</h2>
             <div className="w-20 h-1 bg-blue-500 mx-auto rounded-full" />
           </motion.div>
@@ -272,14 +258,14 @@ const Home = () => {
       {/* NOS SERVICES */}
       <div className="py-16">
         <div className="max-w-6xl mx-auto px-4">
-          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-12">
-            <span className="text-blue-600 font-semibold text-sm uppercase tracking-wider">Expertise</span>
+          <motion.div className="text-center mb-12">
+            <span className="text-blue-600 font-semibold text-sm uppercase">Expertise</span>
             <h2 className="text-3xl md:text-4xl font-bold mt-2 mb-4">Nos services</h2>
             <div className="w-20 h-1 bg-blue-500 mx-auto rounded-full" />
           </motion.div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {servicesDetail.map((service, i) => (
-              <motion.div key={i} initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1, duration: 0.5 }} viewport={{ once: true }} whileHover={{ x: 5 }} className="flex items-start gap-4 p-4 rounded-xl hover:bg-blue-50 transition-all duration-300">
+              <motion.div key={i} className="flex items-start gap-4 p-4 rounded-xl hover:bg-blue-50 transition-all duration-300">
                 <div className="text-3xl">{service.icon}</div>
                 <div><h3 className="font-bold text-gray-800">{service.title}</h3><p className="text-sm text-gray-500">{service.desc}</p></div>
               </motion.div>
@@ -291,8 +277,8 @@ const Home = () => {
       {/* TEMOIGNAGES */}
       <div className="py-16 bg-gradient-to-r from-blue-50 to-indigo-50">
         <div className="max-w-6xl mx-auto px-4">
-          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-12">
-            <span className="text-blue-600 font-semibold text-sm uppercase tracking-wider">Avis</span>
+          <motion.div className="text-center mb-12">
+            <span className="text-blue-600 font-semibold text-sm uppercase">Avis</span>
             <h2 className="text-3xl md:text-4xl font-bold mt-2 mb-4">Ce que disent nos stagiaires</h2>
             <div className="w-20 h-1 bg-blue-500 mx-auto rounded-full" />
             <div className="inline-flex items-center gap-2 bg-white rounded-full px-6 py-3 mt-6 shadow-md">
@@ -301,41 +287,56 @@ const Home = () => {
               <span className="text-gray-500">({totalTestimonials} avis)</span>
             </div>
           </motion.div>
-          <Swiper spaceBetween={30} slidesPerView={1} breakpoints={{ 768: { slidesPerView: 2 }, 1024: { slidesPerView: 3 } }} autoplay={{ delay: 5000, disableOnInteraction: true }} pagination={{ clickable: true }} navigation={true} modules={[Autoplay, Pagination, Navigation]} className="pb-12">
+          <Swiper spaceBetween={30} slidesPerView={1} breakpoints={{ 768: { slidesPerView: 2 }, 1024: { slidesPerView: 3 } }} autoplay={{ delay: 5000 }} pagination={{ clickable: true }} navigation={true} modules={[Autoplay, Pagination, Navigation]} className="pb-12">
             {randomTestimonials.map((t, i) => (
               <SwiperSlide key={i}>
-                <motion.div className="bg-white rounded-2xl shadow-lg p-6 h-full flex flex-col">
+                <div className="bg-white rounded-2xl shadow-lg p-6 h-full flex flex-col">
                   <div className="flex gap-1 mb-4">{[...Array(t.rating)].map((_, j) => <span key={j} className="text-yellow-400 text-lg">★</span>)}</div>
                   <p className="text-gray-600 text-sm italic mb-4 flex-grow">“{t.text}”</p>
                   <div className="border-t border-gray-100 pt-4 mt-2">
                     <div className="flex items-center gap-3"><div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center"><span className="text-lg font-semibold text-blue-600">{t.name.charAt(0)}</span></div><div><p className="font-bold text-gray-800">{t.name}</p><p className="text-xs text-gray-500">{t.role}</p></div></div>
                     <p className="text-xs text-gray-400 mt-2">{new Date(t.date).toLocaleDateString('fr-FR')}</p>
                   </div>
-                </motion.div>
+                </div>
               </SwiperSlide>
             ))}
           </Swiper>
         </div>
       </div>
 
-      {/* ILS NOUS FONT CONFIANCE - DÉFILÉ DE LOGOS */}
-      <div className="py-16 overflow-hidden">
+      {/* ILS NOUS FONT CONFIANCE - LOGOS UNIFORMISÉS */}
+      <div className="py-16 overflow-hidden bg-gray-50">
         <div className="max-w-7xl mx-auto px-4">
           <motion.div className="text-center mb-12">
             <span className="text-blue-600 font-semibold text-sm uppercase tracking-wider">Partenaires</span>
             <h2 className="text-3xl md:text-4xl font-bold mt-2 mb-4">Ils nous font confiance</h2>
             <div className="w-20 h-1 bg-blue-500 mx-auto rounded-full" />
           </motion.div>
+
           <div className="relative overflow-hidden py-8">
             <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none"></div>
             <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none"></div>
-            <motion.div animate={{ x: ["0%", "-50%"] }} transition={{ duration: 40, repeat: Infinity, ease: "linear" }} className="flex gap-16 whitespace-nowrap">
+            
+            <motion.div animate={{ x: ["0%", "-50%"] }} transition={{ duration: 40, repeat: Infinity, ease: "linear" }} className="flex gap-12 whitespace-nowrap">
               {allPartners.map((partner, i) => (
-                <div key={i} className="inline-flex flex-col items-center justify-center w-48 mx-2">
-                  <div className="h-[200px] flex items-center justify-center">
-                    <img src={partner.logo} alt={partner.name} className="max-h-[180px] max-w-full object-contain" onError={(e) => { e.target.style.display = 'none'; const parent = e.target.parentElement; if (parent) parent.innerHTML = '<div class="text-6xl">🏢</div>'; }} />
+                <div key={i} className="inline-flex flex-col items-center justify-center w-36 mx-2">
+                  <div className="h-20 w-20 flex items-center justify-center bg-white rounded-xl shadow-sm p-2">
+                    <img
+                      src={partner.logo}
+                      alt={partner.name}
+                      className="max-w-full max-h-full object-contain"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        const parent = e.target.parentElement;
+                        if (parent) {
+                          parent.innerHTML = '<div class="text-3xl">🏢</div>';
+                        }
+                      }}
+                    />
                   </div>
-                  <p className="text-sm text-gray-600 mt-4 text-center font-medium">{partner.name}</p>
+                  <p className="text-xs text-gray-600 mt-3 text-center whitespace-normal font-medium line-clamp-2 max-w-[100px]">
+                    {partner.name}
+                  </p>
                 </div>
               ))}
             </motion.div>
@@ -374,12 +375,11 @@ const Home = () => {
                 <div><label className="block text-sm font-medium text-gray-700 mb-1">Nom complet *</label><input type="text" name="name" required value={devisData.name} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a56db]" placeholder="Jean Dupont" /></div>
                 <div><label className="block text-sm font-medium text-gray-700 mb-1">Email *</label><input type="email" name="email" required value={devisData.email} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a56db]" placeholder="jean.dupont@email.com" /></div>
                 <div><label className="block text-sm font-medium text-gray-700 mb-1">Téléphone</label><input type="tel" name="telephone" value={devisData.telephone} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a56db]" placeholder="06 12 34 56 78" /></div>
-                <div><label className="block text-sm font-medium text-gray-700 mb-1">Formation souhaitée</label><input type="text" name="formation" value={devisData.formation} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a56db]" placeholder="Ex: Développement Web, Design..." /></div>
-                <div><label className="block text-sm font-medium text-gray-700 mb-1">Message *</label><textarea name="message" required rows="4" value={devisData.message} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a56db] resize-none" placeholder="Décrivez votre projet de formation..." /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">Formation souhaitée</label><input type="text" name="formation" value={devisData.formation} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a56db]" placeholder="Ex: Développement Web" /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">Message *</label><textarea name="message" required rows="4" value={devisData.message} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a56db] resize-none" placeholder="Décrivez votre projet..." /></div>
                 <button type="submit" disabled={sendingDevis} className="w-full bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50">
                   {sendingDevis ? "Envoi en cours..." : "📩 Envoyer la demande"}
                 </button>
-                <p className="text-xs text-gray-400 text-center">En envoyant ce formulaire, vous acceptez d'être contacté par notre équipe.</p>
               </form>
             </motion.div>
           </motion.div>
