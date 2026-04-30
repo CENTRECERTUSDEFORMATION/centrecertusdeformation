@@ -1,3 +1,4 @@
+// frontend/src/components/Navbar.jsx
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Menu, X } from "lucide-react";
@@ -102,66 +103,94 @@ export default function Navbar() {
 
           {/* DESKTOP MENU */}
           <nav className="hidden md:flex items-center gap-1">
-            {/* Menu pour tous les utilisateurs */}
-            <Link 
-              to="/" 
-              className={`px-3 py-2 rounded-lg transition-all duration-200 font-medium ${
-                isActive("/") 
-                  ? "text-[#1a56db]" 
-                  : "text-gray-600 hover:text-[#1a56db]"
-              }`}
-            >
-              Accueil
-            </Link>
             
-            <Link 
-              to="/a-propos" 
-              className={`px-3 py-2 rounded-lg transition-all duration-200 font-medium ${
-                isActive("/a-propos") 
-                  ? "text-[#1a56db]" 
-                  : "text-gray-600 hover:text-[#1a56db]"
-              }`}
-            >
-              À propos
-            </Link>
+            {/* MENU POUR NON ADMIN (utilisateurs normaux) */}
+            {!isAdmin && (
+              <>
+                <Link 
+                  to="/" 
+                  className={`px-3 py-2 rounded-lg transition-all duration-200 font-medium ${
+                    isActive("/") 
+                      ? "text-[#1a56db]" 
+                      : "text-gray-600 hover:text-[#1a56db]"
+                  }`}
+                >
+                  Accueil
+                </Link>
+                
+                <Link 
+                  to="/a-propos" 
+                  className={`px-3 py-2 rounded-lg transition-all duration-200 font-medium ${
+                    isActive("/a-propos") 
+                      ? "text-[#1a56db]" 
+                      : "text-gray-600 hover:text-[#1a56db]"
+                  }`}
+                >
+                  À propos
+                </Link>
 
-            <Link 
-              to="/formations" 
-              className={`px-3 py-2 rounded-lg transition-all duration-200 font-medium ${
-                isActive("/formations") || location.pathname.startsWith("/formations/")
-                  ? "text-[#1a56db]"
-                  : "text-gray-600 hover:text-[#1a56db]"
-              }`}
-            >
-              Formations
-            </Link>
+                <Link 
+                  to="/formations" 
+                  className={`px-3 py-2 rounded-lg transition-all duration-200 font-medium ${
+                    isActive("/formations") || location.pathname.startsWith("/formations/")
+                      ? "text-[#1a56db]"
+                      : "text-gray-600 hover:text-[#1a56db]"
+                  }`}
+                >
+                  Formations
+                </Link>
 
-            <Link 
-              to="/actualite" 
-              className={`px-3 py-2 rounded-lg transition-all duration-200 font-medium ${
-                isActive("/actualite")
-                  ? "text-[#1a56db]"
-                  : "text-gray-600 hover:text-[#1a56db]"
-              }`}
-            >
-              Actualité
-            </Link>
+                <Link 
+                  to="/actualite" 
+                  className={`px-3 py-2 rounded-lg transition-all duration-200 font-medium ${
+                    isActive("/actualite")
+                      ? "text-[#1a56db]"
+                      : "text-gray-600 hover:text-[#1a56db]"
+                  }`}
+                >
+                  Actualité
+                </Link>
 
-            <Link 
-              to="/contact" 
-              className={`px-3 py-2 rounded-lg transition-all duration-200 font-medium ${
-                isActive("/contact") 
-                  ? "text-[#1a56db]" 
-                  : "text-gray-600 hover:text-[#1a56db]"
-              }`}
-            >
-              Contact
-            </Link>
+                <Link 
+                  to="/contact" 
+                  className={`px-3 py-2 rounded-lg transition-all duration-200 font-medium ${
+                    isActive("/contact") 
+                      ? "text-[#1a56db]" 
+                      : "text-gray-600 hover:text-[#1a56db]"
+                  }`}
+                >
+                  Contact
+                </Link>
+              </>
+            )}
 
-            {/* Menu Admin - UNIQUEMENT si isAdmin === true */}
+            {/* MENU POUR ADMIN (seulement gestion) */}
             {isAdmin && (
               <>
+                <Link 
+                  to="/formations" 
+                  className={`px-3 py-2 rounded-lg transition-all duration-200 font-medium ${
+                    isActive("/formations") || location.pathname.startsWith("/formations/")
+                      ? "text-[#1a56db]"
+                      : "text-gray-600 hover:text-[#1a56db]"
+                  }`}
+                >
+                  Formations
+                </Link>
+
+                <Link 
+                  to="/actualite" 
+                  className={`px-3 py-2 rounded-lg transition-all duration-200 font-medium ${
+                    isActive("/actualite")
+                      ? "text-[#1a56db]"
+                      : "text-gray-600 hover:text-[#1a56db]"
+                  }`}
+                >
+                  Actualité
+                </Link>
+
                 <div className="w-px h-6 bg-gray-300 mx-2"></div>
+
                 <Link 
                   to="/admin" 
                   className={`px-3 py-2 rounded-lg transition-all duration-200 font-medium ${
@@ -170,8 +199,9 @@ export default function Navbar() {
                       : "text-gray-600 hover:text-[#76c21f]"
                   }`}
                 >
-                  Admin
+                  ⚙️ Admin
                 </Link>
+
                 <Link 
                   to="/admin/users" 
                   className={`px-3 py-2 rounded-lg transition-all duration-200 font-medium ${
@@ -180,8 +210,9 @@ export default function Navbar() {
                       : "text-gray-600 hover:text-[#76c21f]"
                   }`}
                 >
-                  Utilisateurs
+                  👥 Utilisateurs
                 </Link>
+
                 <Link 
                   to="/admin/statistics" 
                   className={`px-3 py-2 rounded-lg transition-all duration-200 font-medium ${
@@ -195,7 +226,7 @@ export default function Navbar() {
               </>
             )}
 
-            {/* Espace participant */}
+            {/* Espace participant - UNIQUEMENT pour utilisateurs normaux approuvés */}
             {user && isApproved && !isAdmin && (
               <Link 
                 to="/espace-participant" 
@@ -265,24 +296,36 @@ export default function Navbar() {
                 </div>
               </div>
               
-              <Link onClick={toggleMenu} to="/" className="px-3 py-2 rounded-lg hover:bg-gray-50 transition text-gray-700">
-                🏠 Accueil
-              </Link>
-              <Link onClick={toggleMenu} to="/a-propos" className="px-3 py-2 rounded-lg hover:bg-gray-50 transition text-gray-700">
-                ℹ️ À propos
-              </Link>
-              <Link onClick={toggleMenu} to="/formations" className="px-3 py-2 rounded-lg hover:bg-gray-50 transition text-gray-700">
-                📚 Formations
-              </Link>
-              <Link onClick={toggleMenu} to="/actualite" className="px-3 py-2 rounded-lg hover:bg-gray-50 transition text-gray-700">
-                📰 Actualité
-              </Link>
-              <Link onClick={toggleMenu} to="/contact" className="px-3 py-2 rounded-lg hover:bg-gray-50 transition text-gray-700">
-                📧 Contact
-              </Link>
+              {/* MENU MOBILE NON ADMIN */}
+              {!isAdmin && (
+                <>
+                  <Link onClick={toggleMenu} to="/" className="px-3 py-2 rounded-lg hover:bg-gray-50 transition text-gray-700">
+                    🏠 Accueil
+                  </Link>
+                  <Link onClick={toggleMenu} to="/a-propos" className="px-3 py-2 rounded-lg hover:bg-gray-50 transition text-gray-700">
+                    ℹ️ À propos
+                  </Link>
+                  <Link onClick={toggleMenu} to="/formations" className="px-3 py-2 rounded-lg hover:bg-gray-50 transition text-gray-700">
+                    📚 Formations
+                  </Link>
+                  <Link onClick={toggleMenu} to="/actualite" className="px-3 py-2 rounded-lg hover:bg-gray-50 transition text-gray-700">
+                    📰 Actualité
+                  </Link>
+                  <Link onClick={toggleMenu} to="/contact" className="px-3 py-2 rounded-lg hover:bg-gray-50 transition text-gray-700">
+                    📧 Contact
+                  </Link>
+                </>
+              )}
 
+              {/* MENU MOBILE ADMIN */}
               {isAdmin && (
                 <>
+                  <Link onClick={toggleMenu} to="/formations" className="px-3 py-2 rounded-lg hover:bg-gray-50 transition text-gray-700">
+                    📚 Formations
+                  </Link>
+                  <Link onClick={toggleMenu} to="/actualite" className="px-3 py-2 rounded-lg hover:bg-gray-50 transition text-gray-700">
+                    📰 Actualité
+                  </Link>
                   <div className="h-px bg-gray-100 my-1"></div>
                   <Link onClick={toggleMenu} to="/admin" className="px-3 py-2 text-[#76c21f] font-medium rounded-lg hover:bg-green-50 transition">
                     ⚙️ Admin
@@ -296,6 +339,7 @@ export default function Navbar() {
                 </>
               )}
 
+              {/* Espace participant mobile */}
               {user && isApproved && !isAdmin && (
                 <Link onClick={toggleMenu} to="/espace-participant" className="px-3 py-2 rounded-lg hover:bg-gray-50 transition text-gray-700">
                   👤 Mon espace
@@ -304,6 +348,7 @@ export default function Navbar() {
 
               <div className="h-px bg-gray-100 my-1"></div>
 
+              {/* Auth mobile */}
               {!user ? (
                 <Link 
                   onClick={toggleMenu} 
