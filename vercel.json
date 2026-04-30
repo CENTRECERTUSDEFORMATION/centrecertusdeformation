@@ -1,7 +1,6 @@
 {
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/frontend/api/$1" },
-    { "source": "/(.*)", "destination": "/frontend/dist/index.html" }
+    { "source": "/(.*)", "destination": "/index.html" }
   ],
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
