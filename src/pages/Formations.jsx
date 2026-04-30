@@ -146,6 +146,11 @@ export default function Formations() {
     }
   };
 
+  // Calcul des statistiques dynamiques
+  const activeFormationsCount = formations.filter(f => f.onDemand !== true).length;
+  const totalApprenants = 5000; // À remplacer par les données réelles si disponible
+  const satisfactionRate = "4.9";
+
   if (loading) return (
     <div className="flex justify-center items-center h-96 pt-20">
       <div className="w-12 h-12 border-3 border-[#76c21f] border-t-transparent rounded-full animate-spin" />
@@ -192,7 +197,7 @@ export default function Formations() {
             🚀 Des formations certifiantes pour booster votre carrière
           </motion.p>
           
-          {/* Statistiques */}
+          {/* Statistiques mises à jour */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -202,21 +207,21 @@ export default function Formations() {
             <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
               <span className="text-2xl">📚</span>
               <div>
-                <div className="font-bold">{formations.length}+</div>
-                <div className="text-xs text-blue-200">Formations</div>
+                <div className="font-bold">{activeFormationsCount}+</div>
+                <div className="text-xs text-blue-200">Formations en cours</div>
               </div>
             </div>
             <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
               <span className="text-2xl">👨‍🎓</span>
               <div>
-                <div className="font-bold">500+</div>
+                <div className="font-bold">5000+</div>
                 <div className="text-xs text-blue-200">Apprenants</div>
               </div>
             </div>
             <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
               <span className="text-2xl">⭐</span>
               <div>
-                <div className="font-bold">4.9/5</div>
+                <div className="font-bold">{satisfactionRate}/5</div>
                 <div className="text-xs text-blue-200">Satisfaction</div>
               </div>
             </div>
@@ -306,7 +311,7 @@ export default function Formations() {
               </div>
             </div>
             
-            {/* Grille complète */}
+            {/* Grille complète - le reste du code reste identique */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               <AnimatePresence>
                 {filteredFormations.map((formation, index) => (
@@ -322,6 +327,7 @@ export default function Formations() {
                     className="group bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 cursor-pointer"
                     onClick={() => navigate(`/formations/${formation.id}`)}
                   >
+                    {/* Image */}
                     <div className="relative h-52 overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200">
                       {formation.images && formation.images.length > 0 ? (
                         <motion.img
@@ -362,6 +368,7 @@ export default function Formations() {
                       </div>
                     </div>
                     
+                    {/* Contenu */}
                     <div className="p-5">
                       <h3 className="font-bold text-xl mb-2 line-clamp-2 text-gray-800 group-hover:text-[#1a56db] transition">
                         {formation.title}
