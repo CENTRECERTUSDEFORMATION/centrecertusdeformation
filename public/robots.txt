@@ -1,3 +1,9 @@
-# https://www.robotstxt.org/robotstxt.html
 User-agent: *
-Disallow:
+Allow: /
+Disallow: /admin/
+Disallow: /admin/*
+Disallow: /connexion
+Disallow: /inscription
+Disallow: /espace-participant
+
+Sitemap: https://centrecertusdeformation.vercel.app/sitemap.xml
