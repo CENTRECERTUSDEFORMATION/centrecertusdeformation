@@ -1,10 +1,12 @@
-// frontend/src/components/Navbar.jsx
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import logo from "../assets/logo-certus.png";
 import { motion, AnimatePresence } from "framer-motion";
+
+// Icônes réseaux sociaux
+import { FaFacebook, FaInstagram, FaTiktok } from "react-icons/fa";
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -13,6 +15,13 @@ export default function Navbar() {
   const navigate = useNavigate();
 
   const { user, isAdmin, isApproved, loading, logout } = useAuth();
+
+  // Liens des réseaux sociaux avec couleurs directes
+  const socialLinks = [
+    { name: "Facebook", url: "https://www.facebook.com/Centre.Certus.de.Formation/", icon: FaFacebook, color: "#1877f2", hoverColor: "#145dbf" },
+    { name: "Instagram", url: "https://www.instagram.com/centre.certus.de.formation/", icon: FaInstagram, color: "#e4405f", hoverColor: "#c13584" },
+    { name: "TikTok", url: "https://www.tiktok.com/@certus_formation?lang=fr", icon: FaTiktok, color: "#000000", hoverColor: "#25f4ee" },
+  ];
 
   useEffect(() => {
     const handleScroll = () => {
@@ -240,35 +249,59 @@ export default function Navbar() {
               </Link>
             )}
 
-            {/* Connexion / Déconnexion */}
-            {!user ? (
-              <Link 
-                to="/connexion" 
-                className="ml-3 px-5 py-2 rounded-full font-medium transition-all hover:scale-105"
-                style={{ 
-                  background: "linear-gradient(135deg, #1a56db 0%, #1a56db 50%, #76c21f 100%)",
-                  color: "white",
-                  boxShadow: "0 4px 12px rgba(26, 86, 219, 0.3)"
-                }}
-              >
-                Connexion
-              </Link>
-            ) : (
-              <div className="flex items-center gap-3 ml-3">
-                <div className="text-right">
-                  <p className="text-xs text-gray-500">Connecté en tant que</p>
-                  <p className="text-sm font-medium text-gray-700 truncate max-w-[180px]">
-                    {user?.email || "Utilisateur"}
-                  </p>
-                </div>
-                <button 
-                  onClick={handleLogout} 
-                  className="px-4 py-2 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-full font-medium transition"
-                >
-                  Déconnexion
-                </button>
+            {/* Connexion / Déconnexion + Réseaux sociaux */}
+            <div className="flex items-center gap-2 ml-3">
+              {/* Icônes réseaux sociaux en couleur */}
+              <div className="flex items-center gap-1 mr-2">
+                {socialLinks.map((social, index) => (
+                  <a
+                    key={index}
+                    href={social.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="transition-all duration-300 hover:scale-110"
+                    style={{ color: social.color }}
+                    onMouseEnter={(e) => e.currentTarget.style.color = social.hoverColor}
+                    onMouseLeave={(e) => e.currentTarget.style.color = social.color}
+                    title={social.name}
+                  >
+                    <social.icon className="w-5 h-5" />
+                  </a>
+                ))}
               </div>
-            )}
+
+              {/* Séparateur */}
+              <div className="w-px h-5 bg-gray-300"></div>
+              
+              {!user ? (
+                <Link 
+                  to="/connexion" 
+                  className="px-5 py-2 rounded-full font-medium transition-all hover:scale-105"
+                  style={{ 
+                    background: "linear-gradient(135deg, #1a56db 0%, #1a56db 50%, #76c21f 100%)",
+                    color: "white",
+                    boxShadow: "0 4px 12px rgba(26, 86, 219, 0.3)"
+                  }}
+                >
+                  Connexion
+                </Link>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <div className="text-right hidden lg:block">
+                    <p className="text-xs text-gray-500">Connecté en tant que</p>
+                    <p className="text-sm font-medium text-gray-700 truncate max-w-[150px]">
+                      {user?.email || "Utilisateur"}
+                    </p>
+                  </div>
+                  <button 
+                    onClick={handleLogout} 
+                    className="px-4 py-2 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-full font-medium transition"
+                  >
+                    Déconnexion
+                  </button>
+                </div>
+              )}
+            </div>
           </nav>
         </div>
       </div>
@@ -345,6 +378,23 @@ export default function Navbar() {
                   👤 Mon espace
                 </Link>
               )}
+
+              {/* Réseaux sociaux mobile - EN COULEUR */}
+              <div className="flex gap-6 justify-center py-3">
+                {socialLinks.map((social, index) => (
+                  <a
+                    key={index}
+                    href={social.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="transition-all duration-300 hover:scale-110"
+                    style={{ color: social.color }}
+                    title={social.name}
+                  >
+                    <social.icon className="w-6 h-6" />
+                  </a>
+                ))}
+              </div>
 
               <div className="h-px bg-gray-100 my-1"></div>
 
