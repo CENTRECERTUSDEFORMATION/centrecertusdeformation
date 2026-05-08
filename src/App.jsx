@@ -30,6 +30,7 @@ const AdminUsers = lazy(() => import("./pages/AdminUsers"));
 const AjouterFormation = lazy(() => import("./pages/AjouterFormation"));
 const AjouterActualite = lazy(() => import("./pages/AjouterActualite"));
 const ModifierFormation = lazy(() => import("./pages/ModifierFormation"));
+const ModifierActualite = lazy(() => import("./pages/ModifierActualite"));
 const StatisticsDashboard = lazy(() => import("./pages/StatisticsDashboard"));
 
 // Composant interne pour le tracking
@@ -47,6 +48,7 @@ function AppContent() {
       <Navbar />
       <Suspense fallback={<PageLoader />}>
         <Routes>
+          {/* Routes publiques */}
           <Route path="/" element={<Home />} />
           <Route path="/a-propos" element={<AproposDeCertus />} />
           <Route path="/formations" element={<Formations />} />
@@ -55,11 +57,15 @@ function AppContent() {
           <Route path="/contact" element={<Contact />} />
           <Route path="/connexion" element={<Connexion />} />
           <Route path="/inscription" element={<Inscription />} />
+
+          {/* Routes protégées (utilisateur connecté) */}
           <Route path="/espace-participant" element={
             <PrivateRoute>
               <EspaceParticipant />
             </PrivateRoute>
           } />
+
+          {/* Routes admin (admin uniquement) */}
           <Route path="/admin" element={
             <PrivateRoute adminOnly>
               <TableauDeBordAdmin />
@@ -80,16 +86,23 @@ function AppContent() {
               <AjouterFormation />
             </PrivateRoute>
           } />
-          <Route path="/ajouter-actualite" element={
-            <PrivateRoute adminOnly>
-              <AjouterActualite />
-            </PrivateRoute>
-          } />
           <Route path="/modifier-formation/:id" element={
             <PrivateRoute adminOnly>
               <ModifierFormation />
             </PrivateRoute>
           } />
+          <Route path="/ajouter-actualite" element={
+            <PrivateRoute adminOnly>
+              <AjouterActualite />
+            </PrivateRoute>
+          } />
+          <Route path="/modifier-actualite/:id" element={
+            <PrivateRoute adminOnly>
+              <ModifierActualite />
+            </PrivateRoute>
+          } />
+
+          {/* Route 404 */}
           <Route path="*" element={<div className="text-center py-10">Page non trouvée</div>} />
         </Routes>
       </Suspense>

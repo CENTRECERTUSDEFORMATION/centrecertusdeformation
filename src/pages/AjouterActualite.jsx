@@ -33,6 +33,70 @@ export default function AjouterActualite() {
     setPreviews(previews.filter((_, i) => i !== index));
   };
 
+  // Fonction pour appliquer le gras
+  const applyBold = () => {
+    const textarea = document.getElementById('contenu-textarea');
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = contenu.substring(start, end);
+    
+    if (selectedText) {
+      const beforeText = contenu.substring(0, start);
+      const afterText = contenu.substring(end);
+      const newText = `${beforeText}<strong>${selectedText}</strong>${afterText}`;
+      setContenu(newText);
+      
+      // Replacer le curseur après le texte sélectionné
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(start + 17, end + 17);
+      }, 10);
+    } else {
+      toast.info("Sélectionnez d'abord le texte à mettre en gras");
+    }
+  };
+
+  // Fonction pour appliquer l'italique
+  const applyItalic = () => {
+    const textarea = document.getElementById('contenu-textarea');
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = contenu.substring(start, end);
+    
+    if (selectedText) {
+      const beforeText = contenu.substring(0, start);
+      const afterText = contenu.substring(end);
+      const newText = `${beforeText}<em>${selectedText}</em>${afterText}`;
+      setContenu(newText);
+      
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(start + 15, end + 15);
+      }, 10);
+    } else {
+      toast.info("Sélectionnez d'abord le texte à mettre en italique");
+    }
+  };
+
+  // Fonction pour ajouter une liste
+  const applyList = () => {
+    const textarea = document.getElementById('contenu-textarea');
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = contenu.substring(start, end);
+    
+    if (selectedText) {
+      const lines = selectedText.split('\n');
+      const listItems = lines.map(line => `• ${line}`).join('\n');
+      const beforeText = contenu.substring(0, start);
+      const afterText = contenu.substring(end);
+      const newText = `${beforeText}\n<ul>\n${lines.map(line => `  <li>${line}</li>`).join('\n')}\n</ul>\n${afterText}`;
+      setContenu(newText);
+    } else {
+      toast.info("Sélectionnez d'abord le texte à mettre en liste");
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -81,7 +145,7 @@ export default function AjouterActualite() {
   };
 
   return (
-    <div className="p-6 mt-20 max-w-xl mx-auto">
+    <div className="p-6 mt-20 max-w-4xl mx-auto">
       <h2 className="text-2xl font-bold mb-6">Ajouter une actualité</h2>
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -90,7 +154,7 @@ export default function AjouterActualite() {
           <input
             type="text"
             placeholder="Titre de l'actualité"
-            className="w-full border p-2 rounded"
+            className="w-full border p-3 rounded text-lg"
             value={titre}
             onChange={(e) => setTitre(e.target.value)}
             required
@@ -98,14 +162,51 @@ export default function AjouterActualite() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Contenu</label>
+          <label className="block text-sm font-medium mb-2">Contenu</label>
+          
+          {/* Barre d'outils */}
+          <div className="flex gap-2 mb-2 p-2 bg-gray-100 rounded-t-lg border border-gray-300">
+            <button
+              type="button"
+              onClick={applyBold}
+              className="px-3 py-1 bg-white rounded hover:bg-gray-200 font-bold"
+              title="Gras (Ctrl+B)"
+            >
+              <span className="font-bold">B</span>
+            </button>
+            <button
+              type="button"
+              onClick={applyItalic}
+              className="px-3 py-1 bg-white rounded hover:bg-gray-200 italic"
+              title="Italique (Ctrl+I)"
+            >
+              <span className="italic">I</span>
+            </button>
+            <button
+              type="button"
+              onClick={applyList}
+              className="px-3 py-1 bg-white rounded hover:bg-gray-200"
+              title="Liste à puces"
+            >
+              • Liste
+            </button>
+            <div className="w-px h-6 bg-gray-300 mx-1"></div>
+            <span className="text-xs text-gray-500 self-center">
+              Sélectionnez le texte puis cliquez sur un bouton
+            </span>
+          </div>
+          
           <textarea
-            placeholder="Description de l'actualité"
-            className="w-full border p-2 rounded"
-            rows="4"
+            id="contenu-textarea"
+            placeholder="Description de l'actualité (HTML supporté)"
+            className="w-full border border-gray-300 p-4 rounded-b-lg font-mono text-sm"
+            rows="12"
             value={contenu}
             onChange={(e) => setContenu(e.target.value)}
           />
+          <p className="text-xs text-gray-500 mt-1">
+            💡 Astuce : Vous pouvez utiliser les balises HTML comme &lt;strong&gt;texte&lt;/strong&gt; pour du texte en gras
+          </p>
         </div>
 
         <div>
