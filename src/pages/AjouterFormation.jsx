@@ -16,6 +16,10 @@ export default function AjouterFormation() {
   const [description, setDescription] = useState("");
   const [fullDescription, setFullDescription] = useState("");
   const [preinscriptionLink, setPreinscriptionLink] = useState("");
+  const [theme, setTheme] = useState("digital");
+  const [duration, setDuration] = useState("");
+  const [price, setPrice] = useState("");
+  const [isOnline, setIsOnline] = useState(false);
   const [images, setImages] = useState([]);
   const [previews, setPreviews] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -28,6 +32,17 @@ export default function AjouterFormation() {
       .replace(/\s+/g, '-')
       .replace(/[^a-zA-Z0-9.-]/g, '');
   };
+
+  // 7 thèmes disponibles
+  const themes = [
+    { id: "digital", name: "💻 Digital & Web" },
+    { id: "data", name: "📊 Data & IA" },
+    { id: "design", name: "🎨 Design & Créativité" },
+    { id: "management", name: "📈 Management & Leadership" },
+    { id: "finance", name: "💰 Finance & Comptabilité" },
+    { id: "energie", name: "🌱 Énergies renouvelables" },
+    { id: "langues", name: "🗣️ Langues & Communication" }
+  ];
 
   const handleImages = (e) => {
     const files = Array.from(e.target.files);
@@ -72,6 +87,10 @@ export default function AjouterFormation() {
           description,
           fullDescription,
           preinscriptionLink,
+          theme: theme,
+          duration: duration || null,
+          price: price || null,
+          is_online: isOnline,
           images: uploadedPaths,
           onDemand,
           created_at: new Date().toISOString(),
@@ -96,104 +115,57 @@ export default function AjouterFormation() {
       <h2 className="text-2xl font-bold mb-6">Ajouter une formation</h2>
 
       <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Titre */}
         <div>
           <label className="block text-sm font-medium mb-1">Titre *</label>
-          <input
-            placeholder="Titre de la formation"
-            className="w-full border p-2 rounded"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            required
-          />
+          <input placeholder="Titre de la formation" className="w-full border p-2 rounded" value={title} onChange={(e) => setTitle(e.target.value)} required />
         </div>
 
+        {/* Thème */}
+        <div>
+          <label className="block text-sm font-medium mb-1">Thème *</label>
+          <select className="w-full border p-2 rounded" value={theme} onChange={(e) => setTheme(e.target.value)} required>
+            {themes.map((t) => (<option key={t.id} value={t.id}>{t.name}</option>))}
+          </select>
+        </div>
+
+        {/* Description courte */}
         <div>
           <label className="block text-sm font-medium mb-1">Description courte *</label>
-          <textarea
-            placeholder="Brève description (apparaît dans la liste)"
-            className="w-full border p-2 rounded"
-            rows="3"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            required
-          />
+          <textarea placeholder="Brève description (apparaît dans la liste)" className="w-full border p-2 rounded" rows="3" value={description} onChange={(e) => setDescription(e.target.value)} required />
         </div>
 
+        {/* Description complète */}
         <div>
           <label className="block text-sm font-medium mb-1">Description complète *</label>
-          <textarea
-            placeholder="Description détaillée de la formation"
-            className="w-full border p-2 rounded"
-            rows="6"
-            value={fullDescription}
-            onChange={(e) => setFullDescription(e.target.value)}
-            required
-          />
+          <textarea placeholder="Description détaillée de la formation" className="w-full border p-2 rounded" rows="6" value={fullDescription} onChange={(e) => setFullDescription(e.target.value)} required />
         </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">Lien de préinscription</label>
-          <input
-            placeholder="https://..."
-            className="w-full border p-2 rounded"
-            value={preinscriptionLink}
-            onChange={(e) => setPreinscriptionLink(e.target.value)}
-          />
+        {/* Durée et Prix */}
+        <div className="grid grid-cols-2 gap-4">
+          <div><label className="block text-sm font-medium mb-1">Durée</label><input type="text" placeholder="ex: 40h / 3 mois" className="w-full border p-2 rounded" value={duration} onChange={(e) => setDuration(e.target.value)} /></div>
+          <div><label className="block text-sm font-medium mb-1">Prix</label><input type="text" placeholder="ex: 1200 DT / Sur devis" className="w-full border p-2 rounded" value={price} onChange={(e) => setPrice(e.target.value)} /></div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">
-            Images (plusieurs possibles)
-          </label>
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={handleImages}
-            className="w-full"
-          />
-          <p className="text-xs text-gray-500 mt-1">
-            Maintenez Ctrl (ou Cmd) pour sélectionner plusieurs images
-          </p>
-        </div>
+        {/* Lien de préinscription */}
+        <div><label className="block text-sm font-medium mb-1">Lien de préinscription</label><input placeholder="https://..." className="w-full border p-2 rounded" value={preinscriptionLink} onChange={(e) => setPreinscriptionLink(e.target.value)} /></div>
+
+        {/* Images */}
+        <div><label className="block text-sm font-medium mb-1">Images (plusieurs possibles)</label><input type="file" accept="image/*" multiple onChange={handleImages} className="w-full" /><p className="text-xs text-gray-500 mt-1">Maintenez Ctrl (ou Cmd) pour sélectionner plusieurs images</p></div>
 
         {previews.length > 0 && (
-          <div>
-            <p className="text-sm text-gray-600 mb-2">Aperçus :</p>
-            <div className="flex flex-wrap gap-2">
-              {previews.map((preview, index) => (
-                <div key={index} className="relative">
-                  <img
-                    src={preview}
-                    alt={`Aperçu ${index + 1}`}
-                    className="w-20 h-20 object-cover rounded border"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeImage(index)}
-                    className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-5 h-5 text-xs"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
+          <div><p className="text-sm text-gray-600 mb-2">Aperçus :</p><div className="flex flex-wrap gap-2">
+            {previews.map((preview, index) => (<div key={index} className="relative"><img src={preview} alt={`Aperçu ${index + 1}`} className="w-20 h-20 object-cover rounded border" /><button type="button" onClick={() => removeImage(index)} className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-5 h-5 text-xs">×</button></div>))}
+          </div></div>
         )}
 
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            onChange={(e) => setOnDemand(e.target.checked)}
-          />
-          Formation à la demande
-        </label>
+        {/* Options */}
+        <div className="flex flex-wrap gap-4">
+          <label className="flex items-center gap-2"><input type="checkbox" checked={isOnline} onChange={(e) => setIsOnline(e.target.checked)} /> 🌍 Formation à distance (international)</label>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={onDemand} onChange={(e) => setOnDemand(e.target.checked)} /> 🎯 Formation à la demande</label>
+        </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="bg-blue-800 text-white px-4 py-2 w-full rounded hover:bg-blue-900 transition disabled:opacity-50"
-        >
+        <button type="submit" disabled={loading} className="bg-blue-800 text-white px-4 py-2 w-full rounded hover:bg-blue-900 transition disabled:opacity-50">
           {loading ? "Ajout en cours..." : "➕ Ajouter la formation"}
         </button>
       </form>
