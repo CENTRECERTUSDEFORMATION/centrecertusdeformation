@@ -38,6 +38,15 @@ function AppContent() {
   const location = useLocation();
   const { user } = useAuth();
 
+  // REDIRECTION : .vercel.app → .tn (pour éviter le contenu dupliqué)
+  useEffect(() => {
+    const hostname = window.location.hostname;
+    if (hostname === "centrecertusdeformation.vercel.app") {
+      const newUrl = `https://centrecertusdeformation.tn${location.pathname}${location.search}`;
+      window.location.replace(newUrl);
+    }
+  }, [location]);
+
   useEffect(() => {
     // Tracker chaque changement de page
     trackingService.trackPageView(location.pathname, user?.email);
