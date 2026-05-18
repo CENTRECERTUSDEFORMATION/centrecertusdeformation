@@ -3,19 +3,19 @@ import React, { Suspense, lazy, useEffect } from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { Helmet, HelmetProvider } from 'react-helmet-async';
 import Navbar from "./components/Navbar";
 import PrivateRoute from "./routes/PrivateRoute";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { trackingService } from "./services/TrackingService";
 
-// Loader component
 const PageLoader = () => (
   <div className="flex justify-center items-center h-64">
     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1a56db]"></div>
   </div>
 );
 
-// Lazy loading des pages
+// Lazy loading
 const Home = lazy(() => import("./pages/Home"));
 const Contact = lazy(() => import("./pages/Contact"));
 const Connexion = lazy(() => import("./pages/Connexion"));
@@ -33,31 +33,39 @@ const ModifierFormation = lazy(() => import("./pages/ModifierFormation"));
 const ModifierActualite = lazy(() => import("./pages/ModifierActualite"));
 const StatisticsDashboard = lazy(() => import("./pages/StatisticsDashboard"));
 
-// Composant interne pour le tracking
 function AppContent() {
   const location = useLocation();
   const { user } = useAuth();
 
-  // REDIRECTION : .vercel.app → .tn (pour éviter le contenu dupliqué)
+  // Redirection .vercel.app → .tn
   useEffect(() => {
     const hostname = window.location.hostname;
     if (hostname === "centrecertusdeformation.vercel.app") {
-      const newUrl = `https://centrecertusdeformation.tn${location.pathname}${location.search}`;
-      window.location.replace(newUrl);
+      window.location.replace(`https://centrecertusdeformation.tn${location.pathname}${location.search}`);
     }
   }, [location]);
 
+  // Suppression des paramètres inutiles pour éviter le contenu dupliqué
   useEffect(() => {
-    // Tracker chaque changement de page
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('theme') || urlParams.has('langue')) {
+      window.location.replace(window.location.pathname);
+    }
+  }, []);
+
+  // Tracking
+  useEffect(() => {
     trackingService.trackPageView(location.pathname, user?.email);
   }, [location, user]);
 
   return (
     <>
+      <Helmet>
+        <link rel="canonical" href={`https://centrecertusdeformation.tn${location.pathname}`} />
+      </Helmet>
       <Navbar />
       <Suspense fallback={<PageLoader />}>
         <Routes>
-          {/* Routes publiques */}
           <Route path="/" element={<Home />} />
           <Route path="/a-propos" element={<AproposDeCertus />} />
           <Route path="/formations" element={<Formations />} />
@@ -66,52 +74,14 @@ function AppContent() {
           <Route path="/contact" element={<Contact />} />
           <Route path="/connexion" element={<Connexion />} />
           <Route path="/inscription" element={<Inscription />} />
-
-          {/* Routes protégées (utilisateur connecté) */}
-          <Route path="/espace-participant" element={
-            <PrivateRoute>
-              <EspaceParticipant />
-            </PrivateRoute>
-          } />
-
-          {/* Routes admin (admin uniquement) */}
-          <Route path="/admin" element={
-            <PrivateRoute adminOnly>
-              <TableauDeBordAdmin />
-            </PrivateRoute>
-          } />
-          <Route path="/admin/users" element={
-            <PrivateRoute adminOnly>
-              <AdminUsers />
-            </PrivateRoute>
-          } />
-          <Route path="/admin/statistics" element={
-            <PrivateRoute adminOnly>
-              <StatisticsDashboard />
-            </PrivateRoute>
-          } />
-          <Route path="/ajouter-formation" element={
-            <PrivateRoute adminOnly>
-              <AjouterFormation />
-            </PrivateRoute>
-          } />
-          <Route path="/modifier-formation/:id" element={
-            <PrivateRoute adminOnly>
-              <ModifierFormation />
-            </PrivateRoute>
-          } />
-          <Route path="/ajouter-actualite" element={
-            <PrivateRoute adminOnly>
-              <AjouterActualite />
-            </PrivateRoute>
-          } />
-          <Route path="/modifier-actualite/:id" element={
-            <PrivateRoute adminOnly>
-              <ModifierActualite />
-            </PrivateRoute>
-          } />
-
-          {/* Route 404 */}
+          <Route path="/espace-participant" element={<PrivateRoute><EspaceParticipant /></PrivateRoute>} />
+          <Route path="/admin" element={<PrivateRoute adminOnly><TableauDeBordAdmin /></PrivateRoute>} />
+          <Route path="/admin/users" element={<PrivateRoute adminOnly><AdminUsers /></PrivateRoute>} />
+          <Route path="/admin/statistics" element={<PrivateRoute adminOnly><StatisticsDashboard /></PrivateRoute>} />
+          <Route path="/ajouter-formation" element={<PrivateRoute adminOnly><AjouterFormation /></PrivateRoute>} />
+          <Route path="/modifier-formation/:id" element={<PrivateRoute adminOnly><ModifierFormation /></PrivateRoute>} />
+          <Route path="/ajouter-actualite" element={<PrivateRoute adminOnly><AjouterActualite /></PrivateRoute>} />
+          <Route path="/modifier-actualite/:id" element={<PrivateRoute adminOnly><ModifierActualite /></PrivateRoute>} />
           <Route path="*" element={<div className="text-center py-10">Page non trouvée</div>} />
         </Routes>
       </Suspense>
@@ -122,8 +92,10 @@ function AppContent() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <HelmetProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </HelmetProvider>
   );
 }

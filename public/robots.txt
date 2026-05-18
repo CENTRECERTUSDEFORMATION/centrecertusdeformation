@@ -1,9 +1,19 @@
 User-agent: *
 Allow: /
+Allow: /formations
+Allow: /formations/*
+Allow: /actualite
+Allow: /contact
+Allow: /a-propos
 Disallow: /admin/
 Disallow: /admin/*
 Disallow: /connexion
 Disallow: /inscription
 Disallow: /espace-participant
+Disallow: /ajouter-formation
+Disallow: /ajouter-actualite
+Disallow: /modifier-formation/
+Disallow: /modifier-actualite/
+Disallow: /api/
 
-Sitemap: https://centrecertusdeformation.vercel.app/sitemap.xml
+Sitemap: https://centrecertusdeformation.tn/sitemap.xml
