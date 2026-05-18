@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "react-toastify";
+import { Helmet } from "react-helmet-async";
 
 export default function Connexion() {
   const { login, user, isAdmin, isApproved, loading } = useAuth();
@@ -46,35 +47,36 @@ export default function Connexion() {
   };
 
   return (
-    <div className="p-6 mt-20 max-w-md mx-auto">
+    <>
+      <Helmet>
+        <meta name="robots" content="noindex, nofollow" />
+      </Helmet>
+      <div className="p-6 mt-20 max-w-md mx-auto">
+        <h2 className="text-xl font-bold mb-4">Connexion</h2>
 
-      <h2 className="text-xl font-bold mb-4">Connexion</h2>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          <input
+            className="border p-2"
+            placeholder="Email"
+            type="email"
+            onChange={(e) => setEmail(e.target.value)}
+          />
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          <input
+            className="border p-2"
+            placeholder="Mot de passe"
+            type="password"
+            onChange={(e) => setPassword(e.target.value)}
+          />
 
-        <input
-          className="border p-2"
-          placeholder="Email"
-          type="email"
-          onChange={(e) => setEmail(e.target.value)}
-        />
-
-        <input
-          className="border p-2"
-          placeholder="Mot de passe"
-          type="password"
-          onChange={(e) => setPassword(e.target.value)}
-        />
-
-        <button
-          disabled={submitting || loading}
-          className="bg-blue-600 text-white p-2"
-        >
-          {submitting ? "Connexion..." : "Connexion"}
-        </button>
-
-      </form>
-
-    </div>
+          <button
+            disabled={submitting || loading}
+            className="bg-blue-600 text-white p-2"
+          >
+            {submitting ? "Connexion..." : "Connexion"}
+          </button>
+        </form>
+      </div>
+    </>
   );
 }
