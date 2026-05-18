@@ -19,7 +19,9 @@ export default function ModifierFormation() {
   const [description, setDescription] = useState("");
   const [fullDescription, setFullDescription] = useState("");
   const [preinscriptionLink, setPreinscriptionLink] = useState("");
+  const [testLink, setTestLink] = useState(""); // NOUVEAU
   const [theme, setTheme] = useState("digital");
+  const [langue, setLangue] = useState("fr"); // NOUVEAU
   const [duration, setDuration] = useState("");
   const [price, setPrice] = useState("");
   const [isOnline, setIsOnline] = useState(false);
@@ -42,6 +44,13 @@ export default function ModifierFormation() {
     { id: "finance", name: "💰 Finance & Comptabilité" },
     { id: "energie", name: "🌱 Énergies renouvelables" },
     { id: "langues", name: "🗣️ Langues & Communication" }
+  ];
+
+  // Langues disponibles
+  const langues = [
+    { code: "fr", name: "Français" },
+    { code: "en", name: "English" },
+    { code: "ar", name: "العربية" }
   ];
 
   const cleanFileName = (filename) => {
@@ -69,7 +78,9 @@ export default function ModifierFormation() {
         setDescription(data.description || "");
         setFullDescription(data.fullDescription || "");
         setPreinscriptionLink(data.preinscriptionLink || "");
+        setTestLink(data.test_link || ""); // NOUVEAU
         setTheme(data.theme || "digital");
+        setLangue(data.langue || "fr"); // NOUVEAU
         setDuration(data.duration || "");
         setPrice(data.price || "");
         setIsOnline(data.is_online || false);
@@ -148,7 +159,9 @@ export default function ModifierFormation() {
           description,
           fullDescription,
           preinscriptionLink,
+          test_link: testLink || null, // NOUVEAU
           theme,
+          langue, // NOUVEAU
           duration: duration || null,
           price: price || null,
           is_online: isOnline,
@@ -194,6 +207,16 @@ export default function ModifierFormation() {
           <input type="text" className="w-full border p-2 rounded" value={title} onChange={(e) => setTitle(e.target.value)} required />
         </div>
 
+        {/* Langue (NOUVEAU) */}
+        <div>
+          <label className="block text-sm font-medium mb-1">🌐 Langue de la formation</label>
+          <select className="w-full border p-2 rounded" value={langue} onChange={(e) => setLangue(e.target.value)}>
+            {langues.map((l) => (
+              <option key={l.code} value={l.code}>{l.name}</option>
+            ))}
+          </select>
+        </div>
+
         {/* Thème */}
         <div>
           <label className="block text-sm font-medium mb-1">Thème *</label>
@@ -216,12 +239,34 @@ export default function ModifierFormation() {
 
         {/* Durée et Prix */}
         <div className="grid grid-cols-2 gap-4">
-          <div><label className="block text-sm font-medium mb-1">Durée</label><input type="text" placeholder="ex: 40h / 3 mois" className="w-full border p-2 rounded" value={duration} onChange={(e) => setDuration(e.target.value)} /></div>
-          <div><label className="block text-sm font-medium mb-1">Prix</label><input type="text" placeholder="ex: 1200 DT / Sur devis" className="w-full border p-2 rounded" value={price} onChange={(e) => setPrice(e.target.value)} /></div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Durée</label>
+            <input type="text" placeholder="ex: 40h / 3 mois" className="w-full border p-2 rounded" value={duration} onChange={(e) => setDuration(e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Prix</label>
+            <input type="text" placeholder="ex: 1200 DT / Sur devis" className="w-full border p-2 rounded" value={price} onChange={(e) => setPrice(e.target.value)} />
+          </div>
         </div>
 
         {/* Lien préinscription */}
-        <div><label className="block text-sm font-medium mb-1">Lien de préinscription</label><input type="url" className="w-full border p-2 rounded" value={preinscriptionLink} onChange={(e) => setPreinscriptionLink(e.target.value)} placeholder="https://..." /></div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Lien de préinscription</label>
+          <input type="url" className="w-full border p-2 rounded" value={preinscriptionLink} onChange={(e) => setPreinscriptionLink(e.target.value)} placeholder="https://..." />
+        </div>
+
+        {/* Lien de test (NOUVEAU) */}
+        <div>
+          <label className="block text-sm font-medium mb-1">🔗 Lien de test / démo</label>
+          <input 
+            type="url" 
+            className="w-full border p-2 rounded" 
+            value={testLink} 
+            onChange={(e) => setTestLink(e.target.value)} 
+            placeholder="https://test-formation.com"
+          />
+          <p className="text-xs text-gray-500 mt-1">Lien vers un test de niveau ou une démo</p>
+        </div>
 
         {/* Images existantes */}
         {existingImages.length > 0 && (
@@ -239,7 +284,10 @@ export default function ModifierFormation() {
         )}
 
         {/* Ajouter nouvelles images */}
-        <div><label className="block text-sm font-medium mb-1">Ajouter des images</label><input type="file" accept="image/*" multiple onChange={handleNewImages} className="w-full" /></div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Ajouter des images</label>
+          <input type="file" accept="image/*" multiple onChange={handleNewImages} className="w-full" />
+        </div>
 
         {/* Aperçu nouvelles images */}
         {newPreviews.length > 0 && (
@@ -258,14 +306,24 @@ export default function ModifierFormation() {
 
         {/* Options */}
         <div className="flex flex-wrap gap-4">
-          <label className="flex items-center gap-2"><input type="checkbox" checked={isOnline} onChange={(e) => setIsOnline(e.target.checked)} /> 🌍 Formation à distance (international)</label>
-          <label className="flex items-center gap-2"><input type="checkbox" checked={onDemand} onChange={(e) => setOnDemand(e.target.checked)} /> 🎯 Formation à la demande</label>
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={isOnline} onChange={(e) => setIsOnline(e.target.checked)} /> 
+            🌍 Formation à distance (international)
+          </label>
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={onDemand} onChange={(e) => setOnDemand(e.target.checked)} /> 
+            🎯 Formation à la demande
+          </label>
         </div>
 
         {/* Boutons */}
         <div className="flex gap-3 pt-4">
-          <button type="submit" disabled={submitting} className="bg-blue-800 text-white px-6 py-2 rounded hover:bg-blue-900 transition disabled:opacity-50">{submitting ? "Enregistrement..." : "💾 Enregistrer"}</button>
-          <button type="button" onClick={() => navigate("/formations")} className="bg-gray-300 text-gray-700 px-6 py-2 rounded hover:bg-gray-400 transition">Annuler</button>
+          <button type="submit" disabled={submitting} className="bg-blue-800 text-white px-6 py-2 rounded hover:bg-blue-900 transition disabled:opacity-50">
+            {submitting ? "Enregistrement..." : "💾 Enregistrer"}
+          </button>
+          <button type="button" onClick={() => navigate("/formations")} className="bg-gray-300 text-gray-700 px-6 py-2 rounded hover:bg-gray-400 transition">
+            Annuler
+          </button>
         </div>
       </form>
     </motion.div>

@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { supabase, supabaseAdmin } from "../supabaseClient";
 import { toast } from "react-toastify";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { Helmet } from "react-helmet-async";
 
 const AdminUsers = () => {
   const { isAdmin, loading } = useAuth();
@@ -12,6 +13,7 @@ const AdminUsers = () => {
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const [newUser, setNewUser] = useState({
     email: "",
     password: "",
@@ -28,7 +30,7 @@ const AdminUsers = () => {
     }
   }, [isAdmin, loading, navigate]);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     setLoadingUsers(true);
     
     try {
@@ -42,6 +44,7 @@ const AdminUsers = () => {
         toast.error("Erreur chargement utilisateurs: " + error.message);
         setUsers([]);
       } else {
+        console.log("Utilisateurs chargés:", data?.length);
         setUsers(data || []);
       }
     } catch (err) {
@@ -50,13 +53,19 @@ const AdminUsers = () => {
     } finally {
       setLoadingUsers(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (isAdmin) {
       fetchUsers();
     }
-  }, [isAdmin]);
+  }, [isAdmin, fetchUsers]);
+
+  // Filtrer les utilisateurs par recherche
+  const filteredUsers = users.filter(user => 
+    user.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.email?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const createUser = async (e) => {
     e.preventDefault();
@@ -72,8 +81,6 @@ const AdminUsers = () => {
         setCreating(false);
         return;
       }
-
-      console.log("Création de:", newUser.email);
 
       const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email: newUser.email,
@@ -131,43 +138,87 @@ const AdminUsers = () => {
     }
   };
 
+  // ✅ TOGGLE APPROUVE - Change le badge ET le texte du bouton
   const toggleApprove = async (user) => {
+    const previousStatus = user.is_approved;
+    const newStatus = !previousStatus;
+    
+    console.log("=== toggleApprove ===");
+    console.log("ID:", user.id);
+    console.log("Statut actuel:", previousStatus);
+    console.log("Nouveau statut:", newStatus);
+    
     try {
+      // MISE À JOUR UI IMMÉDIATE
+      setUsers(prevUsers => 
+        prevUsers.map(u => 
+          u.id === user.id 
+            ? { ...u, is_approved: newStatus, updated_at: new Date().toISOString() } 
+            : u
+        )
+      );
+      
+      // Mise à jour dans la base de données
       const { error } = await supabase
         .from("users")
         .update({ 
-          is_approved: !user.is_approved,
+          is_approved: newStatus,
           updated_at: new Date().toISOString()
         })
         .eq("id", user.id);
 
       if (error) throw error;
       
-      toast.success(`Utilisateur ${user.is_approved ? "désapprouvé" : "approuvé"}`);
-      fetchUsers();
+      const message = newStatus ? "approuvé" : "désapprouvé";
+      toast.success(`✅ Utilisateur ${message} avec succès !`);
+      
     } catch (error) {
-      console.error(error);
-      toast.error("Erreur mise à jour");
+      console.error("Erreur toggleApprove:", error);
+      toast.error("❌ Erreur lors de la mise à jour");
+      
+      // Rollback en cas d'erreur
+      setUsers(prevUsers => 
+        prevUsers.map(u => 
+          u.id === user.id 
+            ? { ...u, is_approved: previousStatus } 
+            : u
+        )
+      );
     }
   };
 
+  // ✅ TOGGLE ADMIN
   const toggleAdmin = async (user) => {
+    const previousStatus = user.is_admin;
+    const newStatus = !previousStatus;
+    
     try {
+      setUsers(prevUsers => 
+        prevUsers.map(u => 
+          u.id === user.id ? { ...u, is_admin: newStatus } : u
+        )
+      );
+      
       const { error } = await supabase
         .from("users")
         .update({ 
-          is_admin: !user.is_admin,
+          is_admin: newStatus,
           updated_at: new Date().toISOString()
         })
         .eq("id", user.id);
 
       if (error) throw error;
       
-      toast.success(`Rôle admin ${user.is_admin ? "retiré" : "attribué"}`);
-      fetchUsers();
+      toast.success(`👑 Admin ${newStatus ? "nommé" : "retiré"}`);
+      
     } catch (error) {
       console.error(error);
-      toast.error("Erreur mise à jour");
+      toast.error("❌ Erreur lors de la mise à jour");
+      setUsers(prevUsers => 
+        prevUsers.map(u => 
+          u.id === user.id ? { ...u, is_admin: previousStatus } : u
+        )
+      );
     }
   };
 
@@ -176,9 +227,7 @@ const AdminUsers = () => {
 
     try {
       const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(id);
-      if (authError) {
-        console.error("Auth delete error:", authError);
-      }
+      if (authError) console.error("Auth delete error:", authError);
 
       const { error: dbError } = await supabase
         .from("users")
@@ -228,6 +277,14 @@ const AdminUsers = () => {
     }
   };
 
+  // Statistiques
+  const stats = [
+    { label: "Total utilisateurs", value: users.length, icon: "👥", color: "from-blue-500 to-blue-600" },
+    { label: "Administrateurs", value: users.filter(u => u.is_admin).length, icon: "👑", color: "from-purple-500 to-purple-600" },
+    { label: "Approuvés", value: users.filter(u => u.is_approved).length, icon: "✅", color: "from-green-500 to-green-600" },
+    { label: "En attente", value: users.filter(u => !u.is_approved).length, icon: "⏳", color: "from-orange-500 to-orange-600" },
+  ];
+
   if (loading || loadingUsers) {
     return (
       <div className="flex justify-center items-center h-96 mt-20">
@@ -239,197 +296,294 @@ const AdminUsers = () => {
   if (!isAdmin) return null;
 
   return (
-    <div className="max-w-6xl mx-auto p-6 mt-20">
-      <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
-        <div>
-          <h1 className="text-3xl font-bold" style={{ color: "#1a56db" }}>
-            👥 Gestion des utilisateurs
-          </h1>
-          <p className="text-gray-500 text-sm mt-1">
-            Total : {users.length} utilisateur(s)
-          </p>
-        </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="bg-[#76c21f] text-white px-4 py-2 rounded-lg hover:bg-green-600 transition shadow-md"
-        >
-          + Ajouter un utilisateur
-        </button>
-      </div>
+    <>
+      <Helmet>
+        <title>Admin - Gestion des utilisateurs | Centre Certus</title>
+        <meta name="robots" content="noindex, nofollow" />
+      </Helmet>
 
-      {users.length === 0 ? (
-        <div className="text-center py-10 bg-white rounded-lg shadow">
-          <p className="text-gray-500">Aucun utilisateur trouvé</p>
-          <button
-            onClick={fetchUsers}
-            className="mt-3 text-[#1a56db] hover:underline"
-          >
-            Rafraîchir
-          </button>
-        </div>
-      ) : (
-        <div className="overflow-x-auto bg-white shadow rounded-lg">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="p-3">Nom</th>
-                <th className="p-3">Email</th>
-                <th className="p-3">Rôle</th>
-                <th className="p-3">Statut</th>
-                <th className="p-3">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => (
-                <tr key={u.id} className="border-b hover:bg-gray-50">
-                  <td className="p-3 font-medium">{u.full_name || "—"}</td>
-                  <td className="p-3">{u.email}</td>
-                  <td className="p-3">
-                    {u.is_admin ? (
-                      <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs">👑 Admin</span>
-                    ) : (
-                      <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs">👤 Utilisateur</span>
-                    )}
-                  </td>
-                  <td className="p-3">
-                    {u.is_approved ? (
-                      <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs">✅ Approuvé</span>
-                    ) : (
-                      <span className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full text-xs">⏳ En attente</span>
-                    )}
-                  </td>
-                  <td className="p-3 flex gap-2 flex-wrap">
-                    <button
-                      onClick={() => resetPassword(u.email)}
-                      className="px-2 py-1 bg-yellow-500 text-white rounded text-xs hover:bg-yellow-600"
-                    >
-                      🔑 Reset MDP
-                    </button>
-                    <button
-                      onClick={() => toggleApprove(u)}
-                      className={`px-2 py-1 rounded text-xs text-white ${
-                        u.is_approved ? "bg-orange-500 hover:bg-orange-600" : "bg-green-500 hover:bg-green-600"
-                      }`}
-                    >
-                      {u.is_approved ? "⛔ Désapprouver" : "✅ Approuver"}
-                    </button>
-                    <button
-                      onClick={() => toggleAdmin(u)}
-                      className={`px-2 py-1 rounded text-xs text-white ${
-                        u.is_admin ? "bg-orange-500 hover:bg-orange-600" : "bg-blue-500 hover:bg-blue-600"
-                      }`}
-                    >
-                      {u.is_admin ? "👤 Retirer Admin" : "⭐ Nommer Admin"}
-                    </button>
-                    {u.email !== "admin@certus.tn" && (
-                      <button
-                        onClick={() => deleteUser(u.id, u.email)}
-                        className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"
-                      >
-                        🗑️ Supprimer
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 pt-20">
+        <div className="max-w-7xl mx-auto p-6">
+          
+          {/* Hero Section */}
+          <div className="relative bg-gradient-to-r from-[#1a56db] via-[#1a56db] to-[#76c21f] text-white rounded-2xl overflow-hidden mb-8">
+            <div className="absolute inset-0 bg-black/10"></div>
+            <div className="relative z-10 p-8">
+              <div className="flex justify-between items-center flex-wrap gap-4">
+                <div>
+                  <h1 className="text-3xl font-bold flex items-center gap-2">
+                    <span>👥</span> Gestion des utilisateurs
+                  </h1>
+                  <p className="text-blue-100 mt-1">
+                    Gérez les comptes, les rôles et les autorisations
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  className="bg-white text-[#1a56db] px-5 py-2.5 rounded-xl font-semibold hover:shadow-lg transition-all hover:scale-105 flex items-center gap-2"
+                >
+                  <span>➕</span> Ajouter un utilisateur
+                </button>
+              </div>
+            </div>
+          </div>
 
-      {/* MODAL AJOUT UTILISATEUR */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6"
-          >
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold" style={{ color: "#1a56db" }}>
-                Ajouter un utilisateur
-              </h2>
-              <button onClick={() => setShowAddModal(false)} className="text-gray-500 hover:text-gray-700 text-xl">
-                ✕
+          {/* Statistiques */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            {stats.map((stat, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+                className={`bg-gradient-to-r ${stat.color} rounded-xl p-4 text-white shadow-lg`}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm opacity-90">{stat.label}</p>
+                    <p className="text-2xl font-bold">{stat.value}</p>
+                  </div>
+                  <div className="text-3xl">{stat.icon}</div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+
+          {/* Barre de recherche */}
+          <div className="bg-white rounded-xl shadow-md p-4 mb-6">
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <input
+                type="text"
+                placeholder="Rechercher par nom ou email..."
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a56db] focus:border-transparent"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Tableau des utilisateurs */}
+          {filteredUsers.length === 0 ? (
+            <div className="text-center py-10 bg-white rounded-xl shadow-md">
+              <div className="text-5xl mb-3">🔍</div>
+              <p className="text-gray-500">Aucun utilisateur trouvé</p>
+              <button
+                onClick={fetchUsers}
+                className="mt-3 text-[#1a56db] hover:underline"
+              >
+                Rafraîchir
               </button>
             </div>
-
-            <form onSubmit={createUser} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Nom complet *</label>
-                <input
-                  type="text"
-                  required
-                  className="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-[#1a56db]"
-                  value={newUser.full_name}
-                  onChange={(e) => setNewUser({ ...newUser, full_name: e.target.value })}
-                />
+          ) : (
+            <div className="bg-white rounded-xl shadow-md overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="p-4 text-left font-semibold text-gray-600">Utilisateur</th>
+                      <th className="p-4 text-left font-semibold text-gray-600">Email</th>
+                      <th className="p-4 text-left font-semibold text-gray-600">Rôle</th>
+                      <th className="p-4 text-left font-semibold text-gray-600">Statut</th>
+                      <th className="p-4 text-left font-semibold text-gray-600">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredUsers.map((user, index) => (
+                      <motion.tr
+                        key={user.id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        className="border-b border-gray-100 hover:bg-gray-50 transition"
+                      >
+                        <td className="p-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-gradient-to-r from-[#1a56db] to-[#76c21f] rounded-full flex items-center justify-center text-white text-sm font-bold">
+                              {user.full_name?.charAt(0) || "?"}
+                            </div>
+                            <span className="font-medium text-gray-800">{user.full_name || "—"}</span>
+                          </div>
+                        </td>
+                        <td className="p-4 text-gray-600">{user.email}</td>
+                        <td className="p-4">
+                          {user.is_admin ? (
+                            <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-700 px-2 py-1 rounded-full text-xs">
+                              <span>👑</span> Admin
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs">
+                              <span>👤</span> Utilisateur
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-4">
+                          {user.is_approved ? (
+                            <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs">
+                              <span>✅</span> Approuvé
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full text-xs">
+                              <span>⏳</span> En attente
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-4">
+                          <div className="flex gap-2 flex-wrap">
+                            <button
+                              onClick={() => resetPassword(user.email)}
+                              className="px-2 py-1 bg-yellow-500 text-white rounded-lg text-xs hover:bg-yellow-600 transition flex items-center gap-1"
+                              title="Réinitialiser le mot de passe"
+                            >
+                              🔑 MDP
+                            </button>
+                            <button
+                              onClick={() => toggleApprove(user)}
+                              className={`px-2 py-1 rounded-lg text-xs text-white transition flex items-center gap-1 ${
+                                user.is_approved ? "bg-orange-500 hover:bg-orange-600" : "bg-green-500 hover:bg-green-600"
+                              }`}
+                              title={user.is_approved ? "Désapprouver" : "Approuver"}
+                            >
+                              {user.is_approved ? "⛔ Désapprouver" : "✅ Approuver"}
+                            </button>
+                            <button
+                              onClick={() => toggleAdmin(user)}
+                              className={`px-2 py-1 rounded-lg text-xs text-white transition flex items-center gap-1 ${
+                                user.is_admin ? "bg-orange-500 hover:bg-orange-600" : "bg-blue-500 hover:bg-blue-600"
+                              }`}
+                              title={user.is_admin ? "Retirer admin" : "Nommer admin"}
+                            >
+                              {user.is_admin ? "👤 Retirer admin" : "⭐ Nommer admin"}
+                            </button>
+                            {user.email !== "admin@certus.tn" && (
+                              <button
+                                onClick={() => deleteUser(user.id, user.email)}
+                                className="px-2 py-1 bg-red-600 text-white rounded-lg text-xs hover:bg-red-700 transition flex items-center gap-1"
+                                title="Supprimer"
+                              >
+                                🗑️ Supprimer
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Email *</label>
-                <input
-                  type="email"
-                  required
-                  className="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-[#1a56db]"
-                  value={newUser.email}
-                  onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Mot de passe *</label>
-                <input
-                  type="password"
-                  required
-                  minLength={6}
-                  className="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-[#1a56db]"
-                  value={newUser.password}
-                  onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                />
-                <p className="text-xs text-gray-500 mt-1">Minimum 6 caractères</p>
-              </div>
-
-              <div className="flex gap-4">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={newUser.is_admin}
-                    onChange={(e) => setNewUser({ ...newUser, is_admin: e.target.checked })}
-                  />
-                  <span className="text-sm">👑 Administrateur</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={newUser.is_approved}
-                    onChange={(e) => setNewUser({ ...newUser, is_approved: e.target.checked })}
-                  />
-                  <span className="text-sm">✅ Approuvé immédiatement</span>
-                </label>
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="submit"
-                  disabled={creating}
-                  className="flex-1 bg-[#1a56db] text-white py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
-                >
-                  {creating ? "Création..." : "➕ Créer l'utilisateur"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-400 transition"
-                >
-                  Annuler
-                </button>
-              </div>
-            </form>
-          </motion.div>
+            </div>
+          )}
         </div>
-      )}
-    </div>
+
+        {/* MODAL AJOUT UTILISATEUR */}
+        <AnimatePresence>
+          {showAddModal && (
+            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="bg-white rounded-2xl shadow-2xl max-w-md w-full"
+              >
+                <div className="bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white p-5 rounded-t-2xl">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h2 className="text-xl font-bold">Ajouter un utilisateur</h2>
+                      <p className="text-blue-100 text-sm">Créez un nouveau compte</p>
+                    </div>
+                    <button onClick={() => setShowAddModal(false)} className="text-white/80 hover:text-white transition text-2xl">
+                      ✕
+                    </button>
+                  </div>
+                </div>
+
+                <form onSubmit={createUser} className="p-6 space-y-5">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Nom complet *</label>
+                    <input
+                      type="text"
+                      required
+                      className="w-full border border-gray-300 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#1a56db] focus:border-transparent transition"
+                      value={newUser.full_name}
+                      onChange={(e) => setNewUser({ ...newUser, full_name: e.target.value })}
+                      placeholder="Jean Dupont"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                    <input
+                      type="email"
+                      required
+                      className="w-full border border-gray-300 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#1a56db] focus:border-transparent transition"
+                      value={newUser.email}
+                      onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                      placeholder="jean.dupont@email.com"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Mot de passe *</label>
+                    <input
+                      type="password"
+                      required
+                      minLength={6}
+                      className="w-full border border-gray-300 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#1a56db] focus:border-transparent transition"
+                      value={newUser.password}
+                      onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                      placeholder="••••••"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Minimum 6 caractères</p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={newUser.is_admin}
+                        onChange={(e) => setNewUser({ ...newUser, is_admin: e.target.checked })}
+                        className="w-4 h-4 text-[#1a56db]"
+                      />
+                      <span className="text-sm">👑 Administrateur</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={newUser.is_approved}
+                        onChange={(e) => setNewUser({ ...newUser, is_approved: e.target.checked })}
+                        className="w-4 h-4 text-[#1a56db]"
+                      />
+                      <span className="text-sm">✅ Approuvé immédiatement</span>
+                    </label>
+                  </div>
+
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      type="submit"
+                      disabled={creating}
+                      className="flex-1 bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white py-2.5 rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50"
+                    >
+                      {creating ? "Création en cours..." : "➕ Créer l'utilisateur"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddModal(false)}
+                      className="flex-1 bg-gray-100 text-gray-700 py-2.5 rounded-xl font-semibold hover:bg-gray-200 transition"
+                    >
+                      Annuler
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+      </div>
+    </>
   );
 };
 

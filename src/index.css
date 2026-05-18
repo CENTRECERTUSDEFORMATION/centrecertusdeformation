@@ -215,6 +215,123 @@ code {
   background: #76c21f;
 }
 
+/* ========== STYLES POUR SWIPER (FLÈCHES DE NAVIGATION) ========== */
+/* Styles pour les flèches de navigation Swiper */
+.swiper-button-next,
+.swiper-button-prev {
+  background-color: white;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.swiper-button-next:after,
+.swiper-button-prev:after {
+  font-size: 18px;
+  font-weight: bold;
+  color: #1a56db;
+}
+
+.swiper-button-next:hover,
+.swiper-button-prev:hover {
+  background-color: #1a56db;
+  box-shadow: 0 4px 15px rgba(26, 86, 219, 0.3);
+}
+
+.swiper-button-next:hover:after,
+.swiper-button-prev:hover:after {
+  color: white;
+}
+
+.swiper-button-disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* Pagination Swiper */
+.swiper-pagination-bullet {
+  background-color: #1a56db;
+  opacity: 0.5;
+}
+
+.swiper-pagination-bullet-active {
+  background-color: #1a56db;
+  opacity: 1;
+}
+
+/* ========== STYLES POUR LE SWIPER DES PARTENAIRES ========== */
+.partners-swiper {
+  padding: 20px 40px !important;
+}
+
+.partners-swiper .swiper-button-next,
+.partners-swiper .swiper-button-prev {
+  background-color: white;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.partners-swiper .swiper-button-next:after,
+.partners-swiper .swiper-button-prev:after {
+  font-size: 18px;
+  font-weight: bold;
+  color: #1a56db;
+}
+
+.partners-swiper .swiper-button-next:hover,
+.partners-swiper .swiper-button-prev:hover {
+  background-color: #1a56db;
+}
+
+.partners-swiper .swiper-button-next:hover:after,
+.partners-swiper .swiper-button-prev:hover:after {
+  color: white;
+}
+
+/* Version mobile */
+@media (max-width: 640px) {
+  .partners-swiper {
+    padding: 20px 30px !important;
+  }
+  
+  .partners-swiper .swiper-button-next,
+  .partners-swiper .swiper-button-prev {
+    width: 30px;
+    height: 30px;
+  }
+  
+  .partners-swiper .swiper-button-next:after,
+  .partners-swiper .swiper-button-prev:after {
+    font-size: 12px;
+  }
+  
+  .swiper-button-next,
+  .swiper-button-prev {
+    width: 30px;
+    height: 30px;
+  }
+  
+  .swiper-button-next:after,
+  .swiper-button-prev:after {
+    font-size: 12px;
+  }
+}
+
+/* ========== STYLES POUR LE DÉFILEMENT HORIZONTAL ========== */
+/* Cache la scrollbar sur les conteneurs overflow-auto si besoin */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 /* ========== STYLES ADDITIONNELS ========== */
 .container-custom {
   max-width: 1280px;
