@@ -149,6 +149,12 @@ export default function FormationDetail() {
     return `${formation.description?.substring(0, 160)}. Formation ${theme.name}${duration} au Centre Certus à Monastir${online}. Certification reconnue.`;
   };
 
+  // URL complète pour le partage
+  const shareUrl = `https://centrecertusdeformation.tn/formations/${id}`;
+  
+  // Message de partage
+  const shareMessage = `🎓 ${formation?.title || 'Formation'} - Centre Certus Monastir\n📅 ${formation?.duration || 'Durée flexible'}\n💰 ${formation?.price || 'Sur devis'}\n✅ Certificat reconnu\n\n🔗 ${shareUrl}\n\n#Certus #Formation #Monastir`;
+
   const themeConfig = formation ? getThemeConfig(formation.theme) : THEME_CONFIG.digital;
   const langueConfig = formation ? getLangueConfig(formation.langue) : LANGUE_CONFIG.fr;
 
@@ -176,13 +182,13 @@ export default function FormationDetail() {
         <title>{getPageTitle()}</title>
         <meta name="description" content={getPageDescription()} />
         <meta name="keywords" content={`${formation.title}, formation ${themeConfig.name}, centre de formation Monastir, formation certifiante, ${formation.langue === 'en' ? 'training Tunisia' : 'formation Tunisie'}`} />
-        <link rel="canonical" href={`https://centrecertusdeformation.tn/formations/${id}`} />
+        <link rel="canonical" href={shareUrl} />
         
         {/* Open Graph */}
         <meta property="og:title" content={getPageTitle()} />
         <meta property="og:description" content={getPageDescription()} />
         <meta property="og:type" content="article" />
-        <meta property="og:url" content={`https://centrecertusdeformation.tn/formations/${id}`} />
+        <meta property="og:url" content={shareUrl} />
         {formation.images && formation.images[0] && (
           <meta property="og:image" content={getImageUrl(formation.images[0])} />
         )}
@@ -247,7 +253,6 @@ export default function FormationDetail() {
             <span>{themeConfig.icon}</span> {themeConfig.name}
           </span>
           
-          {/* NOUVEAU : Badge Langue */}
           <span className="inline-flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-full text-sm font-semibold">
             <span>{langueConfig.flag}</span> {langueConfig.name}
           </span>
@@ -339,7 +344,7 @@ export default function FormationDetail() {
           </div>
         )}
 
-        {/* NOUVEAU : Lien de test / démo */}
+        {/* Lien de test / démo */}
         {formation.test_link && (
           <div className="mb-8 bg-blue-50 p-6 rounded-xl border border-blue-200">
             <h2 className="text-xl font-semibold text-blue-800 mb-3 flex items-center gap-2">
@@ -386,43 +391,92 @@ export default function FormationDetail() {
           </motion.button>
         </div>
 
-        {/* Partager sur les réseaux sociaux */}
+        {/* Partager sur les réseaux sociaux - Facebook, Instagram, TikTok, LinkedIn */}
         <div className="text-center mt-8 pt-6 border-t border-gray-200">
           <p className="text-sm text-gray-500 mb-3">Partager cette formation :</p>
-          <div className="flex gap-3 justify-center">
+          <div className="flex gap-3 justify-center flex-wrap">
+            
+            {/* Facebook */}
             <a 
-              href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(`https://centrecertusdeformation.tn/formations/${id}`)}`} 
+              href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`} 
               target="_blank" 
               rel="noreferrer" 
-              className="bg-blue-600 text-white p-2 rounded-full w-10 h-10 flex items-center justify-center hover:bg-blue-700 transition"
+              className="bg-[#1877f2] text-white p-3 rounded-full w-11 h-11 flex items-center justify-center hover:bg-[#1664d9] transition shadow-md"
+              title="Partager sur Facebook"
             >
-              f
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M18.77 7.46H14.5v-1.9c0-.9.6-1.1 1-1.1h3V.5h-4.33C10.24.5 9.5 3.44 9.5 5.32v2.15h-3v4h3v12h5v-12h3.85l.42-4z"/>
+              </svg>
             </a>
+            
+            {/* Instagram */}
+            <button
+              onClick={() => {
+                // Copier le message et télécharger l'image
+                const imageUrl = formation.images && formation.images[0] ? getImageUrl(formation.images[0]) : null;
+                navigator.clipboard.writeText(shareMessage);
+                if (imageUrl) {
+                  const link = document.createElement('a');
+                  link.download = `certus-${formation.title.slice(0, 30)}.jpg`;
+                  link.href = imageUrl;
+                  link.click();
+                  toast.success("✅ Image téléchargée et message copié ! Postez sur Instagram");
+                } else {
+                  toast.success("✅ Message copié ! Ajoutez une image manuellement sur Instagram");
+                }
+              }}
+              className="bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 text-white p-3 rounded-full w-11 h-11 flex items-center justify-center hover:shadow-lg transition shadow-md"
+              title="Partager sur Instagram"
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/>
+              </svg>
+            </button>
+            
+            {/* TikTok */}
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(shareMessage);
+                toast.success("✅ Message copié ! Créez une vidéo TikTok avec ce message");
+              }}
+              className="bg-black text-white p-3 rounded-full w-11 h-11 flex items-center justify-center hover:bg-gray-800 transition shadow-md"
+              title="Partager sur TikTok"
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 01-.01-2.93 2.82 2.82 0 012.52-1.59 2.83 2.83 0 01.82.12v-3.5a6.31 6.31 0 00-1.83-.26 6.21 6.21 0 00-5.54 3.27 6.23 6.23 0 00.46 6.61 6.21 6.21 0 005.17 2.61c.13 0 .26 0 .39-.01 2.48-.1 4.7-1.53 5.69-3.68a6.18 6.18 0 00.51-2.55V7.46a7.79 7.79 0 004.54 1.5v-3.4a4.78 4.78 0 01-1.63-.87z"/>
+              </svg>
+            </button>
+            
+            {/* LinkedIn */}
             <a 
-              href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(formation.title)}&url=${encodeURIComponent(`https://centrecertusdeformation.tn/formations/${id}`)}`} 
+              href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`} 
               target="_blank" 
               rel="noreferrer" 
-              className="bg-black text-white p-2 rounded-full w-10 h-10 flex items-center justify-center hover:bg-gray-800 transition"
+              className="bg-[#0a66c2] text-white p-3 rounded-full w-11 h-11 flex items-center justify-center hover:bg-[#094d9e] transition shadow-md"
+              title="Partager sur LinkedIn"
             >
-              𝕏
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452z"/>
+              </svg>
             </a>
+
+            {/* WhatsApp (optionnel mais utile) */}
             <a 
-              href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(`https://centrecertusdeformation.tn/formations/${id}`)}`} 
+              href={`https://wa.me/?text=${encodeURIComponent(shareMessage)}`} 
               target="_blank" 
               rel="noreferrer" 
-              className="bg-blue-800 text-white p-2 rounded-full w-10 h-10 flex items-center justify-center hover:bg-blue-900 transition"
+              className="bg-[#25D366] text-white p-3 rounded-full w-11 h-11 flex items-center justify-center hover:bg-[#20bd59] transition shadow-md"
+              title="Partager sur WhatsApp"
             >
-              in
-            </a>
-            <a 
-              href={`https://wa.me/?text=${encodeURIComponent(`${formation.title} - https://centrecertusdeformation.tn/formations/${id}`)}`} 
-              target="_blank" 
-              rel="noreferrer" 
-              className="bg-green-600 text-white p-2 rounded-full w-10 h-10 flex items-center justify-center hover:bg-green-700 transition"
-            >
-              💬
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.149-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.01-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.095 3.2 5.076 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+              </svg>
             </a>
           </div>
+          
+          <p className="text-xs text-gray-400 mt-3">
+            💡 Pour Instagram : l'image est téléchargée automatiquement
+          </p>
         </div>
       </motion.div>
 
