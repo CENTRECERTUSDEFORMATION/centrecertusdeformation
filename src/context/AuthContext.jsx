@@ -10,17 +10,10 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     let isMounted = true;
-    let timeoutId;
 
     const initAuth = async () => {
       try {
-        timeoutId = setTimeout(() => {
-          if (isMounted && loading) {
-            console.log("⚠️ Timeout: forcing loading=false");
-            setLoading(false);
-          }
-        }, 2000);
-
+        setLoading(true);
         const { data: { session } } = await supabase.auth.getSession();
         
         if (session?.user && isMounted) {
@@ -36,10 +29,7 @@ export const AuthProvider = ({ children }) => {
         console.error("Erreur initAuth:", err);
         setUser(null);
       } finally {
-        if (isMounted) {
-          setLoading(false);
-          if (timeoutId) clearTimeout(timeoutId);
-        }
+        if (isMounted) setLoading(false);
       }
     };
 
@@ -62,9 +52,8 @@ export const AuthProvider = ({ children }) => {
     return () => {
       isMounted = false;
       subscription.unsubscribe();
-      if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [loading]);
+  }, []);
 
   const login = async (email, password) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -76,8 +65,9 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  // Détermination du type d'utilisateur basée sur l'email
   const isAdmin = user?.email === "admin@certus.tn";
-  const userType = isAdmin ? null : (user ? "participant" : null);
+  const userType = !user ? null : (user.email === "houssem@certus.tn" ? "formateur" : "participant");
   const isApproved = true;
 
   const value = {
