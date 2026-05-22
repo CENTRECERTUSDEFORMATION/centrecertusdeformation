@@ -1,330 +1,140 @@
-import React, { useEffect, useState, useRef } from "react";
+// frontend/src/pages/EspaceParticipant.jsx
+import React, { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../context/AuthContext";
-import { Helmet } from "react-helmet-async";
-import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
+import { Helmet } from "react-helmet-async";
 
-export default function EspaceParticipant() {
-  const { user } = useAuth();
-  const [formations, setFormations] = useState([]);
-  const [accessCodes, setAccessCodes] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [selectedFormation, setSelectedFormation] = useState(null);
-  const [showCodeModal, setShowCodeModal] = useState(false);
-  const [accessRole, setAccessRole] = useState(null);
-  const [enteredCode, setEnteredCode] = useState("");
-  const [verifying, setVerifying] = useState(false);
-  const [showJitsi, setShowJitsi] = useState(false);
-  const jitsiContainerRef = useRef(null);
-  const jitsiApiRef = useRef(null);
+const EspaceParticipant = () => {
+  const { user, userType, isApproved, loading } = useAuth();
+  const navigate = useNavigate();
 
-  // Récupérer les formations et leurs codes
+  const [activeSessions, setActiveSessions] = useState([]);
+  const [myFormations, setMyFormations] = useState([]);
+  const [loadingData, setLoadingData] = useState(true);
+
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      
-      const { data: formationsData } = await supabase
-        .from("formations")
-        .select("*")
-        .order("created_at", { ascending: false });
-      
-      if (formationsData) {
-        setFormations(formationsData);
-        
-        const { data: codesData } = await supabase
-          .from("formation_access_codes")
-          .select("*")
-          .in("formation_id", formationsData.map(f => f.id))
-          .eq("is_active", true);
-        
-        if (codesData) {
-          const codesMap = {};
-          codesData.forEach(code => {
-            codesMap[code.formation_id] = {
-              teacher_code: code.teacher_code,
-              participant_code: code.participant_code
-            };
-          });
-          setAccessCodes(codesMap);
-        }
-      }
-      
-      setLoading(false);
-    };
-    
-    fetchData();
-  }, []);
+    if (!loading) {
+      if (!user) navigate("/connexion");
+      else if (userType !== "participant") {
+        toast.error("Accès réservé aux participants");
+        navigate("/");
+      } else if (!isApproved) toast.warning("Compte en attente d'approbation");
+    }
+  }, [user, userType, isApproved, loading, navigate]);
 
-  // Charger le script Jitsi
   useEffect(() => {
-    if (!document.querySelector('script[src="https://meet.jit.si/external_api.js"]')) {
-      const script = document.createElement("script");
-      script.src = "https://meet.jit.si/external_api.js";
-      script.async = true;
-      document.body.appendChild(script);
+    if (user && userType === "participant" && isApproved) {
+      fetchData();
+      const interval = setInterval(fetchActiveSessions, 30000);
+      return () => clearInterval(interval);
     }
-    
-    return () => {
-      if (jitsiApiRef.current) {
-        jitsiApiRef.current.dispose();
-      }
-    };
-  }, []);
+  }, [user, userType, isApproved]);
 
-  // Vérifier le code d'accès
-  const verifyAccessCode = async () => {
-    if (!enteredCode.trim()) {
-      toast.error("Veuillez entrer un code d'accès");
-      return;
-    }
-
-    setVerifying(true);
-
+  const fetchData = async () => {
+    setLoadingData(true);
     try {
-      const codes = accessCodes[selectedFormation.id];
-      if (!codes) {
-        toast.error("Codes non configurés pour cette formation");
-        return;
-      }
-
-      const expectedCode = accessRole === "teacher" 
-        ? codes.teacher_code 
-        : codes.participant_code;
-
-      if (enteredCode.toUpperCase() !== expectedCode) {
-        toast.error("Code d'accès incorrect");
-        return;
-      }
-
-      await joinJitsiRoom();
-
-    } catch (error) {
-      console.error(error);
-      toast.error("Erreur lors de la vérification");
+      await Promise.all([fetchActiveSessions(), fetchMyFormations()]);
+    } catch (err) {
+      console.error(err);
     } finally {
-      setVerifying(false);
+      setLoadingData(false);
     }
   };
 
-  // Rejoindre une salle Jitsi
-  const joinJitsiRoom = async () => {
+  const fetchActiveSessions = async () => {
     try {
-      const roomName = `CERTUS-${enteredCode}`;
-      const roomUrl = `https://meet.jit.si/${roomName}`;
-      
-      // Enregistrer la session
-      const { data: session } = await supabase
-        .from("jitsi_sessions")
-        .insert({
-          formation_id: selectedFormation.id,
-          room_name: roomName,
-          room_url: roomUrl,
-          created_by: user.id,
-          is_active: true
+      const { data, error } = await supabase
+        .from("active_sessions")
+        .select("*")
+        .eq("is_active", true)
+        .order("started_at", { ascending: false });
+
+      if (error) throw error;
+
+      const sessionsWithDetails = await Promise.all(
+        (data || []).map(async (session) => {
+          const { data: formation } = await supabase
+            .from("formations")
+            .select("id, title, description")
+            .eq("id", session.formation_id)
+            .single();
+          return { ...session, formations: formation };
         })
-        .select()
-        .single();
-
-      // Enregistrer la participation
-      await supabase.from("jitsi_participants").insert({
-        session_id: session?.id,
-        formation_id: selectedFormation.id,
-        user_id: user.id,
-        user_name: user.user_metadata?.full_name || user.email,
-        role: accessRole,
-        joined_at: new Date().toISOString()
-      });
-
-      setShowJitsi(true);
-      
-      // Attendre que le DOM soit prêt
-      setTimeout(() => {
-        if (jitsiContainerRef.current && window.JitsiMeetExternalAPI) {
-          const domain = "meet.jit.si";
-          const options = {
-            roomName: roomName,
-            parentNode: jitsiContainerRef.current,
-            userInfo: {
-              displayName: `${user.user_metadata?.full_name || user.email} (${accessRole === "teacher" ? "Formateur" : "Participant"})`
-            },
-            configOverwrite: {
-              startWithAudioMuted: false,
-              startWithVideoMuted: false,
-              enableClosePage: true
-            },
-            interfaceConfigOverwrite: {
-              SHOW_JITSI_WATERMARK: false
-            }
-          };
-
-          const api = new window.JitsiMeetExternalAPI(domain, options);
-          jitsiApiRef.current = api;
-
-          api.addEventListener("readyToClose", () => {
-            api.dispose();
-            jitsiApiRef.current = null;
-            setShowJitsi(false);
-          });
-        }
-      }, 500);
-
-      setShowCodeModal(false);
-      setEnteredCode("");
-
-    } catch (error) {
-      console.error("Erreur Jitsi:", error);
-      toast.error("Erreur lors de la connexion");
-      setShowJitsi(false);
+      );
+      setActiveSessions(sessionsWithDetails);
+    } catch (err) {
+      console.error("Erreur chargement sessions actives:", err);
     }
   };
 
-  const openCodeModal = (formation, role) => {
-    setSelectedFormation(formation);
-    setAccessRole(role);
-    setShowCodeModal(true);
-    setEnteredCode("");
+  const fetchMyFormations = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("inscriptions")
+        .select(`*, formations:formation_id (id, title, description, duration)`)
+        .eq("user_id", user.id);
+      if (error) throw error;
+      setMyFormations(data || []);
+    } catch (err) {
+      console.error("Erreur chargement mes formations:", err);
+    }
   };
 
-  const getImageUrl = (path) => {
-    if (!path) return null;
-    const { data } = supabase.storage.from("uploads").getPublicUrl(path);
-    return data.publicUrl;
+  const joinSession = (session) => {
+    if (session.jitsi_link) {
+      window.open(session.jitsi_link, "_blank");
+      toast.success("Ouverture de la salle...");
+    } else {
+      toast.error("Lien non disponible");
+    }
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-96 mt-20">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1a56db]"></div>
-      </div>
-    );
-  }
+  if (loading || loadingData) return <div className="flex justify-center items-center h-96 mt-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1a56db]"></div></div>;
+  if (!user || userType !== "participant") return null;
 
   return (
     <>
-      <Helmet>
-        <title>Espace Participant | Centre Certus</title>
-        <meta name="robots" content="noindex, nofollow" />
-      </Helmet>
+      <Helmet><title>Espace Participant | Centre Certus</title></Helmet>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 pt-20">
+        <div className="max-w-7xl mx-auto p-6">
+          <div className="bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white rounded-2xl p-8 mb-8">
+            <h1 className="text-3xl font-bold">Espace Participant</h1>
+            <p className="text-blue-100 mt-1">Bienvenue, {user?.full_name || user?.email}</p>
+          </div>
 
-      {/* Interface Jitsi en plein écran */}
-      <AnimatePresence>
-        {showJitsi && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[10000] bg-black"
-          >
-            <div ref={jitsiContainerRef} className="w-full h-full" />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Page principale */}
-      {!showJitsi && (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 pt-20">
-          <div className="max-w-7xl mx-auto px-4 py-8">
-            
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Espace Participant</h1>
-            <p className="text-gray-600 mb-8">
-              Bienvenue, <span className="font-semibold text-[#1a56db]">{user?.user_metadata?.full_name || user?.email}</span>
-            </p>
-
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">📚 Mes formations</h2>
-
-            {formations.length === 0 ? (
-              <div className="bg-white rounded-xl p-12 text-center">
-                <p className="text-gray-500">Aucune formation disponible</p>
-              </div>
+          <div className="mb-10">
+            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2"><span className="text-green-600">🟢</span> Sessions en direct</h2>
+            {activeSessions.length === 0 ? (
+              <div className="bg-white rounded-xl shadow-md p-8 text-center"><p className="text-gray-500">Aucune session active.</p><p className="text-sm text-gray-400 mt-2">Attendez que votre formateur démarre une session.</p></div>
             ) : (
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {formations.map((formation) => (
-                  <div key={formation.id} className="bg-white rounded-xl shadow-md p-5">
-                    <h3 className="text-lg font-bold text-gray-800">{formation.title}</h3>
-                    
-                    <div className="flex gap-3 mt-4">
-                      <button
-                        onClick={() => openCodeModal(formation, "teacher")}
-                        disabled={!accessCodes[formation.id]}
-                        className={`flex-1 py-2 rounded-lg text-sm font-semibold ${
-                          accessCodes[formation.id]
-                            ? "bg-[#1a56db] text-white hover:bg-blue-700"
-                            : "bg-gray-200 text-gray-400 cursor-not-allowed"
-                        }`}
-                      >
-                        👨‍🏫 Formateur
-                      </button>
-                      <button
-                        onClick={() => openCodeModal(formation, "student")}
-                        disabled={!accessCodes[formation.id]}
-                        className={`flex-1 py-2 rounded-lg text-sm font-semibold ${
-                          accessCodes[formation.id]
-                            ? "bg-[#76c21f] text-white hover:bg-green-700"
-                            : "bg-gray-200 text-gray-400 cursor-not-allowed"
-                        }`}
-                      >
-                        👨‍🎓 Participant
-                      </button>
-                    </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {activeSessions.map(session => (
+                  <div key={session.id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition">
+                    <div className="bg-gradient-to-r from-green-600 to-green-500 p-4 text-white"><h3 className="font-bold text-lg">{session.formations?.title}</h3><p className="text-green-100 text-sm">Démarrée à {new Date(session.started_at).toLocaleTimeString()}</p></div>
+                    <div className="p-5"><p className="text-gray-600 text-sm mb-4">{session.formations?.description}</p><button onClick={() => joinSession(session)} className="w-full bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white py-3 rounded-lg font-semibold hover:opacity-90 flex items-center justify-center gap-2">🎥 Rejoindre la session</button></div>
                   </div>
                 ))}
               </div>
             )}
           </div>
-        </div>
-      )}
 
-      {/* Modal de saisie du code */}
-      <AnimatePresence>
-        {showCodeModal && !showJitsi && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-2xl max-w-md w-full"
-            >
-              <div className="bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white p-5 rounded-t-2xl">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-xl font-bold">
-                    {accessRole === "teacher" ? "👨‍🏫 Formateur" : "👨‍🎓 Participant"}
-                  </h3>
-                  <button onClick={() => setShowCodeModal(false)} className="text-white text-2xl">×</button>
-                </div>
-                <p className="text-blue-100 text-sm mt-1">{selectedFormation?.title}</p>
+          <div><h2 className="text-xl font-bold text-gray-800 mb-4">📚 Mes formations</h2>
+            {myFormations.length === 0 ? (
+              <div className="bg-white rounded-xl shadow-md p-8 text-center"><p className="text-gray-500">Vous n'êtes inscrit à aucune formation.</p></div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {myFormations.map(ins => (
+                  <div key={ins.id} className="bg-white rounded-xl shadow-md overflow-hidden"><div className="bg-gray-800 text-white p-4"><h3 className="font-bold text-lg">{ins.formations?.title}</h3></div><div className="p-5"><p className="text-gray-600 text-sm">{ins.formations?.description}</p><p className="text-xs text-gray-400 mt-3">Inscrit le {new Date(ins.created_at).toLocaleDateString()}</p></div></div>
+                ))}
               </div>
-
-              <div className="p-6">
-                <input
-                  type="text"
-                  value={enteredCode}
-                  onChange={(e) => setEnteredCode(e.target.value.toUpperCase())}
-                  placeholder="Code d'accès"
-                  className="w-full border rounded-xl px-4 py-3 text-center text-xl font-mono focus:outline-none focus:ring-2 focus:ring-[#1a56db]"
-                  autoFocus
-                />
-                
-                <div className="flex gap-3 mt-6">
-                  <button
-                    onClick={verifyAccessCode}
-                    disabled={verifying || !enteredCode.trim()}
-                    className="flex-1 bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white py-3 rounded-xl font-semibold disabled:opacity-50"
-                  >
-                    {verifying ? "Vérification..." : "Accéder"}
-                  </button>
-                  <button
-                    onClick={() => setShowCodeModal(false)}
-                    className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-xl font-semibold"
-                  >
-                    Annuler
-                  </button>
-                </div>
-              </div>
-            </motion.div>
+            )}
           </div>
-        )}
-      </AnimatePresence>
+        </div>
+      </div>
     </>
   );
-}
+};
+
+export default EspaceParticipant;

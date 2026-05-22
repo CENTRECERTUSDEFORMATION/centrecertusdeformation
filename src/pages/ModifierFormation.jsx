@@ -8,20 +8,19 @@ import { motion } from "framer-motion";
 export default function ModifierFormation() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user, isAdmin } = useAuth();
+  const { isAdmin } = useAuth();  // ✅ Correction: utiliser isAdmin directement
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [formation, setFormation] = useState(null);
   
-  // Formulaire
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [fullDescription, setFullDescription] = useState("");
   const [preinscriptionLink, setPreinscriptionLink] = useState("");
-  const [testLink, setTestLink] = useState(""); // NOUVEAU
+  const [testLink, setTestLink] = useState("");
   const [theme, setTheme] = useState("digital");
-  const [langue, setLangue] = useState("fr"); // NOUVEAU
+  const [langue, setLangue] = useState("fr");
   const [duration, setDuration] = useState("");
   const [price, setPrice] = useState("");
   const [isOnline, setIsOnline] = useState(false);
@@ -31,11 +30,11 @@ export default function ModifierFormation() {
   const [newPreviews, setNewPreviews] = useState([]);
   const [imagesToDelete, setImagesToDelete] = useState([]);
 
-  if (!user?.isAdmin) {
+  // ✅ Vérification admin
+  if (!isAdmin) {
     return <p className="text-center mt-20">Accès refusé</p>;
   }
 
-  // 7 thèmes disponibles
   const themes = [
     { id: "digital", name: "💻 Digital & Web" },
     { id: "data", name: "📊 Data & IA" },
@@ -46,7 +45,6 @@ export default function ModifierFormation() {
     { id: "langues", name: "🗣️ Langues & Communication" }
   ];
 
-  // Langues disponibles
   const langues = [
     { code: "fr", name: "Français" },
     { code: "en", name: "English" },
@@ -61,7 +59,6 @@ export default function ModifierFormation() {
       .replace(/[^a-zA-Z0-9.-]/g, '');
   };
 
-  // Charger la formation existante
   useEffect(() => {
     const fetchFormation = async () => {
       try {
@@ -78,9 +75,9 @@ export default function ModifierFormation() {
         setDescription(data.description || "");
         setFullDescription(data.fullDescription || "");
         setPreinscriptionLink(data.preinscriptionLink || "");
-        setTestLink(data.test_link || ""); // NOUVEAU
+        setTestLink(data.test_link || "");
         setTheme(data.theme || "digital");
-        setLangue(data.langue || "fr"); // NOUVEAU
+        setLangue(data.langue || "fr");
         setDuration(data.duration || "");
         setPrice(data.price || "");
         setIsOnline(data.is_online || false);
@@ -133,12 +130,10 @@ export default function ModifierFormation() {
     setSubmitting(true);
 
     try {
-      // 1. Supprimer les images retirées du storage
       for (const imagePath of imagesToDelete) {
         await supabase.storage.from("uploads").remove([imagePath]);
       }
 
-      // 2. Uploader les nouvelles images
       const uploadedPaths = [...existingImages];
       for (const image of newImages) {
         const cleanName = cleanFileName(image.name);
@@ -151,7 +146,6 @@ export default function ModifierFormation() {
         uploadedPaths.push(fileName);
       }
 
-      // 3. Mettre à jour la formation
       const { error: updateError } = await supabase
         .from("formations")
         .update({
@@ -159,9 +153,9 @@ export default function ModifierFormation() {
           description,
           fullDescription,
           preinscriptionLink,
-          test_link: testLink || null, // NOUVEAU
+          test_link: testLink || null,
           theme,
-          langue, // NOUVEAU
+          langue,
           duration: duration || null,
           price: price || null,
           is_online: isOnline,
@@ -193,137 +187,47 @@ export default function ModifierFormation() {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="max-w-3xl mx-auto p-6 mt-20"
-    >
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-3xl mx-auto p-6 mt-20">
       <h2 className="text-2xl font-bold mb-6">Modifier la formation</h2>
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Titre */}
-        <div>
-          <label className="block text-sm font-medium mb-1">Titre *</label>
-          <input type="text" className="w-full border p-2 rounded" value={title} onChange={(e) => setTitle(e.target.value)} required />
-        </div>
+        <div><label className="block text-sm font-medium mb-1">Titre *</label><input type="text" className="w-full border p-2 rounded" value={title} onChange={(e) => setTitle(e.target.value)} required /></div>
 
-        {/* Langue (NOUVEAU) */}
-        <div>
-          <label className="block text-sm font-medium mb-1">🌐 Langue de la formation</label>
-          <select className="w-full border p-2 rounded" value={langue} onChange={(e) => setLangue(e.target.value)}>
-            {langues.map((l) => (
-              <option key={l.code} value={l.code}>{l.name}</option>
-            ))}
-          </select>
-        </div>
+        <div><label className="block text-sm font-medium mb-1">🌐 Langue de la formation</label><select className="w-full border p-2 rounded" value={langue} onChange={(e) => setLangue(e.target.value)}>{langues.map((l) => (<option key={l.code} value={l.code}>{l.name}</option>))}</select></div>
 
-        {/* Thème */}
-        <div>
-          <label className="block text-sm font-medium mb-1">Thème *</label>
-          <select className="w-full border p-2 rounded" value={theme} onChange={(e) => setTheme(e.target.value)} required>
-            {themes.map((t) => (<option key={t.id} value={t.id}>{t.name}</option>))}
-          </select>
-        </div>
+        <div><label className="block text-sm font-medium mb-1">Thème *</label><select className="w-full border p-2 rounded" value={theme} onChange={(e) => setTheme(e.target.value)} required>{themes.map((t) => (<option key={t.id} value={t.id}>{t.name}</option>))}</select></div>
 
-        {/* Description courte */}
-        <div>
-          <label className="block text-sm font-medium mb-1">Description courte *</label>
-          <textarea className="w-full border p-2 rounded" rows="3" value={description} onChange={(e) => setDescription(e.target.value)} required />
-        </div>
+        <div><label className="block text-sm font-medium mb-1">Description courte *</label><textarea className="w-full border p-2 rounded" rows="3" value={description} onChange={(e) => setDescription(e.target.value)} required /></div>
 
-        {/* Description complète */}
-        <div>
-          <label className="block text-sm font-medium mb-1">Description complète *</label>
-          <textarea className="w-full border p-2 rounded" rows="6" value={fullDescription} onChange={(e) => setFullDescription(e.target.value)} required />
-        </div>
+        <div><label className="block text-sm font-medium mb-1">Description complète *</label><textarea className="w-full border p-2 rounded" rows="6" value={fullDescription} onChange={(e) => setFullDescription(e.target.value)} required /></div>
 
-        {/* Durée et Prix */}
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Durée</label>
-            <input type="text" placeholder="ex: 40h / 3 mois" className="w-full border p-2 rounded" value={duration} onChange={(e) => setDuration(e.target.value)} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Prix</label>
-            <input type="text" placeholder="ex: 1200 DT / Sur devis" className="w-full border p-2 rounded" value={price} onChange={(e) => setPrice(e.target.value)} />
-          </div>
+          <div><label className="block text-sm font-medium mb-1">Durée</label><input type="text" placeholder="ex: 40h / 3 mois" className="w-full border p-2 rounded" value={duration} onChange={(e) => setDuration(e.target.value)} /></div>
+          <div><label className="block text-sm font-medium mb-1">Prix</label><input type="text" placeholder="ex: 1200 DT / Sur devis" className="w-full border p-2 rounded" value={price} onChange={(e) => setPrice(e.target.value)} /></div>
         </div>
 
-        {/* Lien préinscription */}
-        <div>
-          <label className="block text-sm font-medium mb-1">Lien de préinscription</label>
-          <input type="url" className="w-full border p-2 rounded" value={preinscriptionLink} onChange={(e) => setPreinscriptionLink(e.target.value)} placeholder="https://..." />
-        </div>
+        <div><label className="block text-sm font-medium mb-1">Lien préinscription</label><input type="url" className="w-full border p-2 rounded" value={preinscriptionLink} onChange={(e) => setPreinscriptionLink(e.target.value)} placeholder="https://..." /></div>
 
-        {/* Lien de test (NOUVEAU) */}
-        <div>
-          <label className="block text-sm font-medium mb-1">🔗 Lien de test / démo</label>
-          <input 
-            type="url" 
-            className="w-full border p-2 rounded" 
-            value={testLink} 
-            onChange={(e) => setTestLink(e.target.value)} 
-            placeholder="https://test-formation.com"
-          />
-          <p className="text-xs text-gray-500 mt-1">Lien vers un test de niveau ou une démo</p>
-        </div>
+        <div><label className="block text-sm font-medium mb-1">🔗 Lien de test / démo</label><input type="url" className="w-full border p-2 rounded" value={testLink} onChange={(e) => setTestLink(e.target.value)} placeholder="https://test-formation.com" /><p className="text-xs text-gray-500 mt-1">Lien vers un test de niveau ou une démo</p></div>
 
-        {/* Images existantes */}
         {existingImages.length > 0 && (
-          <div>
-            <label className="block text-sm font-medium mb-2">Images actuelles</label>
-            <div className="flex flex-wrap gap-3">
-              {existingImages.map((img, idx) => (
-                <div key={idx} className="relative">
-                  <img src={getImageUrl(img)} alt={`Image ${idx + 1}`} className="w-24 h-24 object-cover rounded border" />
-                  <button type="button" onClick={() => removeExistingImage(idx)} className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 text-sm">×</button>
-                </div>
-              ))}
-            </div>
-          </div>
+          <div><label className="block text-sm font-medium mb-2">Images actuelles</label><div className="flex flex-wrap gap-3">{existingImages.map((img, idx) => (<div key={idx} className="relative"><img src={getImageUrl(img)} alt={`Image ${idx + 1}`} className="w-24 h-24 object-cover rounded border" /><button type="button" onClick={() => removeExistingImage(idx)} className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 text-sm">×</button></div>))}</div></div>
         )}
 
-        {/* Ajouter nouvelles images */}
-        <div>
-          <label className="block text-sm font-medium mb-1">Ajouter des images</label>
-          <input type="file" accept="image/*" multiple onChange={handleNewImages} className="w-full" />
-        </div>
+        <div><label className="block text-sm font-medium mb-1">Ajouter des images</label><input type="file" accept="image/*" multiple onChange={handleNewImages} className="w-full" /></div>
 
-        {/* Aperçu nouvelles images */}
         {newPreviews.length > 0 && (
-          <div>
-            <label className="block text-sm font-medium mb-2">Nouvelles images</label>
-            <div className="flex flex-wrap gap-3">
-              {newPreviews.map((preview, idx) => (
-                <div key={idx} className="relative">
-                  <img src={preview} alt={`Nouvelle ${idx + 1}`} className="w-24 h-24 object-cover rounded border" />
-                  <button type="button" onClick={() => removeNewImage(idx)} className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 text-sm">×</button>
-                </div>
-              ))}
-            </div>
-          </div>
+          <div><label className="block text-sm font-medium mb-2">Nouvelles images</label><div className="flex flex-wrap gap-3">{newPreviews.map((preview, idx) => (<div key={idx} className="relative"><img src={preview} alt={`Nouvelle ${idx + 1}`} className="w-24 h-24 object-cover rounded border" /><button type="button" onClick={() => removeNewImage(idx)} className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 text-sm">×</button></div>))}</div></div>
         )}
 
-        {/* Options */}
         <div className="flex flex-wrap gap-4">
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={isOnline} onChange={(e) => setIsOnline(e.target.checked)} /> 
-            🌍 Formation à distance (international)
-          </label>
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={onDemand} onChange={(e) => setOnDemand(e.target.checked)} /> 
-            🎯 Formation à la demande
-          </label>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={isOnline} onChange={(e) => setIsOnline(e.target.checked)} /> 🌍 Formation à distance (international)</label>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={onDemand} onChange={(e) => setOnDemand(e.target.checked)} /> 🎯 Formation à la demande</label>
         </div>
 
-        {/* Boutons */}
         <div className="flex gap-3 pt-4">
-          <button type="submit" disabled={submitting} className="bg-blue-800 text-white px-6 py-2 rounded hover:bg-blue-900 transition disabled:opacity-50">
-            {submitting ? "Enregistrement..." : "💾 Enregistrer"}
-          </button>
-          <button type="button" onClick={() => navigate("/formations")} className="bg-gray-300 text-gray-700 px-6 py-2 rounded hover:bg-gray-400 transition">
-            Annuler
-          </button>
+          <button type="submit" disabled={submitting} className="bg-blue-800 text-white px-6 py-2 rounded hover:bg-blue-900 transition disabled:opacity-50">{submitting ? "Enregistrement..." : "💾 Enregistrer"}</button>
+          <button type="button" onClick={() => navigate("/formations")} className="bg-gray-300 text-gray-700 px-6 py-2 rounded hover:bg-gray-400 transition">Annuler</button>
         </div>
       </form>
     </motion.div>

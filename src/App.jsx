@@ -15,7 +15,6 @@ const PageLoader = () => (
   </div>
 );
 
-// Lazy loading
 const Home = lazy(() => import("./pages/Home"));
 const Contact = lazy(() => import("./pages/Contact"));
 const Connexion = lazy(() => import("./pages/Connexion"));
@@ -25,6 +24,7 @@ const Actualite = lazy(() => import("./pages/Actualite"));
 const Inscription = lazy(() => import("./pages/Inscription"));
 const AproposDeCertus = lazy(() => import("./pages/AproposDeCertus"));
 const EspaceParticipant = lazy(() => import("./pages/EspaceParticipant"));
+const EspaceFormateur = lazy(() => import("./pages/EspaceFormateur"));
 const TableauDeBordAdmin = lazy(() => import("./pages/TableauDeBordAdmin"));
 const AdminUsers = lazy(() => import("./pages/AdminUsers"));
 const AjouterFormation = lazy(() => import("./pages/AjouterFormation"));
@@ -37,7 +37,6 @@ function AppContent() {
   const location = useLocation();
   const { user } = useAuth();
 
-  // Redirection .vercel.app → .tn
   useEffect(() => {
     const hostname = window.location.hostname;
     if (hostname === "centrecertusdeformation.vercel.app") {
@@ -45,7 +44,6 @@ function AppContent() {
     }
   }, [location]);
 
-  // Suppression des paramètres inutiles pour éviter le contenu dupliqué
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has('theme') || urlParams.has('langue')) {
@@ -53,7 +51,6 @@ function AppContent() {
     }
   }, []);
 
-  // Tracking
   useEffect(() => {
     trackingService.trackPageView(location.pathname, user?.email);
   }, [location, user]);
@@ -74,14 +71,20 @@ function AppContent() {
           <Route path="/contact" element={<Contact />} />
           <Route path="/connexion" element={<Connexion />} />
           <Route path="/inscription" element={<Inscription />} />
+          
           <Route path="/espace-participant" element={<PrivateRoute><EspaceParticipant /></PrivateRoute>} />
+          <Route path="/espace-formateur" element={<PrivateRoute><EspaceFormateur /></PrivateRoute>} />
+          
           <Route path="/admin" element={<PrivateRoute adminOnly><TableauDeBordAdmin /></PrivateRoute>} />
           <Route path="/admin/users" element={<PrivateRoute adminOnly><AdminUsers /></PrivateRoute>} />
           <Route path="/admin/statistics" element={<PrivateRoute adminOnly><StatisticsDashboard /></PrivateRoute>} />
+          
           <Route path="/ajouter-formation" element={<PrivateRoute adminOnly><AjouterFormation /></PrivateRoute>} />
           <Route path="/modifier-formation/:id" element={<PrivateRoute adminOnly><ModifierFormation /></PrivateRoute>} />
+          
           <Route path="/ajouter-actualite" element={<PrivateRoute adminOnly><AjouterActualite /></PrivateRoute>} />
           <Route path="/modifier-actualite/:id" element={<PrivateRoute adminOnly><ModifierActualite /></PrivateRoute>} />
+          
           <Route path="*" element={<div className="text-center py-10">Page non trouvée</div>} />
         </Routes>
       </Suspense>

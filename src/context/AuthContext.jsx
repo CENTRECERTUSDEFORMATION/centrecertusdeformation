@@ -2,69 +2,69 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 
-const AuthContext = createContext();
-
-// ✅ Liste des administrateurs
-const ADMIN_EMAILS = ["admin@certus.tn"];
+const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isApproved, setIsApproved] = useState(true);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
+    let timeoutId;
 
-    const getUser = async () => {
-      setLoading(true);
-      
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session?.user && isMounted) {
-        const email = session.user.email;
-        const isUserAdmin = ADMIN_EMAILS.includes(email);
+    const initAuth = async () => {
+      try {
+        timeoutId = setTimeout(() => {
+          if (isMounted && loading) {
+            console.log("⚠️ Timeout: forcing loading=false");
+            setLoading(false);
+          }
+        }, 2000);
+
+        const { data: { session } } = await supabase.auth.getSession();
         
-        setUser({
-          id: session.user.id,
-          email: email,
-          full_name: session.user.user_metadata?.full_name || email?.split("@")[0],
-        });
-        setIsAdmin(isUserAdmin);
-        setIsApproved(true);
-      }
-      
-      if (isMounted) setLoading(false);
-    };
-
-    getUser();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (event === "SIGNED_IN" && session?.user && isMounted) {
-          const email = session.user.email;
-          const isUserAdmin = ADMIN_EMAILS.includes(email);
-          
+        if (session?.user && isMounted) {
           setUser({
             id: session.user.id,
-            email: email,
-            full_name: session.user.user_metadata?.full_name || email?.split("@")[0],
+            email: session.user.email,
+            full_name: session.user.user_metadata?.full_name || session.user.email?.split("@")[0],
           });
-          setIsAdmin(isUserAdmin);
-          setIsApproved(true);
-        } else if (event === "SIGNED_OUT" && isMounted) {
+        } else {
           setUser(null);
-          setIsAdmin(false);
         }
-        setLoading(false);
+      } catch (err) {
+        console.error("Erreur initAuth:", err);
+        setUser(null);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+          if (timeoutId) clearTimeout(timeoutId);
+        }
       }
-    );
+    };
+
+    initAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!isMounted) return;
+      if (event === "SIGNED_IN" && session?.user) {
+        setUser({
+          id: session.user.id,
+          email: session.user.email,
+          full_name: session.user.user_metadata?.full_name || session.user.email?.split("@")[0],
+        });
+      } else if (event === "SIGNED_OUT") {
+        setUser(null);
+      }
+      setLoading(false);
+    });
 
     return () => {
       isMounted = false;
       subscription.unsubscribe();
+      if (timeoutId) clearTimeout(timeoutId);
     };
-  }, []);
+  }, [loading]);
 
   const login = async (email, password) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -74,14 +74,23 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     await supabase.auth.signOut();
     setUser(null);
-    setIsAdmin(false);
   };
 
-  return (
-    <AuthContext.Provider value={{ user, isAdmin, isApproved, login, logout, loading }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  const isAdmin = user?.email === "admin@certus.tn";
+  const userType = isAdmin ? null : (user ? "participant" : null);
+  const isApproved = true;
+
+  const value = {
+    user,
+    isAdmin,
+    userType,
+    isApproved,
+    login,
+    logout,
+    loading,
+  };
+
+  return React.createElement(AuthContext.Provider, { value }, children);
 };
 
 export const useAuth = () => {
