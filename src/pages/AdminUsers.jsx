@@ -372,7 +372,6 @@ const AdminUsers = () => {
         return;
       }
       
-      // Déterminer si l'utilisateur est admin
       const isAdminUser = newUser.user_type === "admin";
       
       const { error: dbError } = await supabase.from("users").insert({
@@ -396,8 +395,9 @@ const AdminUsers = () => {
   };
 
   const toggleApprove = async (user) => {
-    if (isMasterAdmin(user) || user.is_admin) {
-      toast.warning("⚠️ Non modifiable");
+    // Seul l'admin principal ne peut pas être modifié
+    if (isMasterAdmin(user)) {
+      toast.warning("⚠️ Admin principal non modifiable");
       return;
     }
     const newStatus = !user.is_approved;
@@ -414,13 +414,9 @@ const AdminUsers = () => {
   };
 
   const deleteUser = async (id, email) => {
+    // Seul l'admin principal ne peut pas être supprimé
     if (email === MASTER_ADMIN_EMAIL) {
       toast.warning("⚠️ Admin principal non supprimable");
-      return;
-    }
-    const u = users.find(u => u.id === id);
-    if (u?.is_admin) {
-      toast.warning("⚠️ Admin non supprimable");
       return;
     }
     if (!window.confirm(`Supprimer ${email} ?`)) return;
@@ -671,7 +667,11 @@ const AdminUsers = () => {
                                     <span className="text-xs text-gray-400 italic">Non modifiable</span>
                                   ) : (
                                     <>
-                                      <button onClick={() => toggleApprove(u)} disabled={updating === `approve-${u.id}`} className={`px-2 py-1 rounded-lg text-white text-xs ${u.is_approved ? "bg-orange-500" : "bg-green-500"} disabled:opacity-50`}>
+                                      <button 
+                                        onClick={() => toggleApprove(u)} 
+                                        disabled={updating === `approve-${u.id}`} 
+                                        className={`px-2 py-1 rounded-lg text-white text-xs ${u.is_approved ? "bg-orange-500" : "bg-green-500"} disabled:opacity-50`}
+                                      >
                                         {updating === `approve-${u.id}` ? "..." : (u.is_approved ? "⛔ Désapprouver" : "✅ Approuver")}
                                       </button>
                                       {u.user_type === "formateur" && !isAdminUser && (
@@ -683,7 +683,11 @@ const AdminUsers = () => {
                                           📚 Gérer formations
                                         </button>
                                       )}
-                                      <button onClick={() => deleteUser(u.id, u.email)} disabled={updating === `delete-${u.id}`} className="px-2 py-1 bg-red-600 text-white rounded-lg text-xs">
+                                      <button 
+                                        onClick={() => deleteUser(u.id, u.email)} 
+                                        disabled={updating === `delete-${u.id}`} 
+                                        className="px-2 py-1 bg-red-600 text-white rounded-lg text-xs"
+                                      >
                                         {updating === `delete-${u.id}` ? "..." : "🗑️ Supprimer"}
                                       </button>
                                     </>
