@@ -128,18 +128,51 @@ export default function Formations() {
     fetchFormations();
   }, []);
 
-  // Filtrer par recherche et thème
+  // Fonction de recherche étendue - cherche dans TOUT le contenu de la formation
+  const searchInFormation = (formation, searchLower) => {
+    if (!searchLower) return true;
+    
+    // Champs à rechercher
+    const searchableFields = [
+      formation.title,
+      formation.description,
+      formation.full_description,
+      formation.theme ? THEMES.find(t => t.id === formation.theme)?.name : null,
+      formation.duration,
+      formation.price,
+      formation.lieu,
+      formation.langue,
+      formation.test_link
+    ];
+    
+    // Ajouter les mots-clés du thème
+    const themeInfo = THEMES.find(t => t.id === formation.theme);
+    if (themeInfo) {
+      searchableFields.push(themeInfo.name);
+      searchableFields.push(themeInfo.description);
+    }
+    
+    // Rechercher dans tous les champs
+    return searchableFields.some(field => 
+      field && String(field).toLowerCase().includes(searchLower)
+    );
+  };
+
+  // Filtrer par recherche étendue et thème
   useEffect(() => {
     let filtered = [...formations];
+    
+    // Recherche étendue (titre, description, thème, etc.)
     if (searchTerm !== "") {
-      filtered = filtered.filter((f) =>
-        f.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        f.description?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      const searchLower = searchTerm.toLowerCase();
+      filtered = filtered.filter(formation => searchInFormation(formation, searchLower));
     }
+    
+    // Filtre par thème
     if (selectedTheme !== "all") {
       filtered = filtered.filter((f) => f.theme === selectedTheme);
     }
+    
     setFilteredFormations(filtered);
   }, [searchTerm, selectedTheme, formations]);
 
@@ -281,103 +314,50 @@ export default function Formations() {
 
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 pt-20">
         
-{/* ========== SECTION HERO ========== */}
-<div className="relative bg-gradient-to-r from-[#1a56db] via-[#1a56db] to-[#76c21f] text-white overflow-hidden">
-  <div className="absolute inset-0 bg-black/10"></div>
-  
-  {/* Conteneur avec z-index élevé pour les boutons */}
-  <div className="relative z-20 max-w-7xl mx-auto px-6 py-16 lg:py-20">
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }} 
-      animate={{ opacity: 1, y: 0 }} 
-      className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-4 py-1.5 text-sm mb-6"
-    >
-      <span>🏆</span>
-      <span>Certification reconnue</span>
-    </motion.div>
-    
-    <motion.h1 
-      initial={{ opacity: 0, y: 20 }} 
-      animate={{ opacity: 1, y: 0 }} 
-      transition={{ delay: 0.1 }} 
-      className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4 leading-tight"
-    >
-      Investissez dans votre<br />
-      <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-yellow-100">
-        avenir professionnel
-      </span>
-    </motion.h1>
-    
-    <motion.p 
-      initial={{ opacity: 0, y: 20 }} 
-      animate={{ opacity: 1, y: 0 }} 
-      transition={{ delay: 0.2 }} 
-      className="text-xl md:text-2xl text-blue-100 mb-8 max-w-2xl"
-    >
-      🚀 Des formations certifiantes pour booster votre carrière
-    </motion.p>
-    
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }} 
-      animate={{ opacity: 1, y: 0 }} 
-      transition={{ delay: 0.25 }} 
-      className="flex flex-wrap gap-6 mb-8"
-    >
-      <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
-        <span className="text-2xl">📚</span>
-        <div>
-          <div className="font-bold">{activeFormationsCount}+</div>
-          <div className="text-xs text-blue-200">Formations</div>
+        {/* ========== SECTION HERO ========== */}
+        <div className="relative bg-gradient-to-r from-[#1a56db] via-[#1a56db] to-[#76c21f] text-white overflow-hidden">
+          <div className="absolute inset-0 bg-black/10"></div>
+          <div className="relative z-20 max-w-7xl mx-auto px-6 py-16 lg:py-20">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-4 py-1.5 text-sm mb-6">
+              <span>🏆</span>
+              <span>Certification reconnue</span>
+            </motion.div>
+            <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4 leading-tight">
+              Investissez dans votre<br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-yellow-100">avenir professionnel</span>
+            </motion.h1>
+            <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="text-xl md:text-2xl text-blue-100 mb-8 max-w-2xl">
+              🚀 Des formations certifiantes pour booster votre carrière
+            </motion.p>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="flex flex-wrap gap-6 mb-8">
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
+                <span className="text-2xl">📚</span>
+                <div><div className="font-bold">{activeFormationsCount}+</div><div className="text-xs text-blue-200">Formations</div></div>
+              </div>
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
+                <span className="text-2xl">👨‍🎓</span>
+                <div><div className="font-bold">5000+</div><div className="text-xs text-blue-200">Apprenants</div></div>
+              </div>
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
+                <span className="text-2xl">⭐</span>
+                <div><div className="font-bold">{satisfactionRate}/5</div><div className="text-xs text-blue-200">Satisfaction</div></div>
+              </div>
+            </motion.div>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="flex flex-wrap gap-4 relative z-30">
+              <button onClick={scrollToFormations} className="bg-white text-[#1a56db] px-8 py-3 rounded-xl font-semibold hover:shadow-lg transition-all hover:scale-105 flex items-center gap-2 cursor-pointer pointer-events-auto" type="button">
+                Découvrir nos formations ↙
+              </button>
+              <button onClick={() => setShowDevisModal(true)} className="border-2 border-white text-white px-8 py-3 rounded-xl font-semibold hover:bg-white/10 transition-all hover:scale-105 cursor-pointer pointer-events-auto" type="button">
+                Obtenir un devis
+              </button>
+            </motion.div>
+          </div>
+          <div className="absolute bottom-0 left-0 right-0 z-10 pointer-events-none">
+            <svg viewBox="0 0 1440 120" className="w-full h-auto" fill="currentColor" style={{ color: '#f8fafc' }}>
+              <path d="M0,64L80,58.7C160,53,320,43,480,48C640,53,800,75,960,80C1120,85,1280,75,1360,69.3L1440,64L1440,120L1360,120C1280,120,1120,120,960,120C800,120,640,120,480,120C320,120,160,120,80,120L0,120Z"></path>
+            </svg>
+          </div>
         </div>
-      </div>
-      <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
-        <span className="text-2xl">👨‍🎓</span>
-        <div>
-          <div className="font-bold">5000+</div>
-          <div className="text-xs text-blue-200">Apprenants</div>
-        </div>
-      </div>
-      <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
-        <span className="text-2xl">⭐</span>
-        <div>
-          <div className="font-bold">{satisfactionRate}/5</div>
-          <div className="text-xs text-blue-200">Satisfaction</div>
-        </div>
-      </div>
-    </motion.div>
-    
-    {/* BOUTONS - Avec z-index et pointer-events */}
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }} 
-      animate={{ opacity: 1, y: 0 }} 
-      transition={{ delay: 0.3 }} 
-      className="flex flex-wrap gap-4 relative z-30"
-    >
-      <button 
-        onClick={scrollToFormations} 
-        className="bg-white text-[#1a56db] px-8 py-3 rounded-xl font-semibold hover:shadow-lg transition-all hover:scale-105 flex items-center gap-2 cursor-pointer pointer-events-auto"
-        type="button"
-      >
-        Découvrir nos formations ↙
-      </button>
-      
-      <button 
-        onClick={() => setShowDevisModal(true)} 
-        className="border-2 border-white text-white px-8 py-3 rounded-xl font-semibold hover:bg-white/10 transition-all hover:scale-105 cursor-pointer pointer-events-auto"
-        type="button"
-      >
-        Obtenir un devis
-      </button>
-    </motion.div>
-  </div>
-  
-  {/* Vague décorative en bas - z-index plus bas */}
-  <div className="absolute bottom-0 left-0 right-0 z-10 pointer-events-none">
-    <svg viewBox="0 0 1440 120" className="w-full h-auto" fill="currentColor" style={{ color: '#f8fafc' }}>
-      <path d="M0,64L80,58.7C160,53,320,43,480,48C640,53,800,75,960,80C1120,85,1280,75,1360,69.3L1440,64L1440,120L1360,120C1280,120,1120,120,960,120C800,120,640,120,480,120C320,120,160,120,80,120L0,120Z"></path>
-    </svg>
-  </div>
-</div>
 
         {/* ========== SECTION GÉOGRAPHIQUE ========== */}
         <div className="bg-white border-b border-gray-200">
@@ -415,11 +395,17 @@ export default function Formations() {
           </div>
         </div>
 
-        {/* ========== BARRE DE RECHERCHE + BOUTON ADMIN AJOUT ========== */}
+        {/* ========== BARRE DE RECHERCHE ========== */}
         <div className="sticky top-24 z-10 bg-white/95 backdrop-blur-sm shadow-sm border-b border-gray-200">
           <div className="max-w-7xl mx-auto px-6 py-3">
             <div className="relative max-w-md mx-auto">
-              <input type="text" placeholder="Rechercher une formation..." className="w-full border border-gray-300 rounded-xl px-4 py-2 pl-10 focus:outline-none focus:ring-2 focus:ring-[#1a56db]" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+              <input 
+                type="text" 
+                placeholder="Rechercher par titre, description, thème, durée, prix, langue..." 
+                className="w-full border border-gray-300 rounded-xl px-4 py-2 pl-10 focus:outline-none focus:ring-2 focus:ring-[#1a56db]" 
+                value={searchTerm} 
+                onChange={(e) => setSearchTerm(e.target.value)} 
+              />
               <svg className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             </div>
             <p className="text-center text-sm text-gray-500 mt-2">{filteredFormations.length} formation(s) trouvée(s)</p>
@@ -466,7 +452,19 @@ export default function Formations() {
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-5xl">📚</div>
                     )}
-                    {formation.onDemand && <div className="absolute top-3 right-3"><span className="bg-gradient-to-r from-orange-500 to-orange-600 text-white text-xs px-3 py-1 rounded-full shadow-md">🎯 À la demande</span></div>}
+                    {/* Badges : En ligne et À la demande */}
+                    <div className="absolute top-3 right-3 flex flex-col gap-1 items-end">
+                      {formation.is_online === true && (
+                        <span className="bg-gradient-to-r from-blue-500 to-blue-600 text-white text-xs px-3 py-1 rounded-full shadow-md">
+                          🌍 En ligne
+                        </span>
+                      )}
+                      {formation.onDemand === true && (
+                        <span className="bg-gradient-to-r from-orange-500 to-orange-600 text-white text-xs px-3 py-1 rounded-full shadow-md">
+                          🎯 À la demande
+                        </span>
+                      )}
+                    </div>
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center pb-4">
                       <span className="text-white text-sm font-medium bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full">Voir les détails →</span>
                     </div>
@@ -509,7 +507,7 @@ export default function Formations() {
             </div>
           )}
           
-          {/* ========== TEMOIGNAGES (comme dans Home) ========== */}
+          {/* ========== TEMOIGNAGES ========== */}
           <div className="mt-20 py-12 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl">
             <div className="max-w-6xl mx-auto px-4">
               <div className="text-center mb-10">
@@ -607,7 +605,7 @@ export default function Formations() {
             </div>
           </div>
 
-          {/* ========== CTA FINAL "Prêt à booster votre carrière ?" ========== */}
+          {/* ========== CTA FINAL ========== */}
           <div className="mt-16 py-16 bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl">
             <div className="max-w-4xl mx-auto px-4 text-center">
               <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">

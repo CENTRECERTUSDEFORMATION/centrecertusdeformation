@@ -6,7 +6,65 @@ const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [userType, setUserType] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isApproved, setIsApproved] = useState(true);
   const [loading, setLoading] = useState(true);
+
+  // Fonction pour récupérer les données utilisateur depuis la base
+  const fetchUserData = async (userId, email) => {
+    // Admin principal (pas besoin de base de données)
+    if (email === "admin@certus.tn") {
+      return { userType: null, isAdmin: true, isApproved: true, fullName: "Administrateur" };
+    }
+    
+    // Formateur par email connu (fallback)
+    if (email === "houssem@certus.tn") {
+      return { userType: "formateur", isAdmin: false, isApproved: true, fullName: "Houssem" };
+    }
+    
+    try {
+      // Récupérer depuis la base de données avec maybeSingle() (pas d'erreur 406)
+      const { data, error } = await supabase
+        .from("users")
+        .select("user_type, is_approved, full_name")
+        .eq("id", userId)
+        .maybeSingle();
+      
+      if (error) throw error;
+      
+      if (data) {
+        return {
+          userType: data.user_type || "participant",
+          isAdmin: false,
+          isApproved: data.is_approved === true,
+          fullName: data.full_name || email.split("@")[0]
+        };
+      }
+      
+      // L'utilisateur n'existe pas dans la table, le créer avec is_approved = false
+      const { error: insertError } = await supabase
+        .from("users")
+        .insert({
+          id: userId,
+          email: email,
+          full_name: email.split("@")[0],
+          user_type: "participant",
+          is_approved: false,
+          created_at: new Date().toISOString()
+        });
+      
+      if (insertError) {
+        console.warn("Erreur création utilisateur:", insertError);
+        return { userType: "participant", isAdmin: false, isApproved: false, fullName: email.split("@")[0] };
+      }
+      
+      return { userType: "participant", isAdmin: false, isApproved: false, fullName: email.split("@")[0] };
+    } catch (err) {
+      console.warn("Erreur fetchUserData:", err);
+      return { userType: "participant", isAdmin: false, isApproved: false, fullName: email.split("@")[0] };
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -17,13 +75,22 @@ export const AuthProvider = ({ children }) => {
         const { data: { session } } = await supabase.auth.getSession();
         
         if (session?.user && isMounted) {
+          const email = session.user.email;
+          const userData = await fetchUserData(session.user.id, email);
+          
           setUser({
             id: session.user.id,
-            email: session.user.email,
-            full_name: session.user.user_metadata?.full_name || session.user.email?.split("@")[0],
+            email: email,
+            full_name: userData.fullName,
           });
+          setUserType(userData.userType);
+          setIsAdmin(userData.isAdmin);
+          setIsApproved(userData.isApproved);
         } else {
           setUser(null);
+          setUserType(null);
+          setIsAdmin(false);
+          setIsApproved(true);
         }
       } catch (err) {
         console.error("Erreur initAuth:", err);
@@ -35,16 +102,26 @@ export const AuthProvider = ({ children }) => {
 
     initAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isMounted) return;
+      
       if (event === "SIGNED_IN" && session?.user) {
+        const email = session.user.email;
+        const userData = await fetchUserData(session.user.id, email);
+        
         setUser({
           id: session.user.id,
-          email: session.user.email,
-          full_name: session.user.user_metadata?.full_name || session.user.email?.split("@")[0],
+          email: email,
+          full_name: userData.fullName,
         });
+        setUserType(userData.userType);
+        setIsAdmin(userData.isAdmin);
+        setIsApproved(userData.isApproved);
       } else if (event === "SIGNED_OUT") {
         setUser(null);
+        setUserType(null);
+        setIsAdmin(false);
+        setIsApproved(true);
       }
       setLoading(false);
     });
@@ -63,12 +140,10 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     await supabase.auth.signOut();
     setUser(null);
+    setUserType(null);
+    setIsAdmin(false);
+    setIsApproved(true);
   };
-
-  // Détermination du type d'utilisateur basée sur l'email
-  const isAdmin = user?.email === "admin@certus.tn";
-  const userType = !user ? null : (user.email === "houssem@certus.tn" ? "formateur" : "participant");
-  const isApproved = true;
 
   const value = {
     user,

@@ -21,14 +21,11 @@ export default function Inscription() {
         .from('users')
         .select('email')
         .eq('email', email)
-        .single();
+        .maybeSingle(); // Utilisation de maybeSingle() au lieu de single()
 
-      if (data) {
-        return true; // Email existe déjà
-      }
-      return false;
+      return !!data; // true si email existe
     } catch (error) {
-      return false; // Pas d'erreur, email n'existe pas
+      return false;
     }
   };
 
@@ -86,14 +83,14 @@ export default function Inscription() {
         console.error("Auth Error détaillé:", authError);
         
         // Gestion spécifique des erreurs
-        if (authError.message.includes("rate limit")) {
-          toast.error("⏳ Trop de tentatives. Attendez 10 minutes avant de réessayer avec cet email.");
-        } else if (authError.message.includes("already registered")) {
+        if (authError.message?.includes("rate limit") || authError.status === 429) {
+          toast.error("⏳ Trop de tentatives. Veuillez patienter 5-10 minutes avant de réessayer.");
+        } else if (authError.message?.includes("already registered")) {
           toast.error("📧 Cet email est déjà enregistré. Veuillez vous connecter.");
-        } else if (authError.message.includes("password")) {
-          toast.error("🔑 Le mot de passe doit être plus sécurisé (6 caractères minimum)");
+        } else if (authError.message?.includes("password")) {
+          toast.error("🔑 Le mot de passe doit contenir au moins 6 caractères.");
         } else {
-          toast.error(`❌ ${authError.message}`);
+          toast.error(`❌ ${authError.message || "Erreur lors de l'inscription"}`);
         }
         setLoading(false);
         return;
@@ -113,6 +110,7 @@ export default function Inscription() {
           email: email,
           is_admin: false,
           is_approved: false,
+          user_type: "participant",
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         },
@@ -131,16 +129,21 @@ export default function Inscription() {
         return;
       }
 
-      toast.success("✅ Inscription réussie ! Votre compte est en attente d'approbation.");
+      toast.success("✅ Inscription réussie ! Votre compte est en attente d'approbation par l'administrateur.");
       
       // Redirection après 2 secondes
       setTimeout(() => {
         navigate('/connexion');
-      }, 2000);
+      }, 2500);
 
     } catch (err) {
       console.error("Erreur générale:", err);
-      toast.error("Une erreur inattendue est survenue. Veuillez réessayer.");
+      
+      if (err.message?.includes("rate limit") || err.status === 429) {
+        toast.error("⏳ Trop de tentatives. Veuillez patienter 10 minutes.");
+      } else {
+        toast.error("Une erreur inattendue est survenue. Veuillez réessayer.");
+      }
     } finally {
       setLoading(false);
     }
@@ -244,6 +247,7 @@ export default function Inscription() {
                     className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1a56db] focus:border-transparent transition"
                     required
                     disabled={loading}
+                    minLength={6}
                   />
                   <button
                     type="button"
@@ -330,18 +334,13 @@ export default function Inscription() {
                 </Link>
               </p>
             </div>
-          </motion.div>
 
-          {/* Informations supplémentaires */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
-            className="mt-6 text-center"
-          >
-            <p className="text-xs text-gray-400">
-              L'inscription est gratuite et votre compte sera activé par l'administrateur
-            </p>
+            {/* Message d'information */}
+            <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+              <p className="text-xs text-blue-600 text-center">
+                📌 L'inscription est gratuite. Votre compte sera activé par l'administrateur dans les plus brefs délais.
+              </p>
+            </div>
           </motion.div>
         </div>
       </div>

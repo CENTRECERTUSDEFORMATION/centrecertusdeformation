@@ -25,7 +25,7 @@ const BACKGROUND_COLORS = [
 export default function ModifierActualite() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, loading: authLoading } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -40,10 +40,13 @@ export default function ModifierActualite() {
   const [newPreviews, setNewPreviews] = useState([]);
   const [imagesToDelete, setImagesToDelete] = useState([]);
 
-  // Vérification admin
-  if (!user?.isAdmin) {
-    return <p className="text-center mt-20">Accès refusé</p>;
-  }
+  // Vérification admin après chargement de l'auth
+  useEffect(() => {
+    if (!authLoading && !isAdmin) {
+      toast.error("Accès refusé. Vous devez être administrateur.");
+      navigate("/");
+    }
+  }, [authLoading, isAdmin, navigate]);
 
   const cleanFileName = (filename) => {
     return filename
@@ -55,11 +58,15 @@ export default function ModifierActualite() {
 
   const getImageUrl = (path) => {
     if (!path) return null;
-    const { data } = supabase.storage.from("uploads").getPublicUrl(path);
-    return data.publicUrl;
+    try {
+      const { data } = supabase.storage.from("uploads").getPublicUrl(path);
+      return data.publicUrl;
+    } catch (error) {
+      return null;
+    }
   };
 
-  // Fonctions d'édition de texte enrichi (comme Word)
+  // Fonctions d'édition de texte enrichi
   const insertHTML = (beforeTag, afterTag) => {
     const textarea = document.getElementById('contenu-textarea');
     if (!textarea) return;
@@ -88,14 +95,15 @@ export default function ModifierActualite() {
   const applyUnderline = () => insertHTML('<u>', '</u>');
   const applyList = () => insertHTML('\n• ', '');
   const applyNumberedList = () => insertHTML('\n1. ', '');
-  const applyTitle = () => insertHTML('<h3>', '</h3>\n');
-  const applySubtitle = () => insertHTML('<h4>', '</h4>\n');
+  const applyTitle = () => insertHTML('<h3 class="text-lg font-bold mt-2">', '</h3>');
+  const applySubtitle = () => insertHTML('<h4 class="text-md font-semibold mt-1">', '</h4>');
   const applyLink = () => {
     const url = prompt("Entrez l'URL du lien:", "https://");
     if (url) {
-      insertHTML(`<a href="${url}" target="_blank">`, '</a>');
+      insertHTML(`<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 underline">`, '</a>');
     }
   };
+  
   const applyColorToSelection = (colorHex) => {
     const textarea = document.getElementById('contenu-textarea');
     if (!textarea) return;
@@ -122,6 +130,9 @@ export default function ModifierActualite() {
   // Charger l'actualité existante
   useEffect(() => {
     const fetchActualite = async () => {
+      if (!id) return;
+      
+      setLoading(true);
       try {
         const { data, error } = await supabase
           .from("actualites")
@@ -138,8 +149,8 @@ export default function ModifierActualite() {
         setIsAlert(data.is_alert || false);
         setExistingImages(data.images || []);
       } catch (error) {
-        console.error(error);
-        toast.error("Erreur chargement actualité");
+        console.error("Erreur chargement:", error);
+        toast.error("Erreur lors du chargement de l'actualité");
         navigate("/actualite");
       } finally {
         setLoading(false);
@@ -170,7 +181,7 @@ export default function ModifierActualite() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!titre) {
+    if (!titre.trim()) {
       toast.error("Le titre est obligatoire");
       return;
     }
@@ -192,7 +203,11 @@ export default function ModifierActualite() {
           .from("uploads")
           .upload(fileName, image);
         
-        if (uploadError) throw uploadError;
+        if (uploadError) {
+          console.error("Upload error:", uploadError);
+          toast.error(`Erreur upload: ${uploadError.message}`);
+          continue;
+        }
         uploadedPaths.push(fileName);
       }
 
@@ -200,8 +215,8 @@ export default function ModifierActualite() {
       const { error: updateError } = await supabase
         .from("actualites")
         .update({
-          titre,
-          contenu,
+          titre: titre.trim(),
+          contenu: contenu,
           text_color: textColor,
           background_color: backgroundColor,
           is_alert: isAlert,
@@ -212,21 +227,32 @@ export default function ModifierActualite() {
 
       if (updateError) throw updateError;
 
-      toast.success("Actualité modifiée avec succès !");
+      toast.success("✅ Actualité modifiée avec succès !");
       navigate("/actualite");
 
     } catch (error) {
-      console.error(error);
-      toast.error("Erreur lors de la modification");
+      console.error("Erreur submission:", error);
+      toast.error("❌ Erreur lors de la modification");
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="flex justify-center items-center h-64 mt-20">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1a56db]"></div>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="text-center mt-20">
+        <p className="text-red-600">Accès refusé. Vous devez être administrateur.</p>
+        <button onClick={() => navigate("/")} className="mt-4 bg-[#1a56db] text-white px-4 py-2 rounded-lg">
+          Retour à l'accueil
+        </button>
       </div>
     );
   }
@@ -237,23 +263,29 @@ export default function ModifierActualite() {
       animate={{ opacity: 1, y: 0 }}
       className="max-w-5xl mx-auto p-6 mt-20"
     >
-      <h2 className="text-2xl font-bold mb-6">✏️ Modifier l'actualité</h2>
+      <div className="bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white rounded-2xl p-6 mb-8">
+        <h1 className="text-2xl font-bold">✏️ Modifier l'actualité</h1>
+        <p className="text-blue-100 mt-1">Modifiez le contenu de votre actualité</p>
+      </div>
 
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form onSubmit={handleSubmit} className="space-y-5 bg-white rounded-xl shadow-md p-6">
         {/* Titre */}
         <div>
-          <label className="block text-sm font-medium mb-1">Titre *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Titre <span className="text-red-500">*</span>
+          </label>
           <input
             type="text"
-            className="w-full border p-3 rounded text-lg"
+            className="w-full border border-gray-300 rounded-xl p-3 text-lg focus:ring-2 focus:ring-[#1a56db] focus:border-transparent"
             value={titre}
             onChange={(e) => setTitre(e.target.value)}
+            placeholder="Titre de l'actualité"
             required
           />
         </div>
 
         {/* Options de mise en forme */}
-        <div className="bg-gray-50 p-4 rounded-lg space-y-4">
+        <div className="bg-gray-50 rounded-xl p-4 space-y-4">
           <div className="flex flex-wrap gap-4 items-center">
             {/* Couleur du texte global */}
             <div className="flex items-center gap-2">
@@ -286,28 +318,29 @@ export default function ModifierActualite() {
             </div>
             
             {/* Alerte */}
-            <label className="flex items-center gap-2 border-l border-gray-300 pl-4">
+            <label className="flex items-center gap-2 border-l border-gray-300 pl-4 cursor-pointer">
               <input
                 type="checkbox"
                 checked={isAlert}
                 onChange={(e) => setIsAlert(e.target.checked)}
+                className="w-4 h-4"
               />
               <span className="text-sm font-medium">⚠️ Alerte importante</span>
             </label>
           </div>
         </div>
 
-        {/* Contenu avec barre d'outils complète (comme Word) */}
+        {/* Contenu avec barre d'outils complète */}
         <div>
-          <label className="block text-sm font-medium mb-2">Contenu</label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Contenu</label>
           
-          {/* Barre d'outils complète */}
+          {/* Barre d'outils */}
           <div className="flex flex-wrap gap-1 mb-2 p-2 bg-gray-100 rounded-t-lg border border-gray-300">
             <button
               type="button"
               onClick={applyBold}
               className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 font-bold"
-              title="Gras (Ctrl+B)"
+              title="Gras"
             >
               <span className="font-bold">Gras</span>
             </button>
@@ -315,7 +348,7 @@ export default function ModifierActualite() {
               type="button"
               onClick={applyItalic}
               className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 italic"
-              title="Italique (Ctrl+I)"
+              title="Italique"
             >
               <span className="italic">Italique</span>
             </button>
@@ -323,7 +356,7 @@ export default function ModifierActualite() {
               type="button"
               onClick={applyUnderline}
               className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 underline"
-              title="Souligné (Ctrl+U)"
+              title="Souligné"
             >
               <span className="underline">Souligné</span>
             </button>
@@ -332,7 +365,7 @@ export default function ModifierActualite() {
               type="button"
               onClick={applyTitle}
               className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm"
-              title="Titre H3"
+              title="Titre"
             >
               Titre
             </button>
@@ -340,7 +373,7 @@ export default function ModifierActualite() {
               type="button"
               onClick={applySubtitle}
               className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm"
-              title="Sous-titre H4"
+              title="Sous-titre"
             >
               Sous-titre
             </button>
@@ -370,10 +403,6 @@ export default function ModifierActualite() {
             >
               🔗 Lien
             </button>
-            <div className="w-px h-6 bg-gray-400 mx-1"></div>
-            <span className="text-xs text-gray-500 self-center ml-1">
-              Sélectionnez le texte puis cliquez sur un bouton
-            </span>
           </div>
           
           {/* Barre de couleurs */}
@@ -401,17 +430,14 @@ export default function ModifierActualite() {
             placeholder="Saisissez le contenu de votre actualité ici... Utilisez les boutons ci-dessus pour formater le texte."
           />
           <p className="text-xs text-gray-500 mt-2">
-            💡 Astuces: 
-            - Sélectionnez du texte puis utilisez les boutons (Gras, Italique, Couleur...)
-            - Les retours à la ligne sont automatiquement convertis en paragraphes
-            - Vous pouvez aussi écrire directement en HTML si vous le souhaitez
+            💡 Astuces: Sélectionnez du texte puis utilisez les boutons (Gras, Italique, Couleur...)
           </p>
         </div>
 
         {/* Images existantes */}
         {existingImages.length > 0 && (
           <div>
-            <label className="block text-sm font-medium mb-2">Images actuelles</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Images actuelles</label>
             <div className="flex flex-wrap gap-3">
               {existingImages.map((img, idx) => (
                 <div key={idx} className="relative group">
@@ -419,6 +445,7 @@ export default function ModifierActualite() {
                     src={getImageUrl(img)}
                     alt={`Image ${idx + 1}`}
                     className="w-24 h-24 object-cover rounded-lg border shadow-sm"
+                    onError={(e) => e.target.src = "https://placehold.co/100x100?text=Image"}
                   />
                   <button
                     type="button"
@@ -435,7 +462,7 @@ export default function ModifierActualite() {
 
         {/* Ajouter nouvelles images */}
         <div>
-          <label className="block text-sm font-medium mb-1">Ajouter des images</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Ajouter des images</label>
           <input
             type="file"
             accept="image/*"
@@ -451,7 +478,7 @@ export default function ModifierActualite() {
         {/* Aperçu nouvelles images */}
         {newPreviews.length > 0 && (
           <div>
-            <label className="block text-sm font-medium mb-2">Nouvelles images</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Nouvelles images</label>
             <div className="flex flex-wrap gap-3">
               {newPreviews.map((preview, idx) => (
                 <div key={idx} className="relative group">
@@ -478,14 +505,14 @@ export default function ModifierActualite() {
           <button
             type="submit"
             disabled={submitting}
-            className="bg-blue-800 text-white px-6 py-2 rounded-lg hover:bg-blue-900 transition disabled:opacity-50"
+            className="bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white px-6 py-2 rounded-xl font-semibold hover:shadow-lg transition disabled:opacity-50"
           >
             {submitting ? "Enregistrement..." : "💾 Enregistrer les modifications"}
           </button>
           <button
             type="button"
             onClick={() => navigate("/actualite")}
-            className="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400 transition"
+            className="bg-gray-200 text-gray-700 px-6 py-2 rounded-xl font-semibold hover:bg-gray-300 transition"
           >
             Annuler
           </button>

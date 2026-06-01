@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "react-toastify";
@@ -8,16 +8,27 @@ import { Helmet } from "react-helmet-async";
 export default function Connexion() {
   const { login, user, isAdmin, isApproved, loading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [redirectUrl, setRedirectUrl] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState({
     show: false,
     message: "",
     type: "" // "loading", "success", "error"
   });
+
+  // Récupérer l'URL de redirection depuis les paramètres de l'URL
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const redirect = params.get("redirect");
+    if (redirect) {
+      setRedirectUrl(redirect);
+    }
+  }, [location]);
 
   // Nettoyer le message après un délai
   const clearStatusMessage = () => {
@@ -25,6 +36,31 @@ export default function Connexion() {
       setConnectionStatus({ show: false, message: "", type: "" });
     }, 3000);
   };
+
+  // Redirection après connexion réussie
+  useEffect(() => {
+    if (!loading && user) {
+      // Si une URL de redirection existe, on l'utilise
+      if (redirectUrl) {
+        navigate(redirectUrl);
+        return;
+      }
+      
+      // Sinon, redirection normale selon le rôle
+      if (isAdmin) {
+        navigate("/admin");
+      } else if (isApproved) {
+        navigate("/espace-participant");
+      } else {
+        setConnectionStatus({
+          show: true,
+          message: "❌ Compte non approuvé. Veuillez contacter l'administrateur.",
+          type: "error"
+        });
+        clearStatusMessage();
+      }
+    }
+  }, [user, loading, isAdmin, isApproved, navigate, redirectUrl]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -44,62 +80,19 @@ export default function Connexion() {
     try {
       // Tentative de connexion
       await login(email, password);
-
-      // Attendre que le contexte soit mis à jour
-      setTimeout(() => {
-        // Vérifier l'état après connexion
-        if (!user) {
-          // Échec silencieux - PAS de toast.error ici
-          setConnectionStatus({
-            show: true,
-            message: "❌ Connexion échouée. Email ou mot de passe incorrect.",
-            type: "error"
-          });
-          setSubmitting(false);
-          clearStatusMessage();
-          return;
-        }
-
-        // Succès selon le rôle
-        if (isAdmin) {
-          setConnectionStatus({
-            show: true,
-            message: "✅ Connexion établie en tant qu'Administrateur ! Redirection...",
-            type: "success"
-          });
-          // PAS de toast ici non plus, juste la bannière
-          
-          setTimeout(() => {
-            navigate("/admin");
-          }, 1000);
-          
-        } else if (isApproved) {
-          setConnectionStatus({
-            show: true,
-            message: "✅ Connexion établie en tant que Participant ! Redirection...",
-            type: "success"
-          });
-          // PAS de toast
-          
-          setTimeout(() => {
-            navigate("/espace-participant");
-          }, 1000);
-          
-        } else {
-          setConnectionStatus({
-            show: true,
-            message: "❌ Compte non approuvé. Veuillez contacter l'administrateur.",
-            type: "error"
-          });
-          setSubmitting(false);
-          clearStatusMessage();
-        }
-      }, 500);
+      
+      setConnectionStatus({
+        show: true,
+        message: "✅ Connexion réussie ! Redirection...",
+        type: "success"
+      });
+      
+      // La redirection se fera via l'useEffect ci-dessus
 
     } catch (err) {
       console.error("Erreur connexion:", err);
       
-      // Message d'erreur clair - PAS de toast.error
+      // Message d'erreur clair
       let errorMessage = "❌ Connexion échouée. Email ou mot de passe incorrect.";
       if (err.message?.includes("Invalid login credentials")) {
         errorMessage = "❌ Email ou mot de passe incorrect. Veuillez réessayer.";
@@ -128,7 +121,7 @@ export default function Connexion() {
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 pt-20 flex items-center justify-center">
         <div className="max-w-md w-full mx-4">
           
-          {/* Bannière de statut animée - UNIQUEMENT cette notification */}
+          {/* Bannière de statut animée */}
           <AnimatePresence>
             {connectionStatus.show && (
               <motion.div
@@ -187,6 +180,11 @@ export default function Connexion() {
             <p className="text-gray-500 text-sm mt-1">
               Accédez à votre espace personnel
             </p>
+            {redirectUrl && (
+              <div className="mt-2 inline-flex items-center gap-1 bg-blue-50 text-blue-600 text-xs px-3 py-1 rounded-full">
+                <span>🔗</span> Vous allez être redirigé après connexion
+              </div>
+            )}
           </motion.div>
 
           {/* Carte de connexion */}
@@ -299,12 +297,12 @@ export default function Connexion() {
               </div>
             </div>
 
-            {/* Lien vers inscription */}
+            {/* Lien vers inscription avec redirection */}
             <div className="text-center">
               <p className="text-sm text-gray-600">
                 Pas encore de compte ?
                 <Link
-                  to="/inscription"
+                  to={`/inscription${redirectUrl ? `?redirect=${encodeURIComponent(redirectUrl)}` : ""}`}
                   className="ml-1 text-[#1a56db] font-semibold hover:text-[#76c21f] transition"
                 >
                   Créer un compte

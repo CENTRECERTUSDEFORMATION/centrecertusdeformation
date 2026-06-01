@@ -32,6 +32,7 @@ const AjouterActualite = lazy(() => import("./pages/AjouterActualite"));
 const ModifierFormation = lazy(() => import("./pages/ModifierFormation"));
 const ModifierActualite = lazy(() => import("./pages/ModifierActualite"));
 const StatisticsDashboard = lazy(() => import("./pages/StatisticsDashboard"));
+const ConfirmInscription = lazy(() => import("./pages/ConfirmInscription"));
 
 function AppContent() {
   const location = useLocation();
@@ -63,6 +64,7 @@ function AppContent() {
       <Navbar />
       <Suspense fallback={<PageLoader />}>
         <Routes>
+          {/* Pages publiques */}
           <Route path="/" element={<Home />} />
           <Route path="/a-propos" element={<AproposDeCertus />} />
           <Route path="/formations" element={<Formations />} />
@@ -71,20 +73,26 @@ function AppContent() {
           <Route path="/contact" element={<Contact />} />
           <Route path="/connexion" element={<Connexion />} />
           <Route path="/inscription" element={<Inscription />} />
+          <Route path="/confirm-inscription" element={<ConfirmInscription />} />
           
+          {/* Espaces utilisateurs */}
           <Route path="/espace-participant" element={<PrivateRoute><EspaceParticipant /></PrivateRoute>} />
           <Route path="/espace-formateur" element={<PrivateRoute><EspaceFormateur /></PrivateRoute>} />
           
+          {/* Administration */}
           <Route path="/admin" element={<PrivateRoute adminOnly><TableauDeBordAdmin /></PrivateRoute>} />
           <Route path="/admin/users" element={<PrivateRoute adminOnly><AdminUsers /></PrivateRoute>} />
           <Route path="/admin/statistics" element={<PrivateRoute adminOnly><StatisticsDashboard /></PrivateRoute>} />
           
+          {/* CRUD Formations */}
           <Route path="/ajouter-formation" element={<PrivateRoute adminOnly><AjouterFormation /></PrivateRoute>} />
           <Route path="/modifier-formation/:id" element={<PrivateRoute adminOnly><ModifierFormation /></PrivateRoute>} />
           
+          {/* CRUD Actualités */}
           <Route path="/ajouter-actualite" element={<PrivateRoute adminOnly><AjouterActualite /></PrivateRoute>} />
           <Route path="/modifier-actualite/:id" element={<PrivateRoute adminOnly><ModifierActualite /></PrivateRoute>} />
           
+          {/* 404 */}
           <Route path="*" element={<div className="text-center py-10">Page non trouvée</div>} />
         </Routes>
       </Suspense>

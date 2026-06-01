@@ -38,6 +38,14 @@ const AdminUsers = () => {
   const [activeView, setActiveView] = useState("users");
   const [generatingCode, setGeneratingCode] = useState(false);
   
+  // Nouvelles states pour les inscriptions
+  const [inscriptionsEnAttente, setInscriptionsEnAttente] = useState([]);
+  const [demandesPresentiel, setDemandesPresentiel] = useState([]);
+  const [groupesFormation, setGroupesFormation] = useState([]);
+  const [loadingInscriptions, setLoadingInscriptions] = useState(false);
+  const [loadingDemandes, setLoadingDemandes] = useState(false);
+  const [selectedGroupeId, setSelectedGroupeId] = useState("");
+  
   const [formateursData, setFormateursData] = useState([]);
   const [assignmentsData, setAssignmentsData] = useState({});
   const [nextSeancesData, setNextSeancesData] = useState({});
@@ -68,6 +76,7 @@ const AdminUsers = () => {
   const [creating, setCreating] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [addingSeance, setAddingSeance] = useState(false);
+  const [validatingInscription, setValidatingInscription] = useState(false);
 
   const MASTER_ADMIN_EMAIL = "admin@certus.tn";
 
@@ -83,6 +92,115 @@ const AdminUsers = () => {
       navigate("/");
     }
   }, [isAdmin, loading, navigate]);
+
+  const fetchInscriptionsEnAttente = async () => {
+    setLoadingInscriptions(true);
+    try {
+      const { data, error } = await supabase
+        .from("inscriptions")
+        .select(`
+          *,
+          users:user_id (id, email, full_name),
+          formations:formation_id (id, title, is_online)
+        `)
+        .eq("statut", "en_attente")
+        .order("created_at", { ascending: true });
+
+      if (error) throw error;
+      setInscriptionsEnAttente(data || []);
+    } catch (err) {
+      console.error(err);
+      toast.error("Erreur chargement inscriptions");
+    } finally {
+      setLoadingInscriptions(false);
+    }
+  };
+
+  const fetchDemandesPresentiel = async () => {
+    setLoadingDemandes(true);
+    try {
+      const { data, error } = await supabase
+        .from("demandes_presentiel")
+        .select(`
+          *,
+          formations:formation_id (id, title)
+        `)
+        .eq("statut", "nouvelle")
+        .order("created_at", { ascending: true });
+
+      if (error) throw error;
+      setDemandesPresentiel(data || []);
+    } catch (err) {
+      console.error(err);
+      toast.error("Erreur chargement demandes");
+    } finally {
+      setLoadingDemandes(false);
+    }
+  };
+
+  const fetchGroupesFormation = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("groupes_formation")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setGroupesFormation(data || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const validerInscription = async (inscriptionId, formationId, userId, groupeId) => {
+    if (!groupeId) {
+      toast.error("Veuillez sélectionner un groupe");
+      return;
+    }
+
+    setValidatingInscription(true);
+    try {
+      const { error: updateError } = await supabase
+        .from("inscriptions")
+        .update({
+          statut: "confirme",
+          date_confirmation: new Date().toISOString(),
+          confirmed_by: (await supabase.auth.getUser()).data.user?.id,
+          groupe_id: groupeId
+        })
+        .eq("id", inscriptionId);
+
+      if (updateError) throw updateError;
+
+      toast.success("✅ Inscription validée et groupe affecté");
+      await fetchInscriptionsEnAttente();
+    } catch (err) {
+      console.error(err);
+      toast.error("❌ Erreur lors de la validation");
+    } finally {
+      setValidatingInscription(false);
+    }
+  };
+
+  const marquerDemandeContactee = async (demandeId) => {
+    try {
+      const { error } = await supabase
+        .from("demandes_presentiel")
+        .update({
+          statut: "contacte",
+          contacte_le: new Date().toISOString()
+        })
+        .eq("id", demandeId);
+
+      if (error) throw error;
+
+      toast.success("✅ Demande marquée comme contactée");
+      await fetchDemandesPresentiel();
+    } catch (err) {
+      console.error(err);
+      toast.error("❌ Erreur");
+    }
+  };
 
   const fetchUsers = useCallback(async () => {
     setLoadingUsers(true);
@@ -111,7 +229,7 @@ const AdminUsers = () => {
     try {
       const { data, error } = await supabase
         .from("formations")
-        .select("id, title, duration");
+        .select("id, title, duration, is_online, on_demand");
       if (error) throw error;
       const formatted = (data || []).map(f => ({
         ...f,
@@ -213,7 +331,7 @@ const AdminUsers = () => {
     try {
       const { error } = await supabase
         .from("inscriptions")
-        .insert({ formation_id: formationId, user_id: userId });
+        .insert({ formation_id: formationId, user_id: userId, statut: "confirme" });
       if (error) throw error;
       toast.success("✅ Participant assigné");
       await fetchAvailableParticipants(formationId);
@@ -330,6 +448,9 @@ const AdminUsers = () => {
     if (isAdmin) {
       fetchUsers();
       fetchFormations();
+      fetchInscriptionsEnAttente();
+      fetchDemandesPresentiel();
+      fetchGroupesFormation();
     }
   }, [isAdmin, fetchUsers, fetchFormations]);
 
@@ -395,7 +516,6 @@ const AdminUsers = () => {
   };
 
   const toggleApprove = async (user) => {
-    // Seul l'admin principal ne peut pas être modifié
     if (isMasterAdmin(user)) {
       toast.warning("⚠️ Admin principal non modifiable");
       return;
@@ -414,7 +534,6 @@ const AdminUsers = () => {
   };
 
   const deleteUser = async (id, email) => {
-    // Seul l'admin principal ne peut pas être supprimé
     if (email === MASTER_ADMIN_EMAIL) {
       toast.warning("⚠️ Admin principal non supprimable");
       return;
@@ -574,8 +693,8 @@ const AdminUsers = () => {
           <div className="bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white rounded-2xl p-8 mb-8">
             <div className="flex justify-between items-center flex-wrap gap-4">
               <div>
-                <h1 className="text-3xl font-bold">👥 Gestion des utilisateurs</h1>
-                <p className="text-blue-100 mt-1">Gérez les formateurs, participants et leurs formations</p>
+                <h1 className="text-3xl font-bold">👥 Administration</h1>
+                <p className="text-blue-100 mt-1">Gérez les utilisateurs, formations et inscriptions</p>
               </div>
               <button onClick={() => setShowAddModal(true)} className="bg-white text-[#1a56db] px-5 py-2.5 rounded-xl font-semibold">
                 ➕ Ajouter un utilisateur
@@ -597,15 +716,23 @@ const AdminUsers = () => {
             ))}
           </div>
 
-          <div className="flex gap-4 mb-6 border-b">
+          {/* Onglets */}
+          <div className="flex gap-4 mb-6 border-b flex-wrap">
             <button onClick={() => setActiveView("users")} className={`pb-2 px-4 font-medium ${activeView === "users" ? "border-b-2 border-[#1a56db] text-[#1a56db]" : "text-gray-500"}`}>
-              👥 Liste des utilisateurs
+              👥 Utilisateurs
+            </button>
+            <button onClick={() => setActiveView("inscriptions")} className={`pb-2 px-4 font-medium ${activeView === "inscriptions" ? "border-b-2 border-[#1a56db] text-[#1a56db]" : "text-gray-500"}`}>
+              📝 Inscriptions en ligne ({inscriptionsEnAttente.length})
+            </button>
+            <button onClick={() => setActiveView("demandes")} className={`pb-2 px-4 font-medium ${activeView === "demandes" ? "border-b-2 border-[#1a56db] text-[#1a56db]" : "text-gray-500"}`}>
+              📋 Demandes présentiel ({demandesPresentiel.length})
             </button>
             <button onClick={() => setActiveView("groups")} className={`pb-2 px-4 font-medium ${activeView === "groups" ? "border-b-2 border-[#1a56db] text-[#1a56db]" : "text-gray-500"}`}>
-              📚 Groupes par formateur
+              📚 Groupes formateur
             </button>
           </div>
 
+          {/* VUE UTILISATEURS */}
           {activeView === "users" && (
             <>
               <div className="bg-white rounded-xl shadow-md p-4 mb-6">
@@ -625,9 +752,7 @@ const AdminUsers = () => {
                     </thead>
                     <tbody>
                       {filteredUsers.length === 0 ? (
-                        <tr>
-                          <td colSpan="5" className="p-8 text-center text-gray-500">Aucun utilisateur</td>
-                        </tr>
+                        <tr><td colSpan="5" className="p-8 text-center text-gray-500">Aucun utilisateur</td></tr>
                       ) : (
                         filteredUsers.map(u => {
                           const isMaster = u.email === MASTER_ADMIN_EMAIL;
@@ -667,11 +792,7 @@ const AdminUsers = () => {
                                     <span className="text-xs text-gray-400 italic">Non modifiable</span>
                                   ) : (
                                     <>
-                                      <button 
-                                        onClick={() => toggleApprove(u)} 
-                                        disabled={updating === `approve-${u.id}`} 
-                                        className={`px-2 py-1 rounded-lg text-white text-xs ${u.is_approved ? "bg-orange-500" : "bg-green-500"} disabled:opacity-50`}
-                                      >
+                                      <button onClick={() => toggleApprove(u)} disabled={updating === `approve-${u.id}`} className={`px-2 py-1 rounded-lg text-white text-xs ${u.is_approved ? "bg-orange-500" : "bg-green-500"} disabled:opacity-50`}>
                                         {updating === `approve-${u.id}` ? "..." : (u.is_approved ? "⛔ Désapprouver" : "✅ Approuver")}
                                       </button>
                                       {u.user_type === "formateur" && !isAdminUser && (
@@ -683,11 +804,7 @@ const AdminUsers = () => {
                                           📚 Gérer formations
                                         </button>
                                       )}
-                                      <button 
-                                        onClick={() => deleteUser(u.id, u.email)} 
-                                        disabled={updating === `delete-${u.id}`} 
-                                        className="px-2 py-1 bg-red-600 text-white rounded-lg text-xs"
-                                      >
+                                      <button onClick={() => deleteUser(u.id, u.email)} disabled={updating === `delete-${u.id}`} className="px-2 py-1 bg-red-600 text-white rounded-lg text-xs">
                                         {updating === `delete-${u.id}` ? "..." : "🗑️ Supprimer"}
                                       </button>
                                     </>
@@ -705,6 +822,138 @@ const AdminUsers = () => {
             </>
           )}
 
+          {/* VUE INSCRIPTIONS EN LIGNE */}
+          {activeView === "inscriptions" && (
+            <div className="bg-white rounded-xl shadow-md overflow-hidden">
+              <div className="p-4 bg-gray-50 border-b">
+                <h2 className="font-semibold text-gray-800">📝 Inscriptions en attente de validation</h2>
+                <p className="text-sm text-gray-500">Validez les inscriptions et affectez un groupe aux participants</p>
+              </div>
+              {loadingInscriptions ? (
+                <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1a56db]"></div></div>
+              ) : inscriptionsEnAttente.length === 0 ? (
+                <div className="p-8 text-center text-gray-500">Aucune inscription en attente</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="p-4 text-left">Participant</th>
+                        <th className="p-4 text-left">Formation</th>
+                        <th className="p-4 text-left">Date</th>
+                        <th className="p-4 text-left">Groupe</th>
+                        <th className="p-4 text-left">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {inscriptionsEnAttente.map(ins => (
+                        <tr key={ins.id} className="border-b hover:bg-gray-50">
+                          <td className="p-4">
+                            <div>
+                              <p className="font-medium">{ins.users?.full_name || "—"}</p>
+                              <p className="text-xs text-gray-500">{ins.users?.email}</p>
+                            </div>
+                           </td>
+                          <td className="p-4">
+                            <p className="font-medium">{ins.formations?.title}</p>
+                           </td>
+                          <td className="p-4 text-gray-500">
+                            {new Date(ins.created_at).toLocaleDateString()}
+                           </td>
+                          <td className="p-4">
+                            <select
+                              className="border rounded-lg px-3 py-1 text-sm"
+                              value={selectedGroupeId}
+                              onChange={(e) => setSelectedGroupeId(e.target.value)}
+                            >
+                              <option value="">Sélectionner un groupe</option>
+                              {groupesFormation
+                                .filter(g => g.formation_id === ins.formation_id)
+                                .map(g => (
+                                  <option key={g.id} value={g.id}>{g.nom} - {g.horaire || "Horaire à définir"}</option>
+                                ))}
+                            </select>
+                            {groupesFormation.filter(g => g.formation_id === ins.formation_id).length === 0 && (
+                              <p className="text-xs text-orange-500 mt-1">⚠️ Aucun groupe créé pour cette formation</p>
+                            )}
+                           </td>
+                          <td className="p-4">
+                            <button
+                              onClick={() => validerInscription(ins.id, ins.formation_id, ins.user_id, selectedGroupeId)}
+                              disabled={validatingInscription || !selectedGroupeId}
+                              className="px-3 py-1 bg-green-500 text-white rounded-lg text-xs hover:bg-green-600 disabled:opacity-50"
+                            >
+                              ✅ Valider
+                            </button>
+                           </td>
+                         </tr>
+                      ))}
+                    </tbody>
+                   </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* VUE DEMANDES PRÉSENTIEL */}
+          {activeView === "demandes" && (
+            <div className="bg-white rounded-xl shadow-md overflow-hidden">
+              <div className="p-4 bg-gray-50 border-b">
+                <h2 className="font-semibold text-gray-800">📋 Demandes de formation présentiel</h2>
+                <p className="text-sm text-gray-500">À contacter pour organiser la session</p>
+              </div>
+              {loadingDemandes ? (
+                <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1a56db]"></div></div>
+              ) : demandesPresentiel.length === 0 ? (
+                <div className="p-8 text-center text-gray-500">Aucune demande en attente</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="p-4 text-left">Demandeur</th>
+                        <th className="p-4 text-left">Formation</th>
+                        <th className="p-4 text-left">Contact</th>
+                        <th className="p-4 text-left">Date</th>
+                        <th className="p-4 text-left">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {demandesPresentiel.map(demande => (
+                        <tr key={demande.id} className="border-b hover:bg-gray-50">
+                          <td className="p-4 font-medium">{demande.nom} </td>
+                          <td className="p-4">{demande.formations?.title}</td>
+                          <td className="p-4">
+                            <p className="text-sm">{demande.email}</p>
+                            <p className="text-xs text-gray-500">{demande.telephone}</p>
+                           </td>
+                          <td className="p-4 text-gray-500">{new Date(demande.created_at).toLocaleDateString()}</td>
+                          <td className="p-4">
+                            <div className="flex gap-2">
+                              <a href={`tel:${demande.telephone}`} className="px-3 py-1 bg-blue-500 text-white rounded-lg text-xs hover:bg-blue-600">
+                                📞 Appeler
+                              </a>
+                              <a href={`mailto:${demande.email}`} className="px-3 py-1 bg-purple-500 text-white rounded-lg text-xs hover:bg-purple-600">
+                                ✉️ Email
+                              </a>
+                              <button onClick={() => marquerDemandeContactee(demande.id)} className="px-3 py-1 bg-green-500 text-white rounded-lg text-xs hover:bg-green-600">
+                                ✅ Contacté
+                              </button>
+                            </div>
+                            {demande.message && (
+                              <p className="text-xs text-gray-500 mt-2 italic">"{demande.message.substring(0, 100)}"</p>
+                            )}
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* VUE GROUPES FORMATEUR */}
           {activeView === "groups" && (
             <div className="space-y-6">
               {loadingFormateurs ? (
@@ -766,59 +1015,18 @@ const AdminUsers = () => {
                                         {code && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Code: {code}</span>}
                                       </div>
                                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 text-sm">
-                                        <div>
-                                          <p className="text-gray-500 text-xs">Durée totale</p>
-                                          <p className="font-semibold">{dureeTotale}h</p>
-                                        </div>
-                                        <div>
-                                          <p className="text-gray-500 text-xs">Durée restante</p>
-                                          <p className="font-semibold text-orange-600">{dureeRestante}h</p>
-                                        </div>
-                                        <div>
-                                          <p className="text-gray-500 text-xs">Progression</p>
-                                          <div className="flex items-center gap-2">
-                                            <div className="w-16 bg-gray-200 rounded-full h-1.5">
-                                              <div className="bg-green-500 rounded-full h-1.5" style={{ width: `${Math.min(progression, 100)}%` }}></div>
-                                            </div>
-                                            <span className="text-xs">{Math.round(progression)}%</span>
-                                          </div>
-                                        </div>
-                                        <div>
-                                          <p className="text-gray-500 text-xs">Prochaine séance</p>
-                                          {nextSeance ? (
-                                            <p className="text-sm font-medium text-blue-600">{new Date(nextSeance.date_seance).toLocaleDateString()}</p>
-                                          ) : (
-                                            <p className="text-gray-400">—</p>
-                                          )}
-                                        </div>
+                                        <div><p className="text-gray-500 text-xs">Durée totale</p><p className="font-semibold">{dureeTotale}h</p></div>
+                                        <div><p className="text-gray-500 text-xs">Durée restante</p><p className="font-semibold text-orange-600">{dureeRestante}h</p></div>
+                                        <div><p className="text-gray-500 text-xs">Progression</p><div className="flex items-center gap-2"><div className="w-16 bg-gray-200 rounded-full h-1.5"><div className="bg-green-500 rounded-full h-1.5" style={{ width: `${Math.min(progression, 100)}%` }}></div></div><span className="text-xs">{Math.round(progression)}%</span></div></div>
+                                        <div><p className="text-gray-500 text-xs">Prochaine séance</p>{nextSeance ? <p className="text-sm font-medium text-blue-600">{new Date(nextSeance.date_seance).toLocaleDateString()}</p> : <p className="text-gray-400">—</p>}</div>
                                       </div>
                                       {ass.horaire && <p className="text-xs text-gray-500 mt-2">📅 {ass.horaire} • {ass.jours || ""}</p>}
                                     </div>
                                     <div className="flex gap-2 flex-wrap">
-                                      <button onClick={async () => {
-                                        setSelectedAssignment(ass);
-                                        await fetchSeances(ass.id);
-                                        setShowSeancesModal(true);
-                                      }} className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-xs">
-                                        📅 Calendrier
-                                      </button>
-                                      <button onClick={async () => {
-                                        setSelectedAssignment(ass);
-                                        await fetchGroupParticipants(ass.formation_id);
-                                        setShowGroupModal(true);
-                                      }} className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs">
-                                        👥 Participants
-                                      </button>
-                                      <button onClick={async () => {
-                                        setSelectedAssignment(ass);
-                                        await fetchAvailableParticipants(ass.formation_id);
-                                        setShowAssignParticipantsModal(true);
-                                      }} className="px-3 py-1.5 bg-purple-500 text-white rounded-lg text-xs">
-                                        ➕ Assigner
-                                      </button>
-                                      <button onClick={() => generateAccessCode(ass.formation_id, f?.title)} disabled={generatingCode} className="px-3 py-1.5 bg-yellow-500 text-white rounded-lg text-xs">
-                                        🎲 Code
-                                      </button>
+                                      <button onClick={async () => { setSelectedAssignment(ass); await fetchSeances(ass.id); setShowSeancesModal(true); }} className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-xs">📅 Calendrier</button>
+                                      <button onClick={async () => { setSelectedAssignment(ass); await fetchGroupParticipants(ass.formation_id); setShowGroupModal(true); }} className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs">👥 Participants</button>
+                                      <button onClick={async () => { setSelectedAssignment(ass); await fetchAvailableParticipants(ass.formation_id); setShowAssignParticipantsModal(true); }} className="px-3 py-1.5 bg-purple-500 text-white rounded-lg text-xs">➕ Assigner</button>
+                                      <button onClick={() => generateAccessCode(ass.formation_id, f?.title)} disabled={generatingCode} className="px-3 py-1.5 bg-yellow-500 text-white rounded-lg text-xs">🎲 Code</button>
                                     </div>
                                   </div>
                                 </div>
@@ -842,10 +1050,7 @@ const AdminUsers = () => {
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowAddModal(false)}>
             <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white rounded-2xl max-w-md w-full" onClick={e => e.stopPropagation()}>
               <div className="bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white p-5 rounded-t-2xl">
-                <div className="flex justify-between">
-                  <h3 className="text-xl font-bold">Ajouter un utilisateur</h3>
-                  <button onClick={() => setShowAddModal(false)}>✕</button>
-                </div>
+                <div className="flex justify-between"><h3 className="text-xl font-bold">Ajouter un utilisateur</h3><button onClick={() => setShowAddModal(false)}>✕</button></div>
               </div>
               <form onSubmit={createUser} className="p-6 space-y-4">
                 <input type="text" placeholder="Nom complet" className="w-full border rounded-xl p-3" value={newUser.full_name} onChange={e => setNewUser({ ...newUser, full_name: e.target.value })} required />
@@ -856,13 +1061,8 @@ const AdminUsers = () => {
                   <option value="formateur">👨‍🏫 Formateur</option>
                   <option value="admin">👑 Administrateur</option>
                 </select>
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" checked={newUser.is_approved} onChange={e => setNewUser({ ...newUser, is_approved: e.target.checked })} />
-                  <span>✅ Approuvé immédiatement</span>
-                </label>
-                <button type="submit" disabled={creating} className="w-full bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white py-3 rounded-xl font-semibold">
-                  {creating ? "Création..." : "➕ Créer l'utilisateur"}
-                </button>
+                <label className="flex items-center gap-2"><input type="checkbox" checked={newUser.is_approved} onChange={e => setNewUser({ ...newUser, is_approved: e.target.checked })} /> ✅ Approuvé immédiatement</label>
+                <button type="submit" disabled={creating} className="w-full bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white py-3 rounded-xl font-semibold">{creating ? "Création..." : "➕ Créer l'utilisateur"}</button>
               </form>
             </motion.div>
           </div>

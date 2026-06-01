@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Helmet } from "react-helmet-async";
 import { toast } from "react-toastify";
 import emailjs from "@emailjs/browser";
+import ModalInscriptionDemande from "../components/ModalInscriptionDemande";
 
 // Configuration EmailJS
 const EMAILJS_CONFIG = {
@@ -39,7 +40,9 @@ export default function FormationDetail() {
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(0);
   const [showDevisModal, setShowDevisModal] = useState(false);
+  const [showInscriptionDemandeModal, setShowInscriptionDemandeModal] = useState(false);
   const [sendingDevis, setSendingDevis] = useState(false);
+  const [inscriptionLoading, setInscriptionLoading] = useState(false);
   const [devisData, setDevisData] = useState({
     name: "", email: "", telephone: "", city: "", country: "", formation: "",
     hebergement: "non", hebergementType: "", visaAssistance: "non", source: "", message: ""
@@ -131,6 +134,58 @@ export default function FormationDetail() {
       toast.error("❌ Erreur lors de l'envoi");
     } finally {
       setSendingDevis(false);
+    }
+  };
+
+  // Fonction pour l'inscription en ligne
+  const handleInscriptionEnLigne = async () => {
+    setInscriptionLoading(true);
+    try {
+      // Vérifier si l'utilisateur est connecté
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        // Rediriger vers la page de connexion avec redirect
+        navigate(`/connexion?redirect=/confirm-inscription?formation=${formation.id}`);
+        return;
+      }
+
+      // Vérifier si déjà inscrit
+      const { data: existing } = await supabase
+        .from("inscriptions")
+        .select("id, statut")
+        .eq("user_id", user.id)
+        .eq("formation_id", formation.id)
+        .maybeSingle();
+
+      if (existing) {
+        if (existing.statut === "en_attente") {
+          toast.info("⏳ Votre inscription est déjà en attente de validation");
+        } else if (existing.statut === "confirme") {
+          toast.success("✅ Vous êtes déjà inscrit à cette formation");
+        }
+        return;
+      }
+
+      // Créer l'inscription
+      const { error } = await supabase
+        .from("inscriptions")
+        .insert({
+          user_id: user.id,
+          formation_id: formation.id,
+          statut: "en_attente",
+          created_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+
+      toast.success("✅ Inscription enregistrée ! En attente de validation par l'administrateur.");
+      navigate("/espace-participant");
+    } catch (err) {
+      console.error(err);
+      toast.error("❌ Erreur lors de l'inscription");
+    } finally {
+      setInscriptionLoading(false);
     }
   };
 
@@ -259,12 +314,12 @@ export default function FormationDetail() {
           
           {formation.is_online && (
             <span className="inline-flex items-center gap-2 bg-green-100 text-green-700 px-4 py-2 rounded-full text-sm font-semibold">
-              🌍 Formation à distance
+              🌍 Formation en ligne
             </span>
           )}
           {formation.onDemand && (
             <span className="inline-flex items-center gap-2 bg-orange-100 text-orange-700 px-4 py-2 rounded-full text-sm font-semibold">
-              🎯 À la demande
+              🎯 À la demande (Présentiel)
             </span>
           )}
           <span className="inline-flex items-center gap-2 bg-purple-100 text-purple-700 px-4 py-2 rounded-full text-sm font-semibold">
@@ -366,36 +421,84 @@ export default function FormationDetail() {
           </div>
         )}
 
-        {/* Boutons d'action */}
+        {/* Boutons d'action - Version avec deux boutons d'inscription */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center mt-8">
-          {formation.preinscriptionLink && (
-            <motion.a 
+          {/* Bouton S'inscrire en ligne (uniquement si formation en ligne) */}
+          {formation.is_online && (
+            <motion.button 
               whileHover={{ scale: 1.05 }} 
               whileTap={{ scale: 0.95 }} 
-              href={formation.preinscriptionLink} 
-              target="_blank" 
-              rel="noreferrer" 
-              className="inline-block bg-gradient-to-r from-green-500 to-green-700 hover:from-green-600 hover:to-green-800 text-white px-8 py-3 rounded-lg font-medium shadow-lg text-center"
+              onClick={handleInscriptionEnLigne}
+              disabled={inscriptionLoading}
+              className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 text-white px-8 py-3 rounded-lg font-medium shadow-lg disabled:opacity-50"
             >
-              📝 S'inscrire à cette formation
-            </motion.a>
+              {inscriptionLoading ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Chargement...
+                </>
+              ) : (
+                <>
+                  🌍 S'inscrire en ligne
+                </>
+              )}
+            </motion.button>
+          )}
+
+          {/* Bouton S'inscrire à la demande (uniquement si formation présentiel/à la demande) */}
+          {formation.onDemand && (
+            <motion.button 
+              whileHover={{ scale: 1.05 }} 
+              whileTap={{ scale: 0.95 }} 
+              onClick={() => setShowInscriptionDemandeModal(true)}
+              className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-orange-500 to-orange-700 hover:from-orange-600 hover:to-orange-800 text-white px-8 py-3 rounded-lg font-medium shadow-lg"
+            >
+              🏢 S'inscrire à la demande (Présentiel)
+            </motion.button>
           )}
           
+          {/* Bouton Devis */}
           <motion.button 
             whileHover={{ scale: 1.05 }} 
             whileTap={{ scale: 0.95 }} 
             onClick={() => setShowDevisModal(true)} 
-            className="inline-block bg-gradient-to-r from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 text-white px-8 py-3 rounded-lg font-medium shadow-lg"
+            className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-green-500 to-green-700 hover:from-green-600 hover:to-green-800 text-white px-8 py-3 rounded-lg font-medium shadow-lg"
           >
-            📩 Demander un devis personnalisé
+            📩 Demander un devis
           </motion.button>
         </div>
 
-        {/* Partager sur les réseaux sociaux - Facebook, Instagram, TikTok, LinkedIn */}
+        {/* Informations complémentaires selon le type de formation */}
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+          {formation.is_online && (
+            <div className="bg-blue-50 rounded-xl p-4 text-center">
+              <div className="text-2xl mb-2">🌍</div>
+              <h3 className="font-semibold text-blue-800">Formation en ligne</h3>
+              <p className="text-sm text-blue-600 mt-1">
+                Sessions en direct avec formateur<br />
+                Accès aux ressources en ligne<br />
+                Certificat à la fin de la formation
+              </p>
+            </div>
+          )}
+          
+          {formation.onDemand && (
+            <div className="bg-orange-50 rounded-xl p-4 text-center">
+              <div className="text-2xl mb-2">🏢</div>
+              <h3 className="font-semibold text-orange-800">Formation en présentiel</h3>
+              <p className="text-sm text-orange-600 mt-1">
+                Dans nos locaux à Monastir<br />
+                Groupe de 6 à 10 participants<br />
+                Programme personnalisé selon vos besoins
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Partager sur les réseaux sociaux */}
         <div className="text-center mt-8 pt-6 border-t border-gray-200">
           <p className="text-sm text-gray-500 mb-3">Partager cette formation :</p>
           <div className="flex gap-3 justify-center flex-wrap">
-            
             {/* Facebook */}
             <a 
               href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`} 
@@ -412,7 +515,6 @@ export default function FormationDetail() {
             {/* Instagram */}
             <button
               onClick={() => {
-                // Copier le message et télécharger l'image
                 const imageUrl = formation.images && formation.images[0] ? getImageUrl(formation.images[0]) : null;
                 navigator.clipboard.writeText(shareMessage);
                 if (imageUrl) {
@@ -460,7 +562,7 @@ export default function FormationDetail() {
               </svg>
             </a>
 
-            {/* WhatsApp (optionnel mais utile) */}
+            {/* WhatsApp */}
             <a 
               href={`https://wa.me/?text=${encodeURIComponent(shareMessage)}`} 
               target="_blank" 
@@ -579,6 +681,17 @@ export default function FormationDetail() {
           </div>
         </div>
       )}
+
+      {/* Modal Inscription à la demande (Présentiel) */}
+      <ModalInscriptionDemande
+        isOpen={showInscriptionDemandeModal}
+        onClose={() => setShowInscriptionDemandeModal(false)}
+        formation={formation}
+        onSuccess={() => {
+          setShowInscriptionDemandeModal(false);
+          toast.success("✅ Votre demande a été envoyée ! L'équipe Certus vous contactera.");
+        }}
+      />
     </>
   );
 }
