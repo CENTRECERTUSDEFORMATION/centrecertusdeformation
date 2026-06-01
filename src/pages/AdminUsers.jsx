@@ -1,6 +1,6 @@
 // frontend/src/pages/AdminUsers.jsx
 import React, { useEffect, useState, useCallback } from "react";
-import { supabase, supabaseAdmin } from "./supabaseClient";
+import { supabase, supabaseAdmin } from "../supabaseClient";
 import { toast } from "react-toastify";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";

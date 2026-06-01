@@ -1,6 +1,6 @@
 // frontend/src/context/ActualitesContext.jsx
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { supabase } from "./supabaseClient";
+import { supabase } from "../supabaseClient";
 
 const ActualitesContext = createContext();
 

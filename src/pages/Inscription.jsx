@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { supabase } from './supabaseClient';
+import { supabase } from '../supabaseClient';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
 import { toast } from 'react-toastify';
