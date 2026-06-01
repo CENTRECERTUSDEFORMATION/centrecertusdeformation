@@ -12,6 +12,7 @@ import 'swiper/css';
 import 'swiper/css/pagination';
 import 'swiper/css/navigation';
 import Footer from "../components/Footer";
+import ModalInscriptionDemande from "../components/ModalInscriptionDemande";
 
 // Configuration EmailJS
 const EMAILJS_CONFIG = {
@@ -36,16 +37,6 @@ const TUNISIAN_GOVERNORATES = [
   "Tunis", "Ariana", "Ben Arous", "Manouba", "Nabeul", "Zaghouan", "Bizerte", "Béja",
   "Jendouba", "Le Kef", "Siliana", "Sousse", "Monastir", "Mahdia", "Sfax", "Kairouan",
   "Kasserine", "Sidi Bouzid", "Gabès", "Médenine", "Tataouine", "Gafsa", "Tozeur", "Kébili"
-];
-
-// Clients prestigieux
-const clients = [
-  { name: "Thyna Petroleum Services", logo: "/logo_references/tps.jpg" },
-  { name: "GRAVIC Tunitec", logo: "/logo_references/gravictunitec_logo.jpg" },
-  { name: "ENIS Sfax", logo: "/logo_references/enis-logo.jpg" },
-  { name: "ENET'Com Sfax", logo: "/logo_references/enetcom.jpg" },
-  { name: "Modern Metal", logo: "/logo_references/modern-metal.jpg" },
-  { name: "STE CONNECT", logo: "/logo_references/Ste-Connect-Sound-Light-Vision.jpg" }
 ];
 
 // Témoignages
@@ -87,7 +78,7 @@ const partners = [
 
 export default function Formations() {
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
 
   const [formations, setFormations] = useState([]);
   const [filteredFormations, setFilteredFormations] = useState([]);
@@ -97,6 +88,9 @@ export default function Formations() {
   const [hoveredCard, setHoveredCard] = useState(null);
   const [showDevisModal, setShowDevisModal] = useState(false);
   const [randomTestimonials, setRandomTestimonials] = useState([]);
+  const [showInscriptionDemandeModal, setShowInscriptionDemandeModal] = useState(false);
+  const [selectedFormation, setSelectedFormation] = useState(null);
+  const [inscriptionLoading, setInscriptionLoading] = useState(false);
   const [devisData, setDevisData] = useState({
     name: "", email: "", telephone: "", city: "", country: "", formation: "",
     hebergement: "non", hebergementType: "", visaAssistance: "non", source: "", message: ""
@@ -128,11 +122,10 @@ export default function Formations() {
     fetchFormations();
   }, []);
 
-  // Fonction de recherche étendue - cherche dans TOUT le contenu de la formation
+  // Fonction de recherche étendue
   const searchInFormation = (formation, searchLower) => {
     if (!searchLower) return true;
     
-    // Champs à rechercher
     const searchableFields = [
       formation.title,
       formation.description,
@@ -145,30 +138,26 @@ export default function Formations() {
       formation.test_link
     ];
     
-    // Ajouter les mots-clés du thème
     const themeInfo = THEMES.find(t => t.id === formation.theme);
     if (themeInfo) {
       searchableFields.push(themeInfo.name);
       searchableFields.push(themeInfo.description);
     }
     
-    // Rechercher dans tous les champs
     return searchableFields.some(field => 
       field && String(field).toLowerCase().includes(searchLower)
     );
   };
 
-  // Filtrer par recherche étendue et thème
+  // Filtrer par recherche et thème
   useEffect(() => {
     let filtered = [...formations];
     
-    // Recherche étendue (titre, description, thème, etc.)
     if (searchTerm !== "") {
       const searchLower = searchTerm.toLowerCase();
       filtered = filtered.filter(formation => searchInFormation(formation, searchLower));
     }
     
-    // Filtre par thème
     if (selectedTheme !== "all") {
       filtered = filtered.filter((f) => f.theme === selectedTheme);
     }
@@ -178,6 +167,7 @@ export default function Formations() {
 
   // Mettre à jour le thème d'une formation
   const updateFormationTheme = async (formationId, newTheme) => {
+    if (!isAdmin) return;
     try {
       const { error } = await supabase
         .from("formations")
@@ -257,7 +247,55 @@ export default function Formations() {
     }
   };
 
-  // Fonction pour scroller vers la section des formations
+  // Fonction pour l'inscription en ligne
+  const handleInscriptionEnLigne = async (formation) => {
+    setInscriptionLoading(true);
+    try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      
+      if (!currentUser) {
+        const redirectUrl = `/confirm-inscription?formation=${formation.id}`;
+        navigate(`/inscription?redirect=${encodeURIComponent(redirectUrl)}`);
+        return;
+      }
+
+      const { data: existing } = await supabase
+        .from("inscriptions")
+        .select("id, statut")
+        .eq("user_id", currentUser.id)
+        .eq("formation_id", formation.id)
+        .maybeSingle();
+
+      if (existing) {
+        if (existing.statut === "en_attente") {
+          toast.info("Votre inscription est déjà en attente de validation");
+        } else if (existing.statut === "confirme") {
+          toast.success("Vous êtes déjà inscrit à cette formation");
+        }
+        return;
+      }
+
+      await supabase.from("inscriptions").insert({
+        user_id: currentUser.id,
+        formation_id: formation.id,
+        statut: "en_attente",
+        created_at: new Date().toISOString()
+      });
+
+      toast.success("Inscription enregistrée ! En attente de validation.");
+    } catch (err) {
+      console.error(err);
+      toast.error("Erreur lors de l'inscription");
+    } finally {
+      setInscriptionLoading(false);
+    }
+  };
+
+  const handleInscriptionDemande = (formation) => {
+    setSelectedFormation(formation);
+    setShowInscriptionDemandeModal(true);
+  };
+
   const scrollToFormations = () => {
     const element = document.getElementById('formations-list');
     if (element) {
@@ -265,13 +303,12 @@ export default function Formations() {
     }
   };
 
-  const activeFormationsCount = formations.filter(f => f.onDemand !== true).length;
+  const activeFormationsCount = formations.length;
   const satisfactionRate = "4.9";
   const totalTestimonials = testimonials.length;
   const positiveTestimonials = testimonials.filter(t => t.rating >= 4).length;
   const recommendationRate = Math.round((positiveTestimonials / totalTestimonials) * 100);
 
-  // Génération dynamique du titre et de la description SEO
   const getPageTitle = () => {
     if (selectedTheme !== "all") {
       const theme = THEMES.find(t => t.id === selectedTheme);
@@ -314,7 +351,7 @@ export default function Formations() {
 
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 pt-20">
         
-        {/* ========== SECTION HERO ========== */}
+        {/* SECTION HERO */}
         <div className="relative bg-gradient-to-r from-[#1a56db] via-[#1a56db] to-[#76c21f] text-white overflow-hidden">
           <div className="absolute inset-0 bg-black/10"></div>
           <div className="relative z-20 max-w-7xl mx-auto px-6 py-16 lg:py-20">
@@ -327,12 +364,12 @@ export default function Formations() {
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-yellow-100">avenir professionnel</span>
             </motion.h1>
             <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="text-xl md:text-2xl text-blue-100 mb-8 max-w-2xl">
-              🚀 Des formations certifiantes pour booster votre carrière
+              Des formations certifiantes pour booster votre carrière
             </motion.p>
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="flex flex-wrap gap-6 mb-8">
               <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
                 <span className="text-2xl">📚</span>
-                <div><div className="font-bold">{activeFormationsCount}+</div><div className="text-xs text-blue-200">Formations</div></div>
+                <div><div className="font-bold">{activeFormationsCount}</div><div className="text-xs text-blue-200">Formations</div></div>
               </div>
               <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
                 <span className="text-2xl">👨‍🎓</span>
@@ -345,7 +382,7 @@ export default function Formations() {
             </motion.div>
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="flex flex-wrap gap-4 relative z-30">
               <button onClick={scrollToFormations} className="bg-white text-[#1a56db] px-8 py-3 rounded-xl font-semibold hover:shadow-lg transition-all hover:scale-105 flex items-center gap-2 cursor-pointer pointer-events-auto" type="button">
-                Découvrir nos formations ↙
+                Découvrir nos formations
               </button>
               <button onClick={() => setShowDevisModal(true)} className="border-2 border-white text-white px-8 py-3 rounded-xl font-semibold hover:bg-white/10 transition-all hover:scale-105 cursor-pointer pointer-events-auto" type="button">
                 Obtenir un devis
@@ -359,7 +396,7 @@ export default function Formations() {
           </div>
         </div>
 
-        {/* ========== SECTION GÉOGRAPHIQUE ========== */}
+        {/* SECTION GÉOGRAPHIQUE */}
         <div className="bg-white border-b border-gray-200">
           <div className="max-w-7xl mx-auto px-6 py-6">
             <div className="flex flex-col md:flex-row gap-6 items-start">
@@ -368,17 +405,17 @@ export default function Formations() {
                 <div className="flex flex-wrap gap-2 mt-3">
                   {TUNISIAN_GOVERNORATES.map((city, i) => (<span key={i} className="bg-gray-100 px-3 py-1 rounded-full text-xs shadow-sm">{city}</span>))}
                 </div>
-                <p className="text-gray-500 text-xs mt-2">🌍 Formation à distance possible pour les apprenants internationaux</p>
+                <p className="text-gray-500 text-xs mt-2">Formation à distance possible pour les apprenants internationaux</p>
               </div>
               <div className="bg-blue-50 p-4 rounded-xl">
-                <h3 className="font-bold text-blue-800 text-sm">🏠 Hébergement possible</h3>
+                <h3 className="font-bold text-blue-800 text-sm">Hébergement possible</h3>
                 <p className="text-xs text-gray-600 mt-1">Pour les apprenants venant de loin, nous proposons des solutions d'hébergement à Monastir.</p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* ========== 7 BOUTONS PAR THÈME ========== */}
+        {/* 7 BOUTONS PAR THÈME */}
         <div className="bg-white border-b border-gray-200 sticky top-16 z-10">
           <div className="max-w-7xl mx-auto px-6 py-3">
             <div className="flex flex-wrap gap-2 justify-center">
@@ -395,7 +432,7 @@ export default function Formations() {
           </div>
         </div>
 
-        {/* ========== BARRE DE RECHERCHE ========== */}
+        {/* BARRE DE RECHERCHE */}
         <div className="sticky top-24 z-10 bg-white/95 backdrop-blur-sm shadow-sm border-b border-gray-200">
           <div className="max-w-7xl mx-auto px-6 py-3">
             <div className="relative max-w-md mx-auto">
@@ -410,7 +447,6 @@ export default function Formations() {
             </div>
             <p className="text-center text-sm text-gray-500 mt-2">{filteredFormations.length} formation(s) trouvée(s)</p>
             
-            {/* Bouton Ajouter une formation pour ADMIN */}
             {isAdmin && (
               <div className="text-center mt-3">
                 <button onClick={() => navigate("/ajouter-formation")} className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-lg text-sm font-semibold transition-all shadow-md hover:shadow-lg inline-flex items-center gap-2">
@@ -421,7 +457,7 @@ export default function Formations() {
           </div>
         </div>
 
-        {/* ========== LISTE DES FORMATIONS ========== */}
+        {/* LISTE DES FORMATIONS */}
         <div id="formations-list" className="max-w-7xl mx-auto px-6 py-12">
           {filteredFormations.length === 0 ? (
             <div className="text-center py-20 bg-white rounded-2xl shadow-sm">
@@ -444,7 +480,7 @@ export default function Formations() {
                   whileHover={{ y: -8 }}
                   onHoverStart={() => setHoveredCard(formation.id)}
                   onHoverEnd={() => setHoveredCard(null)}
-                  className="group bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300"
+                  className="group bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 flex flex-col"
                 >
                   <div className="relative h-48 overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 cursor-pointer" onClick={() => navigate(`/formations/${formation.id}`)}>
                     {formation.images && formation.images.length > 0 ? (
@@ -452,24 +488,19 @@ export default function Formations() {
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-5xl">📚</div>
                     )}
-                    {/* Badges : En ligne et À la demande */}
                     <div className="absolute top-3 right-3 flex flex-col gap-1 items-end">
                       {formation.is_online === true && (
-                        <span className="bg-gradient-to-r from-blue-500 to-blue-600 text-white text-xs px-3 py-1 rounded-full shadow-md">
-                          🌍 En ligne
-                        </span>
+                        <span className="bg-gradient-to-r from-blue-500 to-blue-600 text-white text-xs px-3 py-1 rounded-full shadow-md">En ligne</span>
                       )}
                       {formation.onDemand === true && (
-                        <span className="bg-gradient-to-r from-orange-500 to-orange-600 text-white text-xs px-3 py-1 rounded-full shadow-md">
-                          🎯 À la demande
-                        </span>
+                        <span className="bg-gradient-to-r from-orange-500 to-orange-600 text-white text-xs px-3 py-1 rounded-full shadow-md">À la demande</span>
                       )}
                     </div>
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center pb-4">
-                      <span className="text-white text-sm font-medium bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full">Voir les détails →</span>
+                      <span className="text-white text-sm font-medium bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full">Voir les détails</span>
                     </div>
                   </div>
-                  <div className="p-5">
+                  <div className="p-5 flex-1 flex flex-col">
                     <div className="mb-2">
                       <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
                         {THEMES.find(t => t.id === formation.theme)?.icon} {THEMES.find(t => t.id === formation.theme)?.name || "Non classé"}
@@ -478,13 +509,42 @@ export default function Formations() {
                     <h3 className="font-bold text-xl mb-2 line-clamp-2 text-gray-800 cursor-pointer" onClick={() => navigate(`/formations/${formation.id}`)}>
                       {formation.title}
                     </h3>
-                    <p className="text-gray-500 text-sm line-clamp-2 mb-3">{formation.description || "Description à venir"}</p>
+                    <p className="text-gray-500 text-sm line-clamp-2 mb-4 flex-1">{formation.description || "Description à venir"}</p>
+
+                    {/* Boutons d'inscription - Une seule ligne, modernes, sans icônes */}
+                    <div className="flex gap-3 mt-auto">
+                      {formation.is_online && (
+                        <button
+                          onClick={() => handleInscriptionEnLigne(formation)}
+                          disabled={inscriptionLoading}
+                          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg text-sm font-medium transition-all duration-200 shadow-sm hover:shadow disabled:opacity-50"
+                        >
+                          {inscriptionLoading ? "Chargement..." : "S'inscrire en ligne"}
+                        </button>
+                      )}
+                      {formation.onDemand && (
+                        <button
+                          onClick={() => handleInscriptionDemande(formation)}
+                          className="flex-1 bg-orange-600 hover:bg-orange-700 text-white py-2.5 rounded-lg text-sm font-medium transition-all duration-200 shadow-sm hover:shadow"
+                        >
+                          S'inscrire en présentiel
+                        </button>
+                      )}
+                      {!formation.is_online && !formation.onDemand && (
+                        <button
+                          onClick={() => navigate(`/formations/${formation.id}`)}
+                          className="w-full bg-gray-500 hover:bg-gray-600 text-white py-2.5 rounded-lg text-sm font-medium transition-all duration-200 shadow-sm hover:shadow"
+                        >
+                          Voir les détails
+                        </button>
+                      )}
+                    </div>
 
                     {isAdmin && (
-                      <div className="space-y-2 mt-3 pt-3 border-t border-gray-100">
+                      <div className="space-y-2 mt-4 pt-3 border-t border-gray-100">
                         <div className="flex gap-2">
-                          <button onClick={() => navigate(`/modifier-formation/${formation.id}`)} className="flex-1 text-sm bg-yellow-500 text-white px-2 py-1 rounded-lg hover:bg-yellow-600 transition">✏️ Modifier</button>
-                          <button onClick={() => handleDelete(formation.id, formation.images)} className="flex-1 text-sm bg-red-500 text-white px-2 py-1 rounded-lg hover:bg-red-600 transition">🗑️ Supprimer</button>
+                          <button onClick={() => navigate(`/modifier-formation/${formation.id}`)} className="flex-1 text-sm bg-yellow-500 text-white px-2 py-1 rounded-lg hover:bg-yellow-600 transition">Modifier</button>
+                          <button onClick={() => handleDelete(formation.id, formation.images)} className="flex-1 text-sm bg-red-500 text-white px-2 py-1 rounded-lg hover:bg-red-600 transition">Supprimer</button>
                         </div>
                         <div className="flex flex-wrap gap-1">
                           <span className="text-xs text-gray-500 mr-1">Classer :</span>
@@ -507,7 +567,7 @@ export default function Formations() {
             </div>
           )}
           
-          {/* ========== TEMOIGNAGES ========== */}
+          {/* TEMOIGNAGES */}
           <div className="mt-20 py-12 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl">
             <div className="max-w-6xl mx-auto px-4">
               <div className="text-center mb-10">
@@ -554,7 +614,7 @@ export default function Formations() {
             </div>
           </div>
 
-          {/* ========== ILS NOUS FONT CONFIANCE (PARTENAIRES) ========== */}
+          {/* PARTENAIRES */}
           <div className="mt-16 py-12 overflow-hidden bg-gray-50 rounded-2xl">
             <div className="max-w-7xl mx-auto px-4">
               <div className="text-center mb-10">
@@ -562,7 +622,6 @@ export default function Formations() {
                 <h2 className="text-3xl md:text-4xl font-bold mt-2 mb-4">Ils nous font confiance</h2>
                 <div className="w-20 h-1 bg-blue-500 mx-auto rounded-full" />
               </div>
-
               <Swiper
                 modules={[Navigation, Autoplay]}
                 spaceBetween={20}
@@ -605,7 +664,7 @@ export default function Formations() {
             </div>
           </div>
 
-          {/* ========== CTA FINAL ========== */}
+          {/* CTA FINAL */}
           <div className="mt-16 py-16 bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl">
             <div className="max-w-4xl mx-auto px-4 text-center">
               <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
@@ -616,17 +675,17 @@ export default function Formations() {
               </p>
               <div className="flex flex-wrap gap-4 justify-center">
                 <button onClick={() => setShowDevisModal(true)} className="px-8 py-3 bg-white text-blue-600 rounded-full font-semibold hover:bg-gray-100 transition-all duration-300 shadow-lg">
-                  📞 Demander un devis
+                  Demander un devis
                 </button>
                 <button onClick={scrollToFormations} className="px-8 py-3 border-2 border-white text-white rounded-full font-semibold hover:bg-white/10 transition-all duration-300">
-                  📚 Voir les formations
+                  Voir les formations
                 </button>
               </div>
             </div>
           </div>
         </div>
 
-        {/* ========== MODAL DEVIS ========== */}
+        {/* MODAL DEVIS */}
         <AnimatePresence>
           {showDevisModal && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 overflow-y-auto" onClick={() => setShowDevisModal(false)}>
@@ -654,7 +713,7 @@ export default function Formations() {
                     <div><label className="block text-sm font-medium text-gray-700 mb-1">Formation souhaitée *</label><select name="formation" required value={devisData.formation} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2"><option value="">Sélectionnez</option>{formations.map((f) => (<option key={f.id} value={f.title}>{f.title}</option>))}<option value="Autre">Autre formation</option></select></div>
                   </div>
                   <div className="border-t border-gray-200 pt-4">
-                    <h3 className="font-semibold text-gray-800 mb-3">🏠 Hébergement</h3>
+                    <h3 className="font-semibold text-gray-800 mb-3">Hébergement</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div><label className="block text-sm font-medium text-gray-700 mb-1">Hébergement nécessaire ?</label><select name="hebergement" value={devisData.hebergement} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2"><option value="non">Non</option><option value="oui">Oui, besoin d'un logement</option><option value="international">Oui (package international)</option></select></div>
                       {devisData.hebergement !== "non" && <div><label className="block text-sm font-medium text-gray-700 mb-1">Type d'hébergement</label><select name="hebergementType" value={devisData.hebergementType} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2"><option value="">Sélectionnez</option><option value="residence">Résidence étudiante</option><option value="hotel">Hôtel partenaire</option><option value="appartement">Appartement meublé</option></select></div>}
@@ -662,7 +721,7 @@ export default function Formations() {
                   </div>
                   <div><label className="block text-sm font-medium text-gray-700 mb-1">Comment avez-vous connu CERTUS ?</label><select name="source" value={devisData.source} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2"><option value="">Sélectionnez</option><option value="google">Google</option><option value="facebook">Facebook / Instagram</option><option value="linkedin">LinkedIn</option><option value="bouche">Bouche à oreille</option><option value="autre">Autre</option></select></div>
                   <div><label className="block text-sm font-medium text-gray-700 mb-1">Message / Projet</label><textarea name="message" rows="4" value={devisData.message} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2 resize-none" placeholder="Décrivez votre projet..." /></div>
-                  <button type="submit" disabled={sendingDevis} className="w-full bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50">{sendingDevis ? "Envoi en cours..." : "📩 Envoyer la demande"}</button>
+                  <button type="submit" disabled={sendingDevis} className="w-full bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50">{sendingDevis ? "Envoi en cours..." : "Envoyer la demande"}</button>
                   <p className="text-xs text-gray-400 text-center">En envoyant ce formulaire, vous acceptez d'être contacté par notre équipe.</p>
                 </form>
               </motion.div>
@@ -670,7 +729,17 @@ export default function Formations() {
           )}
         </AnimatePresence>
 
-        {/* ========== FOOTER ========== */}
+        {/* MODAL INSCRIPTION À LA DEMANDE */}
+        <ModalInscriptionDemande
+          isOpen={showInscriptionDemandeModal}
+          onClose={() => setShowInscriptionDemandeModal(false)}
+          formation={selectedFormation}
+          onSuccess={() => {
+            setShowInscriptionDemandeModal(false);
+            toast.success("Votre demande a été envoyée ! L'équipe Certus vous contactera.");
+          }}
+        />
+
         <Footer />
       </motion.div>
     </>
