@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { supabase } from "../supabaseClient";
+import { supabase } from "./supabaseClient";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "react-toastify";
 import { motion } from "framer-motion";

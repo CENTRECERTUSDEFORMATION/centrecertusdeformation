@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { supabase } from "../supabaseClient";
+import { supabase } from "./supabaseClient";
 import { toast } from "react-toastify";
 
 const TableauDeBordAdmin = () => {
