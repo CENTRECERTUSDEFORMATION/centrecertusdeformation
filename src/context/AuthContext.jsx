@@ -13,13 +13,17 @@ export const AuthProvider = ({ children }) => {
 
   // Fonction pour récupérer les données utilisateur depuis la base
   const fetchUserData = async (userId, email) => {
+    console.log("🔍 fetchUserData - userId:", userId, "email:", email);
+    
     // Admin principal (pas besoin de base de données)
     if (email === "admin@certus.tn") {
+      console.log("🔍 Admin principal détecté");
       return { userType: null, isAdmin: true, isApproved: true, fullName: "Administrateur" };
     }
     
     // Formateur par email connu (fallback)
     if (email === "houssem@certus.tn") {
+      console.log("🔍 Formateur fixe détecté");
       return { userType: "formateur", isAdmin: false, isApproved: true, fullName: "Houssem" };
     }
     
@@ -34,6 +38,7 @@ export const AuthProvider = ({ children }) => {
       if (error) throw error;
       
       if (data) {
+        console.log("🔍 Données utilisateur trouvées:", data);
         return {
           userType: data.user_type || "participant",
           isAdmin: false,
@@ -42,6 +47,7 @@ export const AuthProvider = ({ children }) => {
         };
       }
       
+      console.log("🔍 Utilisateur non trouvé, création en cours...");
       // L'utilisateur n'existe pas dans la table, le créer avec is_approved = false
       const { error: insertError } = await supabase
         .from("users")
@@ -55,13 +61,14 @@ export const AuthProvider = ({ children }) => {
         });
       
       if (insertError) {
-        console.warn("Erreur création utilisateur:", insertError);
+        console.warn("⚠️ Erreur création utilisateur:", insertError);
         return { userType: "participant", isAdmin: false, isApproved: false, fullName: email.split("@")[0] };
       }
       
+      console.log("🔍 Utilisateur créé avec succès");
       return { userType: "participant", isAdmin: false, isApproved: false, fullName: email.split("@")[0] };
     } catch (err) {
-      console.warn("Erreur fetchUserData:", err);
+      console.warn("⚠️ Erreur fetchUserData:", err);
       return { userType: "participant", isAdmin: false, isApproved: false, fullName: email.split("@")[0] };
     }
   };
@@ -72,11 +79,15 @@ export const AuthProvider = ({ children }) => {
     const initAuth = async () => {
       try {
         setLoading(true);
+        console.log("🔍 initAuth - Début");
+        
         const { data: { session } } = await supabase.auth.getSession();
+        console.log("🔍 Session reçue:", session?.user?.email || "Aucune session");
         
         if (session?.user && isMounted) {
           const email = session.user.email;
           const userData = await fetchUserData(session.user.id, email);
+          console.log("🔍 userData reçues:", userData);
           
           setUser({
             id: session.user.id,
@@ -86,23 +97,29 @@ export const AuthProvider = ({ children }) => {
           setUserType(userData.userType);
           setIsAdmin(userData.isAdmin);
           setIsApproved(userData.isApproved);
+          console.log("🔍 Utilisateur connecté:", email, "type:", userData.userType);
         } else {
+          console.log("🔍 Aucune session active");
           setUser(null);
           setUserType(null);
           setIsAdmin(false);
           setIsApproved(true);
         }
       } catch (err) {
-        console.error("Erreur initAuth:", err);
+        console.error("❌ Erreur initAuth:", err);
         setUser(null);
       } finally {
-        if (isMounted) setLoading(false);
+        if (isMounted) {
+          console.log("🔍 setLoading(false)");
+          setLoading(false);
+        }
       }
     };
 
     initAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("🔍 onAuthStateChange - event:", event, "user:", session?.user?.email);
       if (!isMounted) return;
       
       if (event === "SIGNED_IN" && session?.user) {
@@ -133,11 +150,14 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (email, password) => {
+    console.log("🔍 Tentative de connexion:", email);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
+    console.log("🔍 Connexion réussie:", email);
   };
 
   const logout = async () => {
+    console.log("🔍 Déconnexion");
     await supabase.auth.signOut();
     setUser(null);
     setUserType(null);
