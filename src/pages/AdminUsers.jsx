@@ -11,15 +11,23 @@ const AdminUsers = () => {
   const { isAdmin, loading } = useAuth();
   const navigate = useNavigate();
 
+  // États utilisateurs
   const [users, setUsers] = useState([]);
   const [formations, setFormations] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [updating, setUpdating] = useState(null);
+  const [activeView, setActiveView] = useState("users");
+
+  // États modaux
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showSeancesModal, setShowSeancesModal] = useState(false);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showAssignParticipantsModal, setShowAssignParticipantsModal] = useState(false);
   const [showCodeModal, setShowCodeModal] = useState(false);
+
+  // États sélections
   const [selectedFormateur, setSelectedFormateur] = useState(null);
   const [selectedAssignment, setSelectedAssignment] = useState(null);
   const [selectedFormationForCode, setSelectedFormationForCode] = useState(null);
@@ -29,29 +37,34 @@ const AdminUsers = () => {
   const [groupParticipants, setGroupParticipants] = useState([]);
   const [availableParticipants, setAvailableParticipants] = useState([]);
   const [assignedParticipantsList, setAssignedParticipantsList] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [updating, setUpdating] = useState(null);
+
+  // États chargements
   const [loadingAssignments, setLoadingAssignments] = useState(false);
   const [loadingSeances, setLoadingSeances] = useState(false);
   const [loadingParticipants, setLoadingParticipants] = useState(false);
   const [loadingAvailableParticipants, setLoadingAvailableParticipants] = useState(false);
-  const [activeView, setActiveView] = useState("users");
   const [generatingCode, setGeneratingCode] = useState(false);
-  
-  // Nouvelles states pour les inscriptions
+  const [creating, setCreating] = useState(false);
+  const [assigning, setAssigning] = useState(false);
+  const [addingSeance, setAddingSeance] = useState(false);
+  const [validatingInscription, setValidatingInscription] = useState(false);
+
+  // États inscriptions
   const [inscriptionsEnAttente, setInscriptionsEnAttente] = useState([]);
   const [demandesPresentiel, setDemandesPresentiel] = useState([]);
   const [groupesFormation, setGroupesFormation] = useState([]);
   const [loadingInscriptions, setLoadingInscriptions] = useState(false);
   const [loadingDemandes, setLoadingDemandes] = useState(false);
-  const [selectedGroupeId, setSelectedGroupeId] = useState("");
-  
+  const [selectedGroupeId, setSelectedGroupeId] = useState({});
+
+  // États groupes formateur
   const [formateursData, setFormateursData] = useState([]);
   const [assignmentsData, setAssignmentsData] = useState({});
   const [nextSeancesData, setNextSeancesData] = useState({});
   const [loadingFormateurs, setLoadingFormateurs] = useState(false);
   const [codesMap, setCodesMap] = useState({});
 
+  // États formulaires
   const [newUser, setNewUser] = useState({
     email: "",
     password: "",
@@ -71,12 +84,9 @@ const AdminUsers = () => {
   const [newSeance, setNewSeance] = useState({
     titre: "",
     date_heure: "",
-    duree: 60
+    duree: 60,
+    lien_reunion: ""
   });
-  const [creating, setCreating] = useState(false);
-  const [assigning, setAssigning] = useState(false);
-  const [addingSeance, setAddingSeance] = useState(false);
-  const [validatingInscription, setValidatingInscription] = useState(false);
 
   const MASTER_ADMIN_EMAIL = "admin@certus.tn";
 
@@ -86,6 +96,7 @@ const AdminUsers = () => {
     return match ? parseInt(match[0]) : 0;
   };
 
+  // Vérification accès admin
   useEffect(() => {
     if (!loading && !isAdmin) {
       toast.error("Accès refusé");
@@ -93,6 +104,7 @@ const AdminUsers = () => {
     }
   }, [isAdmin, loading, navigate]);
 
+  // FETCH: Inscriptions en attente
   const fetchInscriptionsEnAttente = async () => {
     setLoadingInscriptions(true);
     try {
@@ -116,6 +128,7 @@ const AdminUsers = () => {
     }
   };
 
+  // FETCH: Demandes présentiel
   const fetchDemandesPresentiel = async () => {
     setLoadingDemandes(true);
     try {
@@ -138,6 +151,7 @@ const AdminUsers = () => {
     }
   };
 
+  // FETCH: Groupes formation
   const fetchGroupesFormation = async () => {
     try {
       const { data, error } = await supabase
@@ -152,6 +166,7 @@ const AdminUsers = () => {
     }
   };
 
+  // Valider inscription
   const validerInscription = async (inscriptionId, formationId, userId, groupeId) => {
     if (!groupeId) {
       toast.error("Veuillez sélectionner un groupe");
@@ -160,12 +175,14 @@ const AdminUsers = () => {
 
     setValidatingInscription(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
       const { error: updateError } = await supabase
         .from("inscriptions")
         .update({
           statut: "confirme",
           date_confirmation: new Date().toISOString(),
-          confirmed_by: (await supabase.auth.getUser()).data.user?.id,
+          confirmed_by: user?.id,
           groupe_id: groupeId
         })
         .eq("id", inscriptionId);
@@ -182,6 +199,7 @@ const AdminUsers = () => {
     }
   };
 
+  // Marquer demande contactée
   const marquerDemandeContactee = async (demandeId) => {
     try {
       const { error } = await supabase
@@ -193,7 +211,6 @@ const AdminUsers = () => {
         .eq("id", demandeId);
 
       if (error) throw error;
-
       toast.success("✅ Demande marquée comme contactée");
       await fetchDemandesPresentiel();
     } catch (err) {
@@ -202,6 +219,43 @@ const AdminUsers = () => {
     }
   };
 
+  // Partager un lien de réunion (un clic)
+  const partagerLienReunion = async (seanceId, lien) => {
+    if (!lien) {
+      toast.error("Aucun lien à partager");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(lien);
+      toast.success("🔗 Lien copié dans le presse-papier !");
+      
+      await supabase
+        .from("seances")
+        .update({ 
+          lien_partage_le: new Date().toISOString(),
+          lien_partage_par: (await supabase.auth.getUser()).data.user?.id
+        })
+        .eq("id", seanceId);
+
+      toast.info("📢 Lien disponible dans l'espace des participants");
+    } catch (err) {
+      console.error(err);
+      toast.error("❌ Erreur lors du partage");
+    }
+  };
+
+  // Générer un lien Jitsi automatiquement
+  const genererLienJitsi = () => {
+    const nomSalle = `certus_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const lienJitsi = `https://meet.jit.si/${nomSalle}`;
+    setNewSeance({ ...newSeance, lien_reunion: lienJitsi });
+    toast.success("🔗 Lien Jitsi généré");
+    navigator.clipboard.writeText(lienJitsi);
+    toast.info("📋 Lien copié dans le presse-papier");
+  };
+
+  // FETCH: Utilisateurs
   const fetchUsers = useCallback(async () => {
     setLoadingUsers(true);
     try {
@@ -225,7 +279,8 @@ const AdminUsers = () => {
     }
   }, []);
 
-  const fetchFormations = useCallback(async () => {
+  // FETCH: Formations
+  const fetchFormationsList = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("formations")
@@ -241,6 +296,7 @@ const AdminUsers = () => {
     }
   }, []);
 
+  // FETCH: Assignations d'un formateur
   const fetchFormateurAssignments = async (formateurId) => {
     setLoadingAssignments(true);
     try {
@@ -264,7 +320,8 @@ const AdminUsers = () => {
     }
   };
 
-  const fetchSeances = async (assignmentId) => {
+  // FETCH: Séances
+  const fetchSeancesList = async (assignmentId) => {
     setLoadingSeances(true);
     try {
       const { data, error } = await supabase
@@ -287,13 +344,15 @@ const AdminUsers = () => {
     }
   };
 
-  const fetchGroupParticipants = async (formationId) => {
+  // FETCH: Participants d'une formation
+  const fetchGroupParticipantsList = async (formationId) => {
     setLoadingParticipants(true);
     try {
       const { data, error } = await supabase
         .from("inscriptions")
         .select(`*, users:user_id (id, email, full_name, is_approved)`)
-        .eq("formation_id", formationId);
+        .eq("formation_id", formationId)
+        .eq("statut", "confirme");
       if (error) throw error;
       setGroupParticipants(data || []);
     } catch (err) {
@@ -303,7 +362,8 @@ const AdminUsers = () => {
     }
   };
 
-  const fetchAvailableParticipants = async (formationId) => {
+  // FETCH: Participants disponibles
+  const fetchAvailableParticipantsList = async (formationId) => {
     setLoadingAvailableParticipants(true);
     try {
       const { data: all, error: err1 } = await supabase
@@ -327,6 +387,7 @@ const AdminUsers = () => {
     }
   };
 
+  // Assigner un participant
   const assignParticipantToFormation = async (formationId, userId) => {
     try {
       const { error } = await supabase
@@ -334,13 +395,14 @@ const AdminUsers = () => {
         .insert({ formation_id: formationId, user_id: userId, statut: "confirme" });
       if (error) throw error;
       toast.success("✅ Participant assigné");
-      await fetchAvailableParticipants(formationId);
-      await fetchGroupParticipants(formationId);
+      await fetchAvailableParticipantsList(formationId);
+      await fetchGroupParticipantsList(formationId);
     } catch (err) {
       toast.error("❌ Erreur assignation");
     }
   };
 
+  // Retirer un participant
   const removeParticipantFromFormation = async (formationId, userId) => {
     if (!window.confirm("Retirer ce participant ?")) return;
     try {
@@ -351,13 +413,14 @@ const AdminUsers = () => {
         .eq("user_id", userId);
       if (error) throw error;
       toast.success("✅ Participant retiré");
-      await fetchAvailableParticipants(formationId);
-      await fetchGroupParticipants(formationId);
+      await fetchAvailableParticipantsList(formationId);
+      await fetchGroupParticipantsList(formationId);
     } catch (err) {
       toast.error("❌ Erreur retrait");
     }
   };
 
+  // Générer code d'accès
   const generateAccessCode = async (formationId, formationTitle) => {
     setGeneratingCode(true);
     const newCode = Math.random().toString(36).substring(2, 10).toUpperCase();
@@ -370,12 +433,12 @@ const AdminUsers = () => {
       if (existing) {
         await supabase
           .from("formation_access_codes")
-          .update({ access_code: newCode, teacher_code: newCode, participant_code: newCode, updated_at: new Date() })
+          .update({ access_code: newCode, updated_at: new Date() })
           .eq("formation_id", formationId);
       } else {
         await supabase
           .from("formation_access_codes")
-          .insert({ formation_id: formationId, access_code: newCode, teacher_code: newCode, participant_code: newCode });
+          .insert({ formation_id: formationId, access_code: newCode });
       }
       setGeneratedCode(newCode);
       setSelectedFormationForCode({ id: formationId, title: formationTitle });
@@ -389,6 +452,7 @@ const AdminUsers = () => {
     }
   };
 
+  // Charger données formateurs et groupes
   const loadFormateursGroupsData = async () => {
     setLoadingFormateurs(true);
     try {
@@ -444,29 +508,99 @@ const AdminUsers = () => {
     }
   };
 
-  useEffect(() => {
-    if (isAdmin) {
-      fetchUsers();
-      fetchFormations();
-      fetchInscriptionsEnAttente();
-      fetchDemandesPresentiel();
-      fetchGroupesFormation();
+  // Ajouter une assignation
+  const addAssignment = async () => {
+    if (!newAssignment.formation_id || !newAssignment.groupe_nom.trim()) {
+      toast.error("Formation et nom du groupe requis");
+      return;
     }
-  }, [isAdmin, fetchUsers, fetchFormations]);
-
-  useEffect(() => {
-    if (activeView === "groups" && isAdmin) {
-      loadFormateursGroupsData();
+    setAssigning(true);
+    try {
+      const formation = formations.find(f => f.id === newAssignment.formation_id);
+      const dureeRestante = formation?.duree_totale || 0;
+      await supabase.from("formateur_assignments").insert({
+        formateur_id: selectedFormateur.id,
+        formation_id: newAssignment.formation_id,
+        groupe_nom: newAssignment.groupe_nom.trim(),
+        horaire: newAssignment.horaire || null,
+        jours: newAssignment.jours || null,
+        date_debut: newAssignment.date_debut || null,
+        date_fin: newAssignment.date_fin || null,
+        duree_restante: dureeRestante
+      });
+      toast.success("✅ Formation assignée");
+      await fetchFormateurAssignments(selectedFormateur.id);
+      await loadFormateursGroupsData();
+      setNewAssignment({
+        formation_id: "",
+        groupe_nom: "",
+        horaire: "",
+        jours: "",
+        date_debut: "",
+        date_fin: "",
+        duree_restante: 0
+      });
+    } catch (err) {
+      toast.error("❌ Erreur");
+    } finally {
+      setAssigning(false);
     }
-  }, [activeView, isAdmin]);
+  };
 
-  const filteredUsers = users.filter(u =>
-    u.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    u.email?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Retirer une assignation
+  const removeAssignment = async (assignmentId) => {
+    if (!window.confirm("Retirer cette assignation ?")) return;
+    try {
+      await supabase.from("formateur_assignments").delete().eq("id", assignmentId);
+      toast.success("Assignation retirée");
+      await fetchFormateurAssignments(selectedFormateur.id);
+      await loadFormateursGroupsData();
+    } catch (err) {
+      toast.error("❌ Erreur");
+    }
+  };
 
-  const isMasterAdmin = (u) => u?.email === MASTER_ADMIN_EMAIL;
+  // Ajouter une séance
+  const addSeance = async () => {
+    if (!newSeance.titre.trim() || !newSeance.date_heure) {
+      toast.error("Titre et date/heure requis");
+      return;
+    }
+    setAddingSeance(true);
+    try {
+      await supabase.from("seances").insert({
+        assignment_id: selectedAssignment.id,
+        titre: newSeance.titre.trim(),
+        date_seance: newSeance.date_heure,
+        duree: newSeance.duree || 60,
+        statut: "planifie",
+        lien_reunion: newSeance.lien_reunion || null
+      });
+      toast.success("✅ Séance ajoutée");
+      await fetchSeancesList(selectedAssignment.id);
+      await loadFormateursGroupsData();
+      setNewSeance({ titre: "", date_heure: "", duree: 60, lien_reunion: "" });
+    } catch (err) {
+      toast.error("❌ Erreur");
+    } finally {
+      setAddingSeance(false);
+    }
+  };
 
+  // Supprimer une séance
+  const deleteSeance = async (seanceId) => {
+    if (!window.confirm("Supprimer cette séance ?")) return;
+    try {
+      await supabase.from("seances").delete().eq("id", seanceId);
+      toast.success("Séance supprimée");
+      await fetchSeancesList(selectedAssignment.id);
+      await loadFormateursGroupsData();
+    } catch (err) {
+      toast.error("❌ Erreur");
+    }
+  };
+
+  // Créer un utilisateur
   const createUser = async (e) => {
     e.preventDefault();
     if (!newUser.email || !newUser.password || !newUser.full_name) {
@@ -515,8 +649,9 @@ const AdminUsers = () => {
     }
   };
 
+  // Approuver/Désapprouver un utilisateur
   const toggleApprove = async (user) => {
-    if (isMasterAdmin(user)) {
+    if (user.email === MASTER_ADMIN_EMAIL) {
       toast.warning("⚠️ Admin principal non modifiable");
       return;
     }
@@ -533,6 +668,7 @@ const AdminUsers = () => {
     }
   };
 
+  // Supprimer un utilisateur
   const deleteUser = async (id, email) => {
     if (email === MASTER_ADMIN_EMAIL) {
       toast.warning("⚠️ Admin principal non supprimable");
@@ -552,118 +688,22 @@ const AdminUsers = () => {
     }
   };
 
-  const addAssignment = async () => {
-    if (!newAssignment.formation_id || !newAssignment.groupe_nom.trim()) {
-      toast.error("Formation et nom du groupe requis");
-      return;
+  // Initialisation
+  useEffect(() => {
+    if (isAdmin) {
+      fetchUsers();
+      fetchFormationsList();
+      fetchInscriptionsEnAttente();
+      fetchDemandesPresentiel();
+      fetchGroupesFormation();
+      loadFormateursGroupsData();
     }
-    setAssigning(true);
-    try {
-      const formation = formations.find(f => f.id === newAssignment.formation_id);
-      const dureeRestante = formation?.duree_totale || 0;
-      await supabase.from("formateur_assignments").insert({
-        formateur_id: selectedFormateur.id,
-        formation_id: newAssignment.formation_id,
-        groupe_nom: newAssignment.groupe_nom.trim(),
-        horaire: newAssignment.horaire || null,
-        jours: newAssignment.jours || null,
-        date_debut: newAssignment.date_debut || null,
-        date_fin: newAssignment.date_fin || null,
-        duree_restante: dureeRestante
-      });
-      toast.success("✅ Formation assignée");
-      await fetchFormateurAssignments(selectedFormateur.id);
-      await loadFormateursGroupsData();
-      setNewAssignment({
-        formation_id: "",
-        groupe_nom: "",
-        horaire: "",
-        jours: "",
-        date_debut: "",
-        date_fin: "",
-        duree_restante: 0
-      });
-    } catch (err) {
-      toast.error("❌ Erreur");
-    } finally {
-      setAssigning(false);
-    }
-  };
+  }, [isAdmin, fetchUsers, fetchFormationsList]);
 
-  const removeAssignment = async (assignmentId) => {
-    if (!window.confirm("Retirer cette assignation ?")) return;
-    try {
-      await supabase.from("formateur_assignments").delete().eq("id", assignmentId);
-      toast.success("Assignation retirée");
-      await fetchFormateurAssignments(selectedFormateur.id);
-      await loadFormateursGroupsData();
-    } catch (err) {
-      toast.error("❌ Erreur");
-    }
-  };
-
-  const updateDureeRestante = async (assignmentId, nouvelleDuree) => {
-    if (isNaN(nouvelleDuree) || nouvelleDuree < 0) {
-      toast.error("Durée invalide");
-      return;
-    }
-    try {
-      await supabase.from("formateur_assignments").update({ duree_restante: nouvelleDuree }).eq("id", assignmentId);
-      toast.success("Durée restante mise à jour");
-      await fetchFormateurAssignments(selectedFormateur.id);
-      await loadFormateursGroupsData();
-    } catch (err) {
-      toast.error("❌ Erreur");
-    }
-  };
-
-  const addSeance = async () => {
-    if (!newSeance.titre.trim() || !newSeance.date_heure) {
-      toast.error("Titre et date/heure requis");
-      return;
-    }
-    setAddingSeance(true);
-    try {
-      await supabase.from("seances").insert({
-        assignment_id: selectedAssignment.id,
-        titre: newSeance.titre.trim(),
-        date_seance: newSeance.date_heure,
-        duree: newSeance.duree || 60,
-        statut: "planifie"
-      });
-      toast.success("✅ Séance ajoutée");
-      await fetchSeances(selectedAssignment.id);
-      await loadFormateursGroupsData();
-      setNewSeance({ titre: "", date_heure: "", duree: 60 });
-    } catch (err) {
-      toast.error("❌ Erreur");
-    } finally {
-      setAddingSeance(false);
-    }
-  };
-
-  const updateSeanceStatut = async (seanceId, statut) => {
-    try {
-      await supabase.from("seances").update({ statut, updated_at: new Date() }).eq("id", seanceId);
-      toast.success("Statut mis à jour");
-      await fetchSeances(selectedAssignment.id);
-      await loadFormateursGroupsData();
-    } catch (err) {
-      toast.error("❌ Erreur");
-    }
-  };
-
-  const deleteSeance = async (seanceId) => {
-    if (!window.confirm("Supprimer cette séance ?")) return;
-    try {
-      await supabase.from("seances").delete().eq("id", seanceId);
-      toast.success("Séance supprimée");
-      await fetchSeances(selectedAssignment.id);
-      await loadFormateursGroupsData();
-    } catch (err) {
-      toast.error("❌ Erreur");
-    }
-  };
+  const filteredUsers = users.filter(u =>
+    u.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    u.email?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const stats = [
     { label: "Total", value: users.length, icon: "👥", color: "from-blue-500 to-blue-600" },
@@ -690,6 +730,7 @@ const AdminUsers = () => {
       </Helmet>
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 pt-20">
         <div className="max-w-7xl mx-auto p-6">
+          {/* En-tête */}
           <div className="bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white rounded-2xl p-8 mb-8">
             <div className="flex justify-between items-center flex-wrap gap-4">
               <div>
@@ -702,6 +743,7 @@ const AdminUsers = () => {
             </div>
           </div>
 
+          {/* Statistiques */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
             {stats.map((stat, i) => (
               <div key={i} className={`bg-gradient-to-r ${stat.color} rounded-xl p-4 text-white shadow-lg`}>
@@ -722,13 +764,13 @@ const AdminUsers = () => {
               👥 Utilisateurs
             </button>
             <button onClick={() => setActiveView("inscriptions")} className={`pb-2 px-4 font-medium ${activeView === "inscriptions" ? "border-b-2 border-[#1a56db] text-[#1a56db]" : "text-gray-500"}`}>
-              📝 Inscriptions en ligne ({inscriptionsEnAttente.length})
+              📝 Inscriptions ({inscriptionsEnAttente.length})
             </button>
             <button onClick={() => setActiveView("demandes")} className={`pb-2 px-4 font-medium ${activeView === "demandes" ? "border-b-2 border-[#1a56db] text-[#1a56db]" : "text-gray-500"}`}>
-              📋 Demandes présentiel ({demandesPresentiel.length})
+              📋 Demandes ({demandesPresentiel.length})
             </button>
             <button onClick={() => setActiveView("groups")} className={`pb-2 px-4 font-medium ${activeView === "groups" ? "border-b-2 border-[#1a56db] text-[#1a56db]" : "text-gray-500"}`}>
-              📚 Groupes formateur
+              📚 Formateurs
             </button>
           </div>
 
@@ -751,70 +793,54 @@ const AdminUsers = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredUsers.length === 0 ? (
-                        <tr><td colSpan="5" className="p-8 text-center text-gray-500">Aucun utilisateur</td></tr>
-                      ) : (
-                        filteredUsers.map(u => {
-                          const isMaster = u.email === MASTER_ADMIN_EMAIL;
-                          const isAdminUser = u.is_admin === true;
-                          return (
-                            <tr key={u.id} className={`border-b hover:bg-gray-50 ${isAdminUser ? "bg-blue-50" : ""}`}>
-                              <td className="p-4">
-                                <div className="flex items-center gap-3">
-                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold ${isMaster ? "bg-red-500" : isAdminUser ? "bg-yellow-500" : u.user_type === "formateur" ? "bg-purple-500" : "bg-gradient-to-r from-[#1a56db] to-[#76c21f]"}`}>
-                                    {u.full_name?.charAt(0).toUpperCase() || (isAdminUser ? "👑" : u.user_type === "formateur" ? "👨‍🏫" : "?")}
-                                  </div>
-                                  <span>
-                                    {u.full_name || "—"}
-                                    {isMaster && <span className="ml-2 text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full">👑 Admin principal</span>}
-                                    {isAdminUser && !isMaster && <span className="ml-2 text-xs bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full">Admin</span>}
-                                  </span>
+                      {filteredUsers.map(u => {
+                        const isMaster = u.email === MASTER_ADMIN_EMAIL;
+                        const isAdminUser = u.is_admin === true;
+                        return (
+                          <tr key={u.id} className={`border-b hover:bg-gray-50 ${isAdminUser ? "bg-blue-50" : ""}`}>
+                            <td className="p-4">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold ${isMaster ? "bg-red-500" : isAdminUser ? "bg-yellow-500" : u.user_type === "formateur" ? "bg-purple-500" : "bg-gradient-to-r from-[#1a56db] to-[#76c21f]"}`}>
+                                  {u.full_name?.charAt(0).toUpperCase() || "?"}
                                 </div>
-                              </td>
-                              <td className="p-4 text-gray-600">{u.email}</td>
-                              <td className="p-4">
-                                {isAdminUser ? (
-                                  <span className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full text-xs">👑 Administrateur</span>
-                                ) : u.user_type === "formateur" ? (
-                                  <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-full text-xs">👨‍🏫 Formateur</span>
-                                ) : (
-                                  <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs">👨‍🎓 Participant</span>
+                                <span>{u.full_name || "—"}</span>
+                              </div>
+                            </td>
+                            <td className="p-4 text-gray-600">{u.email}</td>
+                            <td className="p-4">
+                              {isAdminUser ? "👑 Administrateur" : u.user_type === "formateur" ? "👨‍🏫 Formateur" : "👨‍🎓 Participant"}
+                            </td>
+                            <td className="p-4">
+                              <span className={`px-2 py-1 rounded-full text-xs ${u.is_approved ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
+                                {u.is_approved ? "✅ Approuvé" : "⏳ En attente"}
+                              </span>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex gap-2 flex-wrap">
+                                {!isMaster && (
+                                  <>
+                                    <button onClick={() => toggleApprove(u)} className="px-2 py-1 bg-green-500 text-white rounded-lg text-xs">
+                                      {u.is_approved ? "⛔ Désapprouver" : "✅ Approuver"}
+                                    </button>
+                                    {u.user_type === "formateur" && (
+                                      <button onClick={() => {
+                                        setSelectedFormateur(u);
+                                        fetchFormateurAssignments(u.id);
+                                        setShowAssignModal(true);
+                                      }} className="px-2 py-1 bg-blue-500 text-white rounded-lg text-xs">
+                                        📚 Formations
+                                      </button>
+                                    )}
+                                    <button onClick={() => deleteUser(u.id, u.email)} className="px-2 py-1 bg-red-600 text-white rounded-lg text-xs">
+                                      🗑️ Supprimer
+                                    </button>
+                                  </>
                                 )}
-                              </td>
-                              <td className="p-4">
-                                <span className={`px-2 py-1 rounded-full text-xs ${u.is_approved ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
-                                  {u.is_approved ? "✅ Approuvé" : "⏳ En attente"}
-                                </span>
-                              </td>
-                              <td className="p-4">
-                                <div className="flex gap-2 flex-wrap">
-                                  {isMaster ? (
-                                    <span className="text-xs text-gray-400 italic">Non modifiable</span>
-                                  ) : (
-                                    <>
-                                      <button onClick={() => toggleApprove(u)} disabled={updating === `approve-${u.id}`} className={`px-2 py-1 rounded-lg text-white text-xs ${u.is_approved ? "bg-orange-500" : "bg-green-500"} disabled:opacity-50`}>
-                                        {updating === `approve-${u.id}` ? "..." : (u.is_approved ? "⛔ Désapprouver" : "✅ Approuver")}
-                                      </button>
-                                      {u.user_type === "formateur" && !isAdminUser && (
-                                        <button onClick={async () => {
-                                          setSelectedFormateur(u);
-                                          await fetchFormateurAssignments(u.id);
-                                          setShowAssignModal(true);
-                                        }} className="px-2 py-1 bg-green-500 text-white rounded-lg text-xs">
-                                          📚 Gérer formations
-                                        </button>
-                                      )}
-                                      <button onClick={() => deleteUser(u.id, u.email)} disabled={updating === `delete-${u.id}`} className="px-2 py-1 bg-red-600 text-white rounded-lg text-xs">
-                                        {updating === `delete-${u.id}` ? "..." : "🗑️ Supprimer"}
-                                      </button>
-                                    </>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -822,12 +848,11 @@ const AdminUsers = () => {
             </>
           )}
 
-          {/* VUE INSCRIPTIONS EN LIGNE */}
+          {/* VUE INSCRIPTIONS */}
           {activeView === "inscriptions" && (
             <div className="bg-white rounded-xl shadow-md overflow-hidden">
               <div className="p-4 bg-gray-50 border-b">
                 <h2 className="font-semibold text-gray-800">📝 Inscriptions en attente de validation</h2>
-                <p className="text-sm text-gray-500">Validez les inscriptions et affectez un groupe aux participants</p>
               </div>
               {loadingInscriptions ? (
                 <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1a56db]"></div></div>
@@ -849,58 +874,52 @@ const AdminUsers = () => {
                       {inscriptionsEnAttente.map(ins => (
                         <tr key={ins.id} className="border-b hover:bg-gray-50">
                           <td className="p-4">
-                            <div>
-                              <p className="font-medium">{ins.users?.full_name || "—"}</p>
-                              <p className="text-xs text-gray-500">{ins.users?.email}</p>
-                            </div>
-                           </td>
+                            <p className="font-medium">{ins.users?.full_name || "—"}</p>
+                            <p className="text-xs text-gray-500">{ins.users?.email}</p>
+                          </td>
                           <td className="p-4">
                             <p className="font-medium">{ins.formations?.title}</p>
-                           </td>
+                          </td>
                           <td className="p-4 text-gray-500">
                             {new Date(ins.created_at).toLocaleDateString()}
-                           </td>
+                          </td>
                           <td className="p-4">
                             <select
-                              className="border rounded-lg px-3 py-1 text-sm"
-                              value={selectedGroupeId}
-                              onChange={(e) => setSelectedGroupeId(e.target.value)}
+                              className="border rounded-lg px-3 py-1 text-sm w-44"
+                              value={selectedGroupeId[ins.id] || ""}
+                              onChange={(e) => setSelectedGroupeId(prev => ({ ...prev, [ins.id]: e.target.value }))}
                             >
                               <option value="">Sélectionner un groupe</option>
                               {groupesFormation
                                 .filter(g => g.formation_id === ins.formation_id)
                                 .map(g => (
-                                  <option key={g.id} value={g.id}>{g.nom} - {g.horaire || "Horaire à définir"}</option>
+                                  <option key={g.id} value={g.id}>{g.nom}</option>
                                 ))}
                             </select>
-                            {groupesFormation.filter(g => g.formation_id === ins.formation_id).length === 0 && (
-                              <p className="text-xs text-orange-500 mt-1">⚠️ Aucun groupe créé pour cette formation</p>
-                            )}
-                           </td>
+                          </td>
                           <td className="p-4">
                             <button
-                              onClick={() => validerInscription(ins.id, ins.formation_id, ins.user_id, selectedGroupeId)}
-                              disabled={validatingInscription || !selectedGroupeId}
-                              className="px-3 py-1 bg-green-500 text-white rounded-lg text-xs hover:bg-green-600 disabled:opacity-50"
+                              onClick={() => validerInscription(ins.id, ins.formation_id, ins.user_id, selectedGroupeId[ins.id])}
+                              disabled={!selectedGroupeId[ins.id]}
+                              className="px-3 py-1 bg-green-500 text-white rounded-lg text-xs disabled:opacity-50"
                             >
                               ✅ Valider
                             </button>
-                           </td>
-                         </tr>
+                          </td>
+                        </tr>
                       ))}
                     </tbody>
-                   </table>
+                  </table>
                 </div>
               )}
             </div>
           )}
 
-          {/* VUE DEMANDES PRÉSENTIEL */}
+          {/* VUE DEMANDES */}
           {activeView === "demandes" && (
             <div className="bg-white rounded-xl shadow-md overflow-hidden">
               <div className="p-4 bg-gray-50 border-b">
                 <h2 className="font-semibold text-gray-800">📋 Demandes de formation présentiel</h2>
-                <p className="text-sm text-gray-500">À contacter pour organiser la session</p>
               </div>
               {loadingDemandes ? (
                 <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1a56db]"></div></div>
@@ -914,38 +933,27 @@ const AdminUsers = () => {
                         <th className="p-4 text-left">Demandeur</th>
                         <th className="p-4 text-left">Formation</th>
                         <th className="p-4 text-left">Contact</th>
-                        <th className="p-4 text-left">Date</th>
                         <th className="p-4 text-left">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {demandesPresentiel.map(demande => (
                         <tr key={demande.id} className="border-b hover:bg-gray-50">
-                          <td className="p-4 font-medium">{demande.nom} </td>
+                          <td className="p-4 font-medium">{demande.nom}</td>
                           <td className="p-4">{demande.formations?.title}</td>
                           <td className="p-4">
                             <p className="text-sm">{demande.email}</p>
                             <p className="text-xs text-gray-500">{demande.telephone}</p>
-                           </td>
-                          <td className="p-4 text-gray-500">{new Date(demande.created_at).toLocaleDateString()}</td>
+                          </td>
                           <td className="p-4">
                             <div className="flex gap-2">
-                              <a href={`tel:${demande.telephone}`} className="px-3 py-1 bg-blue-500 text-white rounded-lg text-xs hover:bg-blue-600">
-                                📞 Appeler
-                              </a>
-                              <a href={`mailto:${demande.email}`} className="px-3 py-1 bg-purple-500 text-white rounded-lg text-xs hover:bg-purple-600">
-                                ✉️ Email
-                              </a>
-                              <button onClick={() => marquerDemandeContactee(demande.id)} className="px-3 py-1 bg-green-500 text-white rounded-lg text-xs hover:bg-green-600">
-                                ✅ Contacté
-                              </button>
+                              <a href={`tel:${demande.telephone}`} className="px-3 py-1 bg-blue-500 text-white rounded-lg text-xs">📞 Appeler</a>
+                              <a href={`mailto:${demande.email}`} className="px-3 py-1 bg-purple-500 text-white rounded-lg text-xs">✉️ Email</a>
+                              <button onClick={() => marquerDemandeContactee(demande.id)} className="px-3 py-1 bg-green-500 text-white rounded-lg text-xs">✅ Contacté</button>
                             </div>
-                            {demande.message && (
-                              <p className="text-xs text-gray-500 mt-2 italic">"{demande.message.substring(0, 100)}"</p>
-                            )}
-                            </td>
-                          </tr>
-                        ))}
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -953,7 +961,7 @@ const AdminUsers = () => {
             </div>
           )}
 
-          {/* VUE GROUPES FORMATEUR */}
+          {/* VUE FORMATEURS ET LEURS GROUPES */}
           {activeView === "groups" && (
             <div className="space-y-6">
               {loadingFormateurs ? (
@@ -963,7 +971,7 @@ const AdminUsers = () => {
                 </div>
               ) : formateursData.length === 0 ? (
                 <div className="bg-white rounded-xl shadow-md p-8 text-center">
-                  <p>Aucun formateur</p>
+                  <p className="text-gray-500">Aucun formateur</p>
                 </div>
               ) : (
                 formateursData.map(formateur => {
@@ -987,7 +995,7 @@ const AdminUsers = () => {
                             setSelectedFormateur(formateur);
                             await fetchFormateurAssignments(formateur.id);
                             setShowAssignModal(true);
-                          }} className="px-3 py-1.5 bg-white/20 rounded-lg text-sm">
+                          }} className="px-3 py-1.5 bg-white/20 rounded-lg text-sm hover:bg-white/30">
                             📚 Assigner formation
                           </button>
                         </div>
@@ -1023,10 +1031,33 @@ const AdminUsers = () => {
                                       {ass.horaire && <p className="text-xs text-gray-500 mt-2">📅 {ass.horaire} • {ass.jours || ""}</p>}
                                     </div>
                                     <div className="flex gap-2 flex-wrap">
-                                      <button onClick={async () => { setSelectedAssignment(ass); await fetchSeances(ass.id); setShowSeancesModal(true); }} className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-xs">📅 Calendrier</button>
-                                      <button onClick={async () => { setSelectedAssignment(ass); await fetchGroupParticipants(ass.formation_id); setShowGroupModal(true); }} className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs">👥 Participants</button>
-                                      <button onClick={async () => { setSelectedAssignment(ass); await fetchAvailableParticipants(ass.formation_id); setShowAssignParticipantsModal(true); }} className="px-3 py-1.5 bg-purple-500 text-white rounded-lg text-xs">➕ Assigner</button>
-                                      <button onClick={() => generateAccessCode(ass.formation_id, f?.title)} disabled={generatingCode} className="px-3 py-1.5 bg-yellow-500 text-white rounded-lg text-xs">🎲 Code</button>
+                                      <button onClick={async () => { 
+                                        setSelectedAssignment(ass); 
+                                        await fetchSeancesList(ass.id); 
+                                        setShowSeancesModal(true); 
+                                      }} className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-xs hover:bg-blue-600">
+                                        📅 Séances
+                                      </button>
+                                      <button onClick={async () => { 
+                                        setSelectedAssignment(ass); 
+                                        await fetchGroupParticipantsList(ass.formation_id); 
+                                        setShowGroupModal(true); 
+                                      }} className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs hover:bg-green-600">
+                                        👥 Participants
+                                      </button>
+                                      <button onClick={async () => { 
+                                        setSelectedAssignment(ass); 
+                                        await fetchAvailableParticipantsList(ass.formation_id); 
+                                        setShowAssignParticipantsModal(true); 
+                                      }} className="px-3 py-1.5 bg-purple-500 text-white rounded-lg text-xs hover:bg-purple-600">
+                                        ➕ Assigner
+                                      </button>
+                                      <button onClick={() => generateAccessCode(ass.formation_id, f?.title)} disabled={generatingCode} className="px-3 py-1.5 bg-yellow-500 text-white rounded-lg text-xs hover:bg-yellow-600">
+                                        🎲 Code
+                                      </button>
+                                      <button onClick={() => removeAssignment(ass.id)} className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-xs hover:bg-red-600">
+                                        🗑️ Retirer
+                                      </button>
                                     </div>
                                   </div>
                                 </div>
@@ -1049,208 +1080,189 @@ const AdminUsers = () => {
         {showAddModal && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowAddModal(false)}>
             <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white rounded-2xl max-w-md w-full" onClick={e => e.stopPropagation()}>
-              <div className="bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white p-5 rounded-t-2xl">
-                <div className="flex justify-between"><h3 className="text-xl font-bold">Ajouter un utilisateur</h3><button onClick={() => setShowAddModal(false)}>✕</button></div>
+              <div className="bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white p-5 rounded-t-2xl flex justify-between">
+                <h3 className="text-xl font-bold">Ajouter un utilisateur</h3>
+                <button onClick={() => setShowAddModal(false)}>✕</button>
               </div>
               <form onSubmit={createUser} className="p-6 space-y-4">
                 <input type="text" placeholder="Nom complet" className="w-full border rounded-xl p-3" value={newUser.full_name} onChange={e => setNewUser({ ...newUser, full_name: e.target.value })} required />
                 <input type="email" placeholder="Email" className="w-full border rounded-xl p-3" value={newUser.email} onChange={e => setNewUser({ ...newUser, email: e.target.value })} required />
-                <input type="password" placeholder="Mot de passe (min. 6)" className="w-full border rounded-xl p-3" value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} required minLength={6} />
+                <input type="password" placeholder="Mot de passe (min. 6)" className="w-full border rounded-xl p-3" value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} required />
                 <select className="w-full border rounded-xl p-3" value={newUser.user_type} onChange={e => setNewUser({ ...newUser, user_type: e.target.value })}>
                   <option value="participant">👨‍🎓 Participant</option>
                   <option value="formateur">👨‍🏫 Formateur</option>
                   <option value="admin">👑 Administrateur</option>
                 </select>
-                <label className="flex items-center gap-2"><input type="checkbox" checked={newUser.is_approved} onChange={e => setNewUser({ ...newUser, is_approved: e.target.checked })} /> ✅ Approuvé immédiatement</label>
-                <button type="submit" disabled={creating} className="w-full bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white py-3 rounded-xl font-semibold">{creating ? "Création..." : "➕ Créer l'utilisateur"}</button>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={newUser.is_approved} onChange={e => setNewUser({ ...newUser, is_approved: e.target.checked })} />
+                  ✅ Approuvé immédiatement
+                </label>
+                <button type="submit" disabled={creating} className="w-full bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white py-3 rounded-xl font-semibold">
+                  {creating ? "Création..." : "➕ Créer l'utilisateur"}
+                </button>
               </form>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
 
-      {/* MODAL ASSIGNATION FORMATIONS */}
+      {/* MODAL ASSIGNATION FORMATION */}
       <AnimatePresence>
         {showAssignModal && selectedFormateur && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto" onClick={() => setShowAssignModal(false)}>
-            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-              <div className="bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white p-5 rounded-t-2xl sticky top-0">
-                <div className="flex justify-between">
-                  <div>
-                    <h3 className="text-xl font-bold">📚 Gérer les formations</h3>
-                    <p className="text-blue-100 text-sm">{selectedFormateur.full_name} ({selectedFormateur.email})</p>
-                  </div>
-                  <button onClick={() => setShowAssignModal(false)}>✕</button>
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              <div className="bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white p-5 rounded-t-2xl sticky top-0 flex justify-between">
+                <div>
+                  <h3 className="text-xl font-bold">📚 Gérer les formations</h3>
+                  <p className="text-blue-100 text-sm">{selectedFormateur.full_name}</p>
                 </div>
+                <button onClick={() => setShowAssignModal(false)}>✕</button>
               </div>
               <div className="p-6">
-                <h4 className="font-semibold mb-3">📋 Formations assignées</h4>
+                <h4 className="font-semibold mb-3">➕ Assigner nouvelle formation</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                  <select className="border rounded-lg p-2" value={newAssignment.formation_id} onChange={e => setNewAssignment({ ...newAssignment, formation_id: e.target.value })}>
+                    <option value="">Sélectionner une formation</option>
+                    {formations.map(f => <option key={f.id} value={f.id}>{f.title} ({f.duree_totale || 0}h)</option>)}
+                  </select>
+                  <input type="text" placeholder="Nom du groupe *" className="border rounded-lg p-2" value={newAssignment.groupe_nom} onChange={e => setNewAssignment({ ...newAssignment, groupe_nom: e.target.value })} />
+                  <input type="text" placeholder="Horaire (ex: 14h-17h)" className="border rounded-lg p-2" value={newAssignment.horaire} onChange={e => setNewAssignment({ ...newAssignment, horaire: e.target.value })} />
+                  <input type="text" placeholder="Jours (ex: Lundi, Mercredi)" className="border rounded-lg p-2" value={newAssignment.jours} onChange={e => setNewAssignment({ ...newAssignment, jours: e.target.value })} />
+                  <input type="date" className="border rounded-lg p-2" value={newAssignment.date_debut} onChange={e => setNewAssignment({ ...newAssignment, date_debut: e.target.value })} />
+                  <input type="date" className="border rounded-lg p-2" value={newAssignment.date_fin} onChange={e => setNewAssignment({ ...newAssignment, date_fin: e.target.value })} />
+                </div>
+                <button onClick={addAssignment} disabled={assigning} className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700">
+                  {assigning ? "Assignation..." : "➕ Assigner"}
+                </button>
+
+                <h4 className="font-semibold mt-6 mb-3">📋 Formations assignées</h4>
                 {loadingAssignments ? (
-                  <div className="flex justify-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1a56db]"></div>
-                  </div>
+                  <div className="flex justify-center py-4"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#1a56db]"></div></div>
                 ) : assignedFormations.length === 0 ? (
                   <p className="text-gray-500 text-sm bg-gray-50 p-4 rounded-lg text-center">Aucune formation assignée</p>
                 ) : (
                   assignedFormations.map(ass => (
-                    <div key={ass.id} className="bg-gray-50 rounded-lg p-4 border mb-3">
-                      <div className="flex justify-between">
-                        <div>
-                          <p className="font-bold">{ass.formations?.title}</p>
-                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2 text-sm">
-                            <p><span className="text-gray-500">Groupe:</span> {ass.groupe_nom}</p>
-                            <p><span className="text-gray-500">Horaire:</span> {ass.horaire || "—"}</p>
-                            <p><span className="text-gray-500">Jours:</span> {ass.jours || "—"}</p>
-                            <p><span className="text-gray-500">Date début:</span> {ass.date_debut ? new Date(ass.date_debut).toLocaleDateString() : "—"}</p>
-                            <p><span className="text-gray-500">Date fin:</span> {ass.date_fin ? new Date(ass.date_fin).toLocaleDateString() : "—"}</p>
-                            <p><span className="text-gray-500">Durée totale:</span> {ass.formations?.duree_totale || 0}h</p>
-                            <p className="col-span-2">
-                              <span className="text-gray-500 font-semibold">Durée restante:</span>
-                              <input type="number" value={ass.duree_restante || 0} onChange={e => updateDureeRestante(ass.id, parseInt(e.target.value) || 0)} className="w-24 ml-2 border rounded px-2 py-1 text-center" min="0" /> heures
-                            </p>
-                          </div>
+                    <div key={ass.id} className="bg-gray-50 rounded-lg p-3 mb-2">
+                      <p className="font-bold">{ass.formations?.title}</p>
+                      <p className="text-sm">Groupe: {ass.groupe_nom}</p>
+                      <p className="text-sm">Horaire: {ass.horaire || "—"}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL SÉANCES */}
+      <AnimatePresence>
+        {showSeancesModal && selectedAssignment && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto" onClick={() => setShowSeancesModal(false)}>
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              <div className="bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white p-5 rounded-t-2xl sticky top-0 flex justify-between">
+                <div>
+                  <h3 className="text-xl font-bold">📅 Séances</h3>
+                  <p className="text-blue-100 text-sm">{selectedAssignment.formations?.title} - {selectedAssignment.groupe_nom}</p>
+                </div>
+                <button onClick={() => setShowSeancesModal(false)}>✕</button>
+              </div>
+              <div className="p-6">
+                <h4 className="font-semibold mb-3">Séances existantes</h4>
+                {loadingSeances ? (
+                  <div className="flex justify-center py-4"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#1a56db]"></div></div>
+                ) : seances.length === 0 ? (
+                  <p className="text-gray-500 text-center py-4">Aucune séance</p>
+                ) : (
+                  seances.map(s => (
+                    <div key={s.id} className="bg-gray-50 rounded-lg p-3 mb-2">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <p className="font-medium">{s.titre}</p>
+                          <p className="text-xs text-gray-500">
+                            {new Date(s.date_heure).toLocaleString()} - {s.duree} min
+                          </p>
+                          {s.lien_reunion && (
+                            <div className="mt-1">
+                              <a 
+                                href={s.lien_reunion} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-xs text-blue-600 hover:underline break-all"
+                              >
+                                🔗 {s.lien_reunion}
+                              </a>
+                            </div>
+                          )}
                         </div>
                         <div className="flex gap-2">
-                          <button onClick={async () => {
-                            setSelectedAssignment(ass);
-                            await fetchSeances(ass.id);
-                            setShowSeancesModal(true);
-                          }} className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-xs">
-                            📅 Calendrier
-                          </button>
-                          <button onClick={() => removeAssignment(ass.id)} className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-xs">
-                            🗑️ Retirer
-                          </button>
+                          {s.lien_reunion && (
+                            <button
+                              onClick={() => partagerLienReunion(s.id, s.lien_reunion)}
+                              className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600"
+                              title="Copier le lien et le partager aux participants"
+                            >
+                              📤 Partager
+                            </button>
+                          )}
+                          <button onClick={() => deleteSeance(s.id)} className="text-red-500 text-sm px-2">🗑️</button>
                         </div>
                       </div>
                     </div>
                   ))
                 )}
-                <h4 className="font-semibold mt-6 mb-3">➕ Assigner nouvelle formation</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
-                  <select className="border rounded-lg p-2" value={newAssignment.formation_id} onChange={e => setNewAssignment({ ...newAssignment, formation_id: e.target.value })}>
-                    <option value="">Sélectionner</option>
-                    {formations.map(f => <option key={f.id} value={f.id}>{f.title} ({f.duree_totale || 0}h)</option>)}
-                  </select>
-                  <input type="text" placeholder="Nom du groupe *" className="border rounded-lg p-2" value={newAssignment.groupe_nom} onChange={e => setNewAssignment({ ...newAssignment, groupe_nom: e.target.value })} />
-                  <input type="text" placeholder="Horaire" className="border rounded-lg p-2" value={newAssignment.horaire} onChange={e => setNewAssignment({ ...newAssignment, horaire: e.target.value })} />
-                  <input type="text" placeholder="Jours" className="border rounded-lg p-2" value={newAssignment.jours} onChange={e => setNewAssignment({ ...newAssignment, jours: e.target.value })} />
-                  <input type="date" className="border rounded-lg p-2" value={newAssignment.date_debut} onChange={e => setNewAssignment({ ...newAssignment, date_debut: e.target.value })} />
-                  <input type="date" className="border rounded-lg p-2" value={newAssignment.date_fin} onChange={e => setNewAssignment({ ...newAssignment, date_fin: e.target.value })} />
-                </div>
-                <button onClick={addAssignment} disabled={assigning} className="w-full bg-green-600 text-white py-2 rounded-lg">
-                  {assigning ? "Assignation..." : "➕ Assigner"}
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* MODAL CALENDRIER / SÉANCES */}
-      <AnimatePresence>
-        {showSeancesModal && selectedAssignment && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto" onClick={() => setShowSeancesModal(false)}>
-            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-              <div className="bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white p-5 rounded-t-2xl sticky top-0">
-                <div className="flex justify-between">
-                  <div>
-                    <h3 className="text-xl font-bold">📅 Calendrier des séances</h3>
-                    <p className="text-blue-100 text-sm">{selectedAssignment.formations?.title} - {selectedAssignment.groupe_nom}</p>
-                  </div>
-                  <button onClick={() => setShowSeancesModal(false)}>✕</button>
-                </div>
-              </div>
-              <div className="p-6">
-                <h4 className="font-semibold mb-3">Séances planifiées</h4>
-                {loadingSeances ? (
-                  <div className="flex justify-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1a56db]"></div>
-                  </div>
-                ) : seances.length === 0 ? (
-                  <p className="text-gray-500 text-sm bg-gray-50 p-4 rounded-lg text-center">Aucune séance</p>
-                ) : (
-                  seances.map(s => {
-                    let statutClass = "bg-blue-100 text-blue-700";
-                    let statutText = "📅 Planifiée";
-                    if (s.statut === "en_cours") {
-                      statutClass = "bg-green-100 text-green-700";
-                      statutText = "🟢 En cours";
-                    } else if (s.statut === "termine") {
-                      statutClass = "bg-gray-100 text-gray-700";
-                      statutText = "✅ Terminée";
-                    } else if (s.statut === "annule") {
-                      statutClass = "bg-red-100 text-red-700";
-                      statutText = "❌ Annulée";
-                    }
-                    return (
-                      <div key={s.id} className="bg-gray-50 rounded-lg p-3 flex justify-between items-center flex-wrap gap-2">
-                        <div>
-                          <p className="font-medium">{s.titre}</p>
-                          <p className="text-xs text-gray-500">{new Date(s.date_heure).toLocaleString()} - Durée: {s.duree} min</p>
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${statutClass}`}>{statutText}</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <select value={s.statut} onChange={e => updateSeanceStatut(s.id, e.target.value)} className="text-xs border rounded px-2 py-1">
-                            <option value="planifie">📅 Planifiée</option>
-                            <option value="en_cours">🟢 En cours</option>
-                            <option value="termine">✅ Terminée</option>
-                            <option value="annule">❌ Annulée</option>
-                          </select>
-                          <button onClick={() => deleteSeance(s.id)} className="text-red-500 text-sm">🗑️</button>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-                <h4 className="font-semibold mt-6 mb-3">➕ Ajouter une séance</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                  <input type="text" placeholder="Titre" className="border rounded-lg p-2" value={newSeance.titre} onChange={e => setNewSeance({ ...newSeance, titre: e.target.value })} />
+                <h4 className="font-semibold mt-4 mb-3">➕ Ajouter une séance</h4>
+                <div className="grid grid-cols-1 gap-3">
+                  <input type="text" placeholder="Titre de la séance" className="border rounded-lg p-2" value={newSeance.titre} onChange={e => setNewSeance({ ...newSeance, titre: e.target.value })} />
                   <input type="datetime-local" className="border rounded-lg p-2" value={newSeance.date_heure} onChange={e => setNewSeance({ ...newSeance, date_heure: e.target.value })} />
                   <input type="number" placeholder="Durée (minutes)" className="border rounded-lg p-2" value={newSeance.duree} onChange={e => setNewSeance({ ...newSeance, duree: parseInt(e.target.value) || 60 })} />
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      placeholder="Lien Jitsi / Zoom / Meet" 
+                      className="border rounded-lg p-2 flex-1" 
+                      value={newSeance.lien_reunion} 
+                      onChange={e => setNewSeance({ ...newSeance, lien_reunion: e.target.value })} 
+                    />
+                    <button 
+                      type="button"
+                      onClick={genererLienJitsi}
+                      className="bg-gray-200 text-gray-700 px-3 rounded-lg text-sm hover:bg-gray-300 whitespace-nowrap"
+                    >
+                      🎲 Générer Jitsi
+                    </button>
+                  </div>
+                  <button onClick={addSeance} disabled={addingSeance} className="bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">
+                    {addingSeance ? "Ajout..." : "➕ Ajouter la séance"}
+                  </button>
                 </div>
-                <button onClick={addSeance} disabled={addingSeance} className="w-full bg-blue-600 text-white py-2 rounded-lg">
-                  {addingSeance ? "Ajout..." : "➕ Ajouter"}
-                </button>
               </div>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
 
-      {/* MODAL VOIR PARTICIPANTS */}
+      {/* MODAL PARTICIPANTS */}
       <AnimatePresence>
         {showGroupModal && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowGroupModal(false)}>
             <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-              <div className="bg-gradient-to-r from-green-600 to-green-700 text-white p-5 rounded-t-2xl sticky top-0">
-                <div className="flex justify-between">
-                  <h3 className="text-xl font-bold">👥 Participants inscrits</h3>
-                  <button onClick={() => setShowGroupModal(false)}>✕</button>
-                </div>
+              <div className="bg-gradient-to-r from-green-600 to-green-700 text-white p-5 rounded-t-2xl flex justify-between">
+                <h3 className="text-xl font-bold">👥 Participants inscrits</h3>
+                <button onClick={() => setShowGroupModal(false)}>✕</button>
               </div>
               <div className="p-6">
                 {loadingParticipants ? (
-                  <div className="flex justify-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1a56db]"></div>
-                  </div>
+                  <div className="flex justify-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1a56db]"></div></div>
                 ) : groupParticipants.length === 0 ? (
                   <p className="text-gray-500 text-center py-8">Aucun participant</p>
                 ) : (
                   groupParticipants.map(ins => (
                     <div key={ins.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg mb-2">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-r from-green-500 to-green-600 flex items-center justify-center text-white font-semibold">
-                          {ins.users?.full_name?.charAt(0).toUpperCase() || "?"}
-                        </div>
-                        <div>
-                          <p className="font-medium">{ins.users?.full_name || "—"}</p>
-                          <p className="text-xs text-gray-500">{ins.users?.email}</p>
-                        </div>
+                      <div>
+                        <p className="font-medium">{ins.users?.full_name || "—"}</p>
+                        <p className="text-xs text-gray-500">{ins.users?.email}</p>
                       </div>
-                      <span className={`text-xs px-2 py-1 rounded-full ${ins.users?.is_approved ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
-                        {ins.users?.is_approved ? "✅ Approuvé" : "⏳ En attente"}
-                      </span>
                     </div>
                   ))
                 )}
@@ -1263,60 +1275,42 @@ const AdminUsers = () => {
       {/* MODAL ASSIGNER PARTICIPANTS */}
       <AnimatePresence>
         {showAssignParticipantsModal && selectedAssignment && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowAssignParticipantsModal(false)}>
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto" onClick={() => setShowAssignParticipantsModal(false)}>
             <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-              <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white p-5 rounded-t-2xl sticky top-0">
-                <div className="flex justify-between">
-                  <div>
-                    <h3 className="text-xl font-bold">👥 Assigner des participants</h3>
-                    <p className="text-purple-200 text-sm">{selectedAssignment.formations?.title} - {selectedAssignment.groupe_nom}</p>
-                  </div>
-                  <button onClick={() => setShowAssignParticipantsModal(false)}>✕</button>
+              <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white p-5 rounded-t-2xl flex justify-between">
+                <div>
+                  <h3 className="text-xl font-bold">👥 Assigner des participants</h3>
+                  <p className="text-purple-200 text-sm">{selectedAssignment.formations?.title} - {selectedAssignment.groupe_nom}</p>
                 </div>
+                <button onClick={() => setShowAssignParticipantsModal(false)}>✕</button>
               </div>
               <div className="p-6">
                 <h4 className="font-semibold mb-3">✅ Participants assignés ({assignedParticipantsList.length})</h4>
-                {assignedParticipantsList.length === 0 ? (
-                  <p className="text-gray-500 text-sm bg-gray-50 p-3 rounded-lg mb-4">Aucun</p>
-                ) : (
-                  assignedParticipantsList.map(p => (
-                    <div key={p.id} className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200 mb-2">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center text-white">{p.full_name?.charAt(0).toUpperCase() || "?"}</div>
-                        <div>
-                          <p className="font-medium">{p.full_name}</p>
-                          <p className="text-xs text-gray-500">{p.email}</p>
-                        </div>
-                      </div>
-                      <button onClick={() => removeParticipantFromFormation(selectedAssignment.formation_id, p.id)} className="px-3 py-1 bg-red-500 text-white rounded-lg text-xs">
-                        Retirer
-                      </button>
+                {assignedParticipantsList.map(p => (
+                  <div key={p.id} className="flex items-center justify-between p-3 bg-green-50 rounded-lg mb-2">
+                    <div>
+                      <p className="font-medium">{p.full_name}</p>
+                      <p className="text-xs text-gray-500">{p.email}</p>
                     </div>
-                  ))
-                )}
-                <h4 className="font-semibold mt-6 mb-3">📋 Participants disponibles ({availableParticipants.length})</h4>
-                {loadingAvailableParticipants ? (
-                  <div className="flex justify-center py-4">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#1a56db]"></div>
+                    <button onClick={() => removeParticipantFromFormation(selectedAssignment.formation_id, p.id)} className="px-2 py-1 bg-red-500 text-white rounded-lg text-xs">
+                      Retirer
+                    </button>
                   </div>
-                ) : availableParticipants.length === 0 ? (
-                  <p className="text-gray-500 text-sm bg-gray-50 p-3 rounded-lg">Aucun disponible</p>
-                ) : (
-                  availableParticipants.map(p => (
-                    <div key={p.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg mb-2">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gray-500 flex items-center justify-center text-white">{p.full_name?.charAt(0).toUpperCase() || "?"}</div>
-                        <div>
-                          <p className="font-medium">{p.full_name}</p>
-                          <p className="text-xs text-gray-500">{p.email}</p>
-                        </div>
-                      </div>
-                      <button onClick={() => assignParticipantToFormation(selectedAssignment.formation_id, p.id)} className="px-3 py-1 bg-purple-500 text-white rounded-lg text-xs">
-                        Assigner
-                      </button>
+                ))}
+                <h4 className="font-semibold mt-4 mb-3">📋 Participants disponibles ({availableParticipants.length})</h4>
+                {loadingAvailableParticipants ? (
+                  <div className="flex justify-center py-4"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#1a56db]"></div></div>
+                ) : availableParticipants.map(p => (
+                  <div key={p.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg mb-2">
+                    <div>
+                      <p className="font-medium">{p.full_name}</p>
+                      <p className="text-xs text-gray-500">{p.email}</p>
                     </div>
-                  ))
-                )}
+                    <button onClick={() => assignParticipantToFormation(selectedAssignment.formation_id, p.id)} className="px-2 py-1 bg-purple-500 text-white rounded-lg text-xs">
+                      Assigner
+                    </button>
+                  </div>
+                ))}
               </div>
             </motion.div>
           </div>
@@ -1328,14 +1322,12 @@ const AdminUsers = () => {
         {showCodeModal && selectedFormationForCode && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowCodeModal(false)}>
             <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white rounded-2xl max-w-md w-full" onClick={e => e.stopPropagation()}>
-              <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white p-5 rounded-t-2xl">
-                <div className="flex justify-between">
-                  <div>
-                    <h3 className="text-xl font-bold">🎲 Code d'accès</h3>
-                    <p className="text-yellow-100 text-sm">{selectedFormationForCode.title}</p>
-                  </div>
-                  <button onClick={() => setShowCodeModal(false)}>✕</button>
+              <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white p-5 rounded-t-2xl flex justify-between">
+                <div>
+                  <h3 className="text-xl font-bold">🎲 Code d'accès</h3>
+                  <p className="text-yellow-100 text-sm">{selectedFormationForCode.title}</p>
                 </div>
+                <button onClick={() => setShowCodeModal(false)}>✕</button>
               </div>
               <div className="p-6 text-center">
                 <p className="text-gray-600 mb-3">Code à communiquer au formateur :</p>
@@ -1350,7 +1342,6 @@ const AdminUsers = () => {
                     Fermer
                   </button>
                 </div>
-                <p className="text-xs text-gray-400 mt-3">Le formateur devra saisir ce code pour démarrer une session</p>
               </div>
             </motion.div>
           </div>

@@ -11,11 +11,16 @@ const TableauDeBordAdmin = () => {
   const [formations, setFormations] = useState([]);
   const [actualites, setActualites] = useState([]);
   const [accessCodes, setAccessCodes] = useState({});
-  const [inscriptionsByFormation, setInscriptionsByFormation] = useState({});
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState("formations");
   const [expandedFormation, setExpandedFormation] = useState(null);
+  const [expandedType, setExpandedType] = useState(null); // 'en_ligne' ou 'presentiel'
+  
+  // États pour les inscriptions
+  const [inscriptionsEnLigne, setInscriptionsEnLigne] = useState({});
+  const [inscriptionsPresentiel, setInscriptionsPresentiel] = useState({});
+  const [loadingInscriptions, setLoadingInscriptions] = useState({});
 
   const fetchData = async () => {
     setLoading(true);
@@ -26,7 +31,6 @@ const TableauDeBordAdmin = () => {
         .select("*")
         .order("created_at", { ascending: false });
       setFormations(formationsData || []);
-      console.log("Formations chargées:", formationsData?.length);
 
       // Codes d'accès
       if (formationsData?.length > 0) {
@@ -44,23 +48,8 @@ const TableauDeBordAdmin = () => {
         }
       }
 
-      // Récupérer toutes les demandes "À la demande"
-      const { data: demandesData } = await supabase
-        .from("demandes_presentiel")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      // Organiser les demandes par formation
-      const inscriptionsMap = {};
-      if (demandesData) {
-        demandesData.forEach(demande => {
-          if (!inscriptionsMap[demande.formation_id]) {
-            inscriptionsMap[demande.formation_id] = [];
-          }
-          inscriptionsMap[demande.formation_id].push(demande);
-        });
-      }
-      setInscriptionsByFormation(inscriptionsMap);
+      // Charger les inscriptions pour toutes les formations
+      await fetchAllInscriptions(formationsData || []);
 
       // Actualités
       const { data: actualitesData } = await supabase
@@ -68,13 +57,155 @@ const TableauDeBordAdmin = () => {
         .select("*")
         .order("created_at", { ascending: false });
       setActualites(actualitesData || []);
-      console.log("Actualités chargées:", actualitesData?.length);
 
     } catch (error) {
       console.error(error);
       toast.error("Erreur chargement");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Charger toutes les inscriptions (en ligne et présentiel)
+  const fetchAllInscriptions = async (formationsList) => {
+    if (!formationsList.length) return;
+
+    // 1. Récupérer les inscriptions en ligne (table inscriptions)
+    const { data: inscriptionsData } = await supabase
+      .from("inscriptions")
+      .select(`
+        id,
+        user_id,
+        formation_id,
+        statut,
+        created_at,
+        users:user_id (id, email, full_name)
+      `)
+      .in("formation_id", formationsList.map(f => f.id));
+
+    // 2. Récupérer les demandes présentiel (table demandes_presentiel)
+    const { data: demandesData } = await supabase
+      .from("demandes_presentiel")
+      .select("*")
+      .in("formation_id", formationsList.map(f => f.id))
+      .order("created_at", { ascending: false });
+
+    // Organiser les inscriptions en ligne par formation
+    const enLigneMap = {};
+    if (inscriptionsData) {
+      inscriptionsData.forEach(ins => {
+        if (!enLigneMap[ins.formation_id]) {
+          enLigneMap[ins.formation_id] = [];
+        }
+        enLigneMap[ins.formation_id].push(ins);
+      });
+    }
+    setInscriptionsEnLigne(enLigneMap);
+
+    // Organiser les demandes présentiel par formation
+    const presentielMap = {};
+    if (demandesData) {
+      demandesData.forEach(demande => {
+        if (!presentielMap[demande.formation_id]) {
+          presentielMap[demande.formation_id] = [];
+        }
+        presentielMap[demande.formation_id].push(demande);
+      });
+    }
+    setInscriptionsPresentiel(presentielMap);
+  };
+
+  // Recharger les inscriptions pour une formation spécifique
+  const fetchFormationInscriptions = async (formationId) => {
+    setLoadingInscriptions(prev => ({ ...prev, [formationId]: true }));
+    try {
+      // Inscriptions en ligne
+      const { data: inscriptionsData } = await supabase
+        .from("inscriptions")
+        .select(`
+          id,
+          user_id,
+          formation_id,
+          statut,
+          created_at,
+          users:user_id (id, email, full_name)
+        `)
+        .eq("formation_id", formationId);
+
+      // Demandes présentiel
+      const { data: demandesData } = await supabase
+        .from("demandes_presentiel")
+        .select("*")
+        .eq("formation_id", formationId)
+        .order("created_at", { ascending: false });
+
+      setInscriptionsEnLigne(prev => ({ ...prev, [formationId]: inscriptionsData || [] }));
+      setInscriptionsPresentiel(prev => ({ ...prev, [formationId]: demandesData || [] }));
+    } catch (error) {
+      console.error(error);
+      toast.error("Erreur chargement inscriptions");
+    } finally {
+      setLoadingInscriptions(prev => ({ ...prev, [formationId]: false }));
+    }
+  };
+
+  // Marquer une demande présentiel comme contactée
+  const marquerContacte = async (demandeId, formationId) => {
+    try {
+      const { error } = await supabase
+        .from("demandes_presentiel")
+        .update({ statut: "contacte", contacte_le: new Date().toISOString() })
+        .eq("id", demandeId);
+      
+      if (error) throw error;
+      
+      toast.success("✅ Demandeur marqué comme contacté");
+      // Recharger les inscriptions de cette formation
+      await fetchFormationInscriptions(formationId);
+    } catch (error) {
+      console.error(error);
+      toast.error("Erreur lors de la mise à jour");
+    }
+  };
+
+  // Valider une inscription en ligne
+  const validerInscription = async (inscriptionId, formationId, userId) => {
+    try {
+      const { error } = await supabase
+        .from("inscriptions")
+        .update({ 
+          statut: "confirme",
+          date_confirmation: new Date().toISOString()
+        })
+        .eq("id", inscriptionId);
+      
+      if (error) throw error;
+      
+      toast.success("✅ Inscription validée");
+      await fetchFormationInscriptions(formationId);
+    } catch (error) {
+      console.error(error);
+      toast.error("Erreur lors de la validation");
+    }
+  };
+
+  // Annuler/Rejeter une inscription
+  const rejeterInscription = async (inscriptionId, formationId) => {
+    if (!confirm("Confirmer le rejet de cette inscription ?")) return;
+    
+    try {
+      const { error } = await supabase
+        .from("inscriptions")
+        .update({ statut: "annule" })
+        .eq("id", inscriptionId);
+      
+      if (error) throw error;
+      
+      toast.success("❌ Inscription rejetée");
+      await fetchFormationInscriptions(formationId);
+    } catch (error) {
+      console.error(error);
+      toast.error("Erreur lors du rejet");
     }
   };
 
@@ -125,28 +256,17 @@ const TableauDeBordAdmin = () => {
     toast.success("Actualité supprimée");
   };
 
-  const marquerContacte = async (demandeId) => {
-    try {
-      const { error } = await supabase
-        .from("demandes_presentiel")
-        .update({ statut: "contacte", contacte_le: new Date().toISOString() })
-        .eq("id", demandeId);
-      
-      if (error) throw error;
-      
-      toast.success("✅ Demandeur marqué comme contacté");
-      fetchData(); // Recharger les données
-    } catch (error) {
-      console.error(error);
-      toast.error("Erreur lors de la mise à jour");
-    }
-  };
-
-  const toggleFormationExpand = (formationId) => {
-    if (expandedFormation === formationId) {
+  const toggleFormationExpand = (formationId, type) => {
+    if (expandedFormation === formationId && expandedType === type) {
       setExpandedFormation(null);
+      setExpandedType(null);
     } else {
       setExpandedFormation(formationId);
+      setExpandedType(type);
+      // Charger les inscriptions si pas déjà fait
+      if (!inscriptionsEnLigne[formationId] && !inscriptionsPresentiel[formationId]) {
+        fetchFormationInscriptions(formationId);
+      }
     }
   };
 
@@ -157,6 +277,142 @@ const TableauDeBordAdmin = () => {
   }, [user, isAdmin]);
 
   if (loading) return <div className="flex justify-center items-center h-96 mt-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1a56db]"></div></div>;
+
+  // Obtenir le compteur pour une formation
+  const getEnLigneCount = (formationId) => {
+    return inscriptionsEnLigne[formationId]?.length || 0;
+  };
+
+  const getPresentielCount = (formationId) => {
+    return inscriptionsPresentiel[formationId]?.length || 0;
+  };
+
+  // Rendu de la liste des inscriptions en ligne
+  const renderEnLigneList = (formation) => {
+    const inscriptions = inscriptionsEnLigne[formation.id] || [];
+    const isLoading = loadingInscriptions[formation.id];
+    
+    if (isLoading) {
+      return <div className="text-center py-4"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div></div>;
+    }
+    
+    if (inscriptions.length === 0) {
+      return <p className="text-gray-500 text-center py-4">Aucune inscription en ligne</p>;
+    }
+    
+    return (
+      <div className="space-y-2">
+        {inscriptions.map(ins => (
+          <div key={ins.id} className="bg-white rounded-lg p-3 border border-gray-200">
+            <div className="flex justify-between items-start flex-wrap gap-3">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="font-medium text-gray-800">{ins.users?.full_name || "—"}</p>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${
+                    ins.statut === 'confirme' ? 'bg-green-100 text-green-700' :
+                    ins.statut === 'en_attente' ? 'bg-yellow-100 text-yellow-700' :
+                    'bg-red-100 text-red-700'
+                  }`}>
+                    {ins.statut === 'confirme' ? '✅ Confirmé' :
+                     ins.statut === 'en_attente' ? '⏳ En attente' : '❌ Annulé'}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-600 mt-1">{ins.users?.email}</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Inscrit le {new Date(ins.created_at).toLocaleDateString()}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                {ins.statut === 'en_attente' && (
+                  <>
+                    <button
+                      onClick={() => validerInscription(ins.id, formation.id, ins.user_id)}
+                      className="px-3 py-1 bg-green-500 text-white rounded-lg text-sm hover:bg-green-600"
+                    >
+                      ✅ Valider
+                    </button>
+                    <button
+                      onClick={() => rejeterInscription(ins.id, formation.id)}
+                      className="px-3 py-1 bg-red-500 text-white rounded-lg text-sm hover:bg-red-600"
+                    >
+                      ❌ Rejeter
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  // Rendu de la liste des demandes présentiel
+  const renderPresentielList = (formation) => {
+    const demandes = inscriptionsPresentiel[formation.id] || [];
+    const isLoading = loadingInscriptions[formation.id];
+    
+    if (isLoading) {
+      return <div className="text-center py-4"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div></div>;
+    }
+    
+    if (demandes.length === 0) {
+      return <p className="text-gray-500 text-center py-4">Aucune demande présentiel</p>;
+    }
+    
+    return (
+      <div className="space-y-2">
+        {demandes.map(demande => (
+          <div key={demande.id} className="bg-white rounded-lg p-3 border border-gray-200">
+            <div className="flex justify-between items-start flex-wrap gap-3">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="font-medium text-gray-800">{demande.nom}</p>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${
+                    demande.statut === 'contacte' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                  }`}>
+                    {demande.statut === 'contacte' ? '✅ Contacté' : '⏳ Nouvelle demande'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 mt-1 text-sm">
+                  <p className="text-gray-600">📧 {demande.email}</p>
+                  <p className="text-gray-600">📞 {demande.telephone}</p>
+                </div>
+                {demande.message && (
+                  <p className="text-sm text-gray-500 mt-2 italic">"{demande.message.substring(0, 100)}"</p>
+                )}
+                <p className="text-xs text-gray-400 mt-1">
+                  Demandé le {new Date(demande.created_at).toLocaleDateString()}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <a
+                  href={`tel:${demande.telephone}`}
+                  className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600"
+                >
+                  📞 Appeler
+                </a>
+                <a
+                  href={`mailto:${demande.email}`}
+                  className="px-3 py-1.5 bg-purple-500 text-white rounded-lg text-sm hover:bg-purple-600"
+                >
+                  ✉️ Email
+                </a>
+                {demande.statut !== 'contacte' && (
+                  <button
+                    onClick={() => marquerContacte(demande.id, formation.id)}
+                    className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-sm hover:bg-green-600"
+                  >
+                    ✅ Contacté
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 pt-20">
@@ -187,9 +443,8 @@ const TableauDeBordAdmin = () => {
             ) : (
               <div className="space-y-4">
                 {formations.map(f => {
-                  const inscriptions = inscriptionsByFormation[f.id] || [];
-                  const nonContactes = inscriptions.filter(i => i.statut === "nouvelle" || i.statut === "nouveau");
-                  const isExpanded = expandedFormation === f.id;
+                  const enLigneCount = getEnLigneCount(f.id);
+                  const presentielCount = getPresentielCount(f.id);
                   
                   return (
                     <div key={f.id} className="bg-white rounded-lg shadow overflow-hidden">
@@ -204,11 +459,6 @@ const TableauDeBordAdmin = () => {
                               )}
                               {f.onDemand && (
                                 <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">🏢 Présentiel</span>
-                              )}
-                              {nonContactes.length > 0 && (
-                                <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
-                                  📋 {nonContactes.length} demande(s) en attente
-                                </span>
                               )}
                             </div>
                             <p className="text-gray-500 text-sm mt-1">{f.description?.substring(0, 100)}</p>
@@ -233,81 +483,71 @@ const TableauDeBordAdmin = () => {
                           )}
                         </div>
 
-                        {/* Bouton pour afficher/masquer les inscriptions */}
-                        {inscriptions.length > 0 && (
-                          <button
-                            onClick={() => toggleFormationExpand(f.id)}
-                            className="mt-3 text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                          >
-                            {isExpanded ? "▲ Masquer les inscriptions" : "▼ Voir les inscriptions "}
-                            <span className="text-gray-500">({inscriptions.length})</span>
-                          </button>
-                        )}
+                        {/* Boutons avec compteurs */}
+                        <div className="mt-3 pt-3 border-t flex gap-3">
+                          {f.is_online && (
+                            <button
+                              onClick={() => toggleFormationExpand(f.id, 'en_ligne')}
+                              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition ${
+                                expandedFormation === f.id && expandedType === 'en_ligne'
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                              }`}
+                            >
+                              <span>🌍</span>
+                              <span>En ligne</span>
+                              <span className={`px-1.5 py-0.5 rounded-full text-xs ${
+                                expandedFormation === f.id && expandedType === 'en_ligne'
+                                  ? 'bg-white text-blue-600'
+                                  : 'bg-blue-200 text-blue-700'
+                              }`}>
+                                {enLigneCount}
+                              </span>
+                            </button>
+                          )}
+                          
+                          {f.onDemand && (
+                            <button
+                              onClick={() => toggleFormationExpand(f.id, 'presentiel')}
+                              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition ${
+                                expandedFormation === f.id && expandedType === 'presentiel'
+                                  ? 'bg-orange-600 text-white'
+                                  : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                              }`}
+                            >
+                              <span>🏢</span>
+                              <span>Présentiel</span>
+                              <span className={`px-1.5 py-0.5 rounded-full text-xs ${
+                                expandedFormation === f.id && expandedType === 'presentiel'
+                                  ? 'bg-white text-orange-600'
+                                  : 'bg-orange-200 text-orange-700'
+                              }`}>
+                                {presentielCount}
+                              </span>
+                            </button>
+                          )}
+                        </div>
                       </div>
 
-                      {/* Liste des inscriptions "À la demande" */}
-                      {isExpanded && inscriptions.length > 0 && (
-                        <div className="bg-gray-50 p-4">
-                          <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                            <span>📝</span> Demandes "À la demande"
-                            <span className="text-xs text-gray-500">({inscriptions.length})</span>
+                      {/* Liste des inscriptions - En ligne */}
+                      {expandedFormation === f.id && expandedType === 'en_ligne' && f.is_online && (
+                        <div className="bg-blue-50 p-4">
+                          <h4 className="font-semibold text-blue-800 mb-3 flex items-center gap-2">
+                            <span>🌍</span> Inscriptions en ligne
+                            <span className="text-xs text-blue-600">({enLigneCount})</span>
                           </h4>
-                          <div className="space-y-2">
-                            {inscriptions.map(demande => (
-                              <div key={demande.id} className="bg-white rounded-lg p-3 border border-gray-200">
-                                <div className="flex justify-between items-start flex-wrap gap-3">
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <p className="font-medium text-gray-800">{demande.nom}</p>
-                                      {demande.statut === "nouvelle" || demande.statut === "nouveau" ? (
-                                        <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">⏳ Nouvelle</span>
-                                      ) : (
-                                        <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">✅ Contacté</span>
-                                      )}
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 mt-1 text-sm">
-                                      <p className="text-gray-600">
-                                        <span className="text-gray-400">📧</span> {demande.email}
-                                      </p>
-                                      <p className="text-gray-600">
-                                        <span className="text-gray-400">📞</span> {demande.telephone}
-                                      </p>
-                                    </div>
-                                    {demande.message && (
-                                      <p className="text-sm text-gray-500 mt-2 italic">
-                                        "{demande.message.substring(0, 100)}"
-                                      </p>
-                                    )}
-                                    <p className="text-xs text-gray-400 mt-1">
-                                      Demandé le {new Date(demande.created_at).toLocaleDateString()}
-                                    </p>
-                                  </div>
-                                  <div className="flex gap-2">
-                                    <a
-                                      href={`tel:${demande.telephone}`}
-                                      className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition"
-                                    >
-                                      📞 Appeler
-                                    </a>
-                                    <a
-                                      href={`mailto:${demande.email}`}
-                                      className="px-3 py-1.5 bg-purple-500 text-white rounded-lg text-sm hover:bg-purple-600 transition"
-                                    >
-                                      ✉️ Email
-                                    </a>
-                                    {demande.statut !== "contacte" && (
-                                      <button
-                                        onClick={() => marquerContacte(demande.id)}
-                                        className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-sm hover:bg-green-600 transition"
-                                      >
-                                        ✅ Contacté
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
+                          {renderEnLigneList(f)}
+                        </div>
+                      )}
+
+                      {/* Liste des inscriptions - Présentiel */}
+                      {expandedFormation === f.id && expandedType === 'presentiel' && f.onDemand && (
+                        <div className="bg-orange-50 p-4">
+                          <h4 className="font-semibold text-orange-800 mb-3 flex items-center gap-2">
+                            <span>🏢</span> Demandes présentiel
+                            <span className="text-xs text-orange-600">({presentielCount})</span>
+                          </h4>
+                          {renderPresentielList(f)}
                         </div>
                       )}
                     </div>

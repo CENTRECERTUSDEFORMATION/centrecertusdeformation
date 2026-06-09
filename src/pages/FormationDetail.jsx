@@ -134,20 +134,17 @@ export default function FormationDetail() {
     }
   };
 
-  // Fonction pour l'inscription en ligne
   const handleInscriptionEnLigne = async () => {
     setInscriptionLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
-        // Rediriger vers l'inscription avec redirect
         const redirectUrl = `/confirm-inscription?formation=${formation.id}`;
         navigate(`/inscription?redirect=${encodeURIComponent(redirectUrl)}`);
         return;
       }
 
-      // Vérifier si déjà inscrit
       const { data: existing } = await supabase
         .from("inscriptions")
         .select("id, statut")
@@ -164,7 +161,6 @@ export default function FormationDetail() {
         return;
       }
 
-      // Créer l'inscription
       await supabase.from("inscriptions").insert({
         user_id: user.id,
         formation_id: formation.id,
@@ -234,6 +230,18 @@ export default function FormationDetail() {
 
         <h1 className="text-4xl font-bold mb-6 text-gray-800 text-center">{formation.title}</h1>
 
+        {/* Durée et Prix */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto mb-8">
+          <div className="bg-gray-50 p-4 rounded-xl text-center border border-gray-200">
+            <p className="text-xs text-gray-500 uppercase tracking-wide">Durée</p>
+            <p className="text-xl font-semibold text-gray-800">{formation.duration || "Non spécifiée"}</p>
+          </div>
+          <div className="bg-gray-50 p-4 rounded-xl text-center border border-gray-200">
+            <p className="text-xs text-gray-500 uppercase tracking-wide">Tarif</p>
+            <p className="text-xl font-semibold text-gray-800">{formation.price || "Sur devis"}</p>
+          </div>
+        </div>
+
         {/* Images */}
         {formation.images && formation.images.length > 0 ? (
           <div className="mb-8">
@@ -266,7 +274,7 @@ export default function FormationDetail() {
           </div>
         )}
 
-        {/* Description */}
+        {/* Description courte */}
         {formation.description && (
           <div className="mb-6">
             <h2 className="text-xl font-semibold text-gray-700 mb-2">Description</h2>
@@ -274,13 +282,79 @@ export default function FormationDetail() {
           </div>
         )}
 
+        {/* === DESCRIPTION COMPLÈTE === */}
+        {formation.fullDescription && (
+          <div className="mb-8 bg-gray-50 p-6 rounded-xl border border-gray-200">
+            <h2 className="text-xl font-semibold text-gray-700 mb-3">Description détaillée</h2>
+            <div className="text-gray-600 leading-relaxed whitespace-pre-line">{formation.fullDescription}</div>
+          </div>
+        )}
+
+        {/* Lien de test / démo */}
+        {formation.test_link && (
+          <div className="mb-8 bg-blue-50 p-6 rounded-xl border border-blue-200">
+            <h2 className="text-xl font-semibold text-blue-800 mb-3 flex items-center gap-2">
+              <span>🔗</span> Test de niveau / Démo
+            </h2>
+            <p className="text-gray-600 mb-4">
+              Évaluez votre niveau ou découvrez un aperçu de la formation :
+            </p>
+            <motion.a 
+              whileHover={{ scale: 1.02 }} 
+              href={formation.test_link} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg font-medium shadow-md hover:bg-blue-700 transition"
+            >
+              🚀 Accéder au test / démo
+              <span>→</span>
+            </motion.a>
+          </div>
+        )}
+
+        {/* Lien de préinscription */}
+        {formation.preinscriptionLink && (
+          <div className="mb-8 bg-green-50 p-6 rounded-xl border border-green-200">
+            <h2 className="text-xl font-semibold text-green-800 mb-3 flex items-center gap-2">
+              <span>📝</span> Préinscription
+            </h2>
+            <p className="text-gray-600 mb-4">
+              Vous pouvez vous préinscrire directement via le lien ci-dessous :
+            </p>
+            <motion.a 
+              whileHover={{ scale: 1.02 }} 
+              href={formation.preinscriptionLink} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 bg-green-600 text-white px-6 py-3 rounded-lg font-medium shadow-md hover:bg-green-700 transition"
+            >
+              📝 Préinscription
+              <span>→</span>
+            </motion.a>
+          </div>
+        )}
+
+        {/* Informations complémentaires */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+          {(formation.capacite_min || formation.capacite_max) && (
+            <div className="bg-gray-50 rounded-xl p-4 text-center">
+              <h3 className="font-semibold text-gray-700">👥 Effectif</h3>
+              <p className="text-gray-600">Groupe de {formation.capacite_min || 6} à {formation.capacite_max || 10} participants</p>
+            </div>
+          )}
+          <div className="bg-gray-50 rounded-xl p-4 text-center">
+            <h3 className="font-semibold text-gray-700">🎓 Certification</h3>
+            <p className="text-gray-600">Certificat reconnu à la fin de la formation</p>
+          </div>
+        </div>
+
         {/* Boutons d'inscription */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center mt-8">
           {formation.is_online && (
             <button 
               onClick={handleInscriptionEnLigne}
               disabled={inscriptionLoading}
-              className="bg-gradient-to-r from-blue-500 to-blue-700 text-white px-8 py-3 rounded-lg font-medium shadow-lg disabled:opacity-50"
+              className="bg-gradient-to-r from-blue-500 to-blue-700 text-white px-8 py-3 rounded-lg font-medium shadow-lg disabled:opacity-50 hover:shadow-xl transition-all"
             >
               {inscriptionLoading ? "Chargement..." : "🌍 S'inscrire en ligne"}
             </button>
@@ -289,7 +363,7 @@ export default function FormationDetail() {
           {formation.onDemand && (
             <button 
               onClick={() => setShowInscriptionDemandeModal(true)}
-              className="bg-gradient-to-r from-orange-500 to-orange-700 text-white px-8 py-3 rounded-lg font-medium shadow-lg"
+              className="bg-gradient-to-r from-orange-500 to-orange-700 text-white px-8 py-3 rounded-lg font-medium shadow-lg hover:shadow-xl transition-all"
             >
               🏢 S'inscrire à la demande (Présentiel)
             </button>
@@ -297,7 +371,7 @@ export default function FormationDetail() {
           
           <button 
             onClick={() => setShowDevisModal(true)} 
-            className="bg-gradient-to-r from-green-500 to-green-700 text-white px-8 py-3 rounded-lg font-medium shadow-lg"
+            className="bg-gradient-to-r from-green-500 to-green-700 text-white px-8 py-3 rounded-lg font-medium shadow-lg hover:shadow-xl transition-all"
           >
             📩 Demander un devis
           </button>
@@ -313,25 +387,28 @@ export default function FormationDetail() {
                     <h2 className="text-xl font-bold">Demande de devis</h2>
                     <p className="text-blue-100 text-sm">Pour : {formation.title}</p>
                   </div>
-                  <button onClick={() => setShowDevisModal(false)} className="text-white text-2xl">✕</button>
+                  <button onClick={() => setShowDevisModal(false)} className="text-white text-2xl hover:text-gray-200">✕</button>
                 </div>
               </div>
               <form onSubmit={sendDevis} className="p-6 space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <input type="text" name="name" placeholder="Nom complet *" required value={devisData.name} onChange={handleDevisChange} className="border rounded-lg px-4 py-2" />
-                  <input type="email" name="email" placeholder="Email *" required value={devisData.email} onChange={handleDevisChange} className="border rounded-lg px-4 py-2" />
-                  <input type="tel" name="telephone" placeholder="Téléphone *" required value={devisData.telephone} onChange={handleDevisChange} className="border rounded-lg px-4 py-2" />
-                  <input type="text" name="city" placeholder="Ville" value={devisData.city} onChange={handleDevisChange} className="border rounded-lg px-4 py-2" />
-                  <select name="country" required value={devisData.country} onChange={handleDevisChange} className="border rounded-lg px-4 py-2">
+                  <input type="text" name="name" placeholder="Nom complet *" required value={devisData.name} onChange={handleDevisChange} className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                  <input type="email" name="email" placeholder="Email *" required value={devisData.email} onChange={handleDevisChange} className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                  <input type="tel" name="telephone" placeholder="Téléphone *" required value={devisData.telephone} onChange={handleDevisChange} className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                  <input type="text" name="city" placeholder="Ville" value={devisData.city} onChange={handleDevisChange} className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                  <select name="country" required value={devisData.country} onChange={handleDevisChange} className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                     <option value="">Pays d'origine *</option>
                     <option value="Tunisie">🇹🇳 Tunisie</option>
                     <option value="France">🇫🇷 France</option>
+                    <option value="Belgique">🇧🇪 Belgique</option>
+                    <option value="Suisse">🇨🇭 Suisse</option>
+                    <option value="Canada">🇨🇦 Canada</option>
                     <option value="Autre">🌍 Autre pays</option>
                   </select>
                 </div>
-                <textarea name="message" rows="3" placeholder="Message / Projet" value={devisData.message} onChange={handleDevisChange} className="border rounded-lg px-4 py-2 w-full" />
-                <button type="submit" disabled={sendingDevis} className="w-full bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white py-3 rounded-lg font-semibold">
-                  {sendingDevis ? "Envoi..." : "📩 Envoyer"}
+                <textarea name="message" rows="3" placeholder="Message / Projet" value={devisData.message} onChange={handleDevisChange} className="border border-gray-300 rounded-lg px-4 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                <button type="submit" disabled={sendingDevis} className="w-full bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50">
+                  {sendingDevis ? "Envoi en cours..." : "📩 Envoyer la demande"}
                 </button>
               </form>
             </div>

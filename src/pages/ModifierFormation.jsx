@@ -8,11 +8,10 @@ import { motion } from "framer-motion";
 export default function ModifierFormation() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();  // ✅ Correction: utiliser isAdmin directement
+  const { isAdmin } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [formation, setFormation] = useState(null);
   
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -30,7 +29,7 @@ export default function ModifierFormation() {
   const [newPreviews, setNewPreviews] = useState([]);
   const [imagesToDelete, setImagesToDelete] = useState([]);
 
-  // ✅ Vérification admin
+  // Vérification admin
   if (!isAdmin) {
     return <p className="text-center mt-20">Accès refusé</p>;
   }
@@ -59,9 +58,11 @@ export default function ModifierFormation() {
       .replace(/[^a-zA-Z0-9.-]/g, '');
   };
 
+  // Charger la formation
   useEffect(() => {
     const fetchFormation = async () => {
       try {
+        setLoading(true);
         const { data, error } = await supabase
           .from("formations")
           .select("*")
@@ -69,8 +70,9 @@ export default function ModifierFormation() {
           .single();
 
         if (error) throw error;
-
-        setFormation(data);
+        
+        console.log("Formation chargée:", data);
+        
         setTitle(data.title || "");
         setDescription(data.description || "");
         setFullDescription(data.fullDescription || "");
@@ -83,8 +85,9 @@ export default function ModifierFormation() {
         setIsOnline(data.is_online || false);
         setOnDemand(data.onDemand || false);
         setExistingImages(data.images || []);
+        
       } catch (error) {
-        console.error(error);
+        console.error("Erreur fetch:", error);
         toast.error("Erreur chargement formation");
         navigate("/formations");
       } finally {
@@ -92,13 +95,19 @@ export default function ModifierFormation() {
       }
     };
 
-    fetchFormation();
+    if (id) {
+      fetchFormation();
+    }
   }, [id, navigate]);
 
   const getImageUrl = (path) => {
     if (!path) return null;
-    const { data } = supabase.storage.from("uploads").getPublicUrl(path);
-    return data.publicUrl;
+    try {
+      const { data } = supabase.storage.from("uploads").getPublicUrl(path);
+      return data.publicUrl;
+    } catch (error) {
+      return null;
+    }
   };
 
   const handleNewImages = (e) => {
@@ -115,6 +124,7 @@ export default function ModifierFormation() {
   };
 
   const removeNewImage = (index) => {
+    URL.revokeObjectURL(newPreviews[index]);
     setNewImages(newImages.filter((_, i) => i !== index));
     setNewPreviews(newPreviews.filter((_, i) => i !== index));
   };
@@ -122,7 +132,7 @@ export default function ModifierFormation() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!title) {
+    if (!title.trim()) {
       toast.error("Le titre est obligatoire");
       return;
     }
@@ -130,10 +140,12 @@ export default function ModifierFormation() {
     setSubmitting(true);
 
     try {
+      // Supprimer les images retirées
       for (const imagePath of imagesToDelete) {
         await supabase.storage.from("uploads").remove([imagePath]);
       }
 
+      // Upload des nouvelles images
       const uploadedPaths = [...existingImages];
       for (const image of newImages) {
         const cleanName = cleanFileName(image.name);
@@ -142,37 +154,46 @@ export default function ModifierFormation() {
           .from("uploads")
           .upload(fileName, image);
         
-        if (uploadError) throw uploadError;
+        if (uploadError) {
+          console.error("Upload error:", uploadError);
+          toast.error(`Erreur upload: ${image.name}`);
+          continue;
+        }
         uploadedPaths.push(fileName);
       }
 
+      // Mise à jour
+      const updateData = {
+        title: title.trim(),
+        description: description.trim(),
+        fullDescription: fullDescription.trim(),
+        preinscriptionLink: preinscriptionLink || null,
+        test_link: testLink || null,
+        theme,
+        langue,
+        duration: duration || null,
+        price: price || null,
+        is_online: isOnline,
+        onDemand: onDemand,
+        images: uploadedPaths,
+        updated_at: new Date().toISOString(),
+      };
+
+      console.log("Envoi des données:", updateData);
+
       const { error: updateError } = await supabase
         .from("formations")
-        .update({
-          title,
-          description,
-          fullDescription,
-          preinscriptionLink,
-          test_link: testLink || null,
-          theme,
-          langue,
-          duration: duration || null,
-          price: price || null,
-          is_online: isOnline,
-          images: uploadedPaths,
-          onDemand,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq("id", id);
 
       if (updateError) throw updateError;
 
-      toast.success("Formation modifiée avec succès !");
+      toast.success("✅ Formation modifiée avec succès !");
       navigate("/formations");
 
     } catch (error) {
-      console.error(error);
-      toast.error("Erreur lors de la modification");
+      console.error("Erreur update:", error);
+      toast.error("❌ Erreur lors de la modification: " + (error.message || "Erreur inconnue"));
     } finally {
       setSubmitting(false);
     }
@@ -188,46 +209,116 @@ export default function ModifierFormation() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-3xl mx-auto p-6 mt-20">
-      <h2 className="text-2xl font-bold mb-6">Modifier la formation</h2>
+      <h2 className="text-2xl font-bold mb-6">✏️ Modifier la formation</h2>
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        <div><label className="block text-sm font-medium mb-1">Titre *</label><input type="text" className="w-full border p-2 rounded" value={title} onChange={(e) => setTitle(e.target.value)} required /></div>
-
-        <div><label className="block text-sm font-medium mb-1">🌐 Langue de la formation</label><select className="w-full border p-2 rounded" value={langue} onChange={(e) => setLangue(e.target.value)}>{langues.map((l) => (<option key={l.code} value={l.code}>{l.name}</option>))}</select></div>
-
-        <div><label className="block text-sm font-medium mb-1">Thème *</label><select className="w-full border p-2 rounded" value={theme} onChange={(e) => setTheme(e.target.value)} required>{themes.map((t) => (<option key={t.id} value={t.id}>{t.name}</option>))}</select></div>
-
-        <div><label className="block text-sm font-medium mb-1">Description courte *</label><textarea className="w-full border p-2 rounded" rows="3" value={description} onChange={(e) => setDescription(e.target.value)} required /></div>
-
-        <div><label className="block text-sm font-medium mb-1">Description complète *</label><textarea className="w-full border p-2 rounded" rows="6" value={fullDescription} onChange={(e) => setFullDescription(e.target.value)} required /></div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div><label className="block text-sm font-medium mb-1">Durée</label><input type="text" placeholder="ex: 40h / 3 mois" className="w-full border p-2 rounded" value={duration} onChange={(e) => setDuration(e.target.value)} /></div>
-          <div><label className="block text-sm font-medium mb-1">Prix</label><input type="text" placeholder="ex: 1200 DT / Sur devis" className="w-full border p-2 rounded" value={price} onChange={(e) => setPrice(e.target.value)} /></div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Titre *</label>
+          <input 
+            type="text" 
+            className="w-full border p-2 rounded" 
+            value={title} 
+            onChange={(e) => setTitle(e.target.value)} 
+            required 
+          />
         </div>
 
-        <div><label className="block text-sm font-medium mb-1">Lien préinscription</label><input type="url" className="w-full border p-2 rounded" value={preinscriptionLink} onChange={(e) => setPreinscriptionLink(e.target.value)} placeholder="https://..." /></div>
+        <div>
+          <label className="block text-sm font-medium mb-1">🌐 Langue</label>
+          <select className="w-full border p-2 rounded" value={langue} onChange={(e) => setLangue(e.target.value)}>
+            {langues.map((l) => (<option key={l.code} value={l.code}>{l.name}</option>))}
+          </select>
+        </div>
 
-        <div><label className="block text-sm font-medium mb-1">🔗 Lien de test / démo</label><input type="url" className="w-full border p-2 rounded" value={testLink} onChange={(e) => setTestLink(e.target.value)} placeholder="https://test-formation.com" /><p className="text-xs text-gray-500 mt-1">Lien vers un test de niveau ou une démo</p></div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Thème *</label>
+          <select className="w-full border p-2 rounded" value={theme} onChange={(e) => setTheme(e.target.value)} required>
+            {themes.map((t) => (<option key={t.id} value={t.id}>{t.name}</option>))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Description courte *</label>
+          <textarea className="w-full border p-2 rounded" rows="3" value={description} onChange={(e) => setDescription(e.target.value)} required />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Description complète</label>
+          <textarea className="w-full border p-2 rounded" rows="8" value={fullDescription} onChange={(e) => setFullDescription(e.target.value)} placeholder="Description détaillée..." />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Durée</label>
+            <input type="text" placeholder="ex: 40h" className="w-full border p-2 rounded" value={duration} onChange={(e) => setDuration(e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Prix</label>
+            <input type="text" placeholder="ex: 1200 DT" className="w-full border p-2 rounded" value={price} onChange={(e) => setPrice(e.target.value)} />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Lien préinscription</label>
+          <input type="url" className="w-full border p-2 rounded" value={preinscriptionLink} onChange={(e) => setPreinscriptionLink(e.target.value)} placeholder="https://..." />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">🔗 Lien test / démo</label>
+          <input type="url" className="w-full border p-2 rounded" value={testLink} onChange={(e) => setTestLink(e.target.value)} placeholder="https://..." />
+        </div>
 
         {existingImages.length > 0 && (
-          <div><label className="block text-sm font-medium mb-2">Images actuelles</label><div className="flex flex-wrap gap-3">{existingImages.map((img, idx) => (<div key={idx} className="relative"><img src={getImageUrl(img)} alt={`Image ${idx + 1}`} className="w-24 h-24 object-cover rounded border" /><button type="button" onClick={() => removeExistingImage(idx)} className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 text-sm">×</button></div>))}</div></div>
+          <div>
+            <label className="block text-sm font-medium mb-2">Images actuelles</label>
+            <div className="flex flex-wrap gap-3">
+              {existingImages.map((img, idx) => (
+                <div key={idx} className="relative group">
+                  <img src={getImageUrl(img)} alt={`Image ${idx + 1}`} className="w-24 h-24 object-cover rounded border" />
+                  <button type="button" onClick={() => removeExistingImage(idx)} className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 text-sm opacity-0 group-hover:opacity-100 transition">×</button>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
 
-        <div><label className="block text-sm font-medium mb-1">Ajouter des images</label><input type="file" accept="image/*" multiple onChange={handleNewImages} className="w-full" /></div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Ajouter des images</label>
+          <input type="file" accept="image/*" multiple onChange={handleNewImages} className="w-full" />
+        </div>
 
         {newPreviews.length > 0 && (
-          <div><label className="block text-sm font-medium mb-2">Nouvelles images</label><div className="flex flex-wrap gap-3">{newPreviews.map((preview, idx) => (<div key={idx} className="relative"><img src={preview} alt={`Nouvelle ${idx + 1}`} className="w-24 h-24 object-cover rounded border" /><button type="button" onClick={() => removeNewImage(idx)} className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 text-sm">×</button></div>))}</div></div>
+          <div>
+            <label className="block text-sm font-medium mb-2">Nouvelles images</label>
+            <div className="flex flex-wrap gap-3">
+              {newPreviews.map((preview, idx) => (
+                <div key={idx} className="relative group">
+                  <img src={preview} alt={`Nouvelle ${idx + 1}`} className="w-24 h-24 object-cover rounded border" />
+                  <button type="button" onClick={() => removeNewImage(idx)} className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 text-sm opacity-0 group-hover:opacity-100 transition">×</button>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
 
         <div className="flex flex-wrap gap-4">
-          <label className="flex items-center gap-2"><input type="checkbox" checked={isOnline} onChange={(e) => setIsOnline(e.target.checked)} /> 🌍 Formation à distance (international)</label>
-          <label className="flex items-center gap-2"><input type="checkbox" checked={onDemand} onChange={(e) => setOnDemand(e.target.checked)} /> 🎯 Formation à la demande</label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={isOnline} onChange={(e) => setIsOnline(e.target.checked)} />
+            🌍 Formation à distance
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={onDemand} onChange={(e) => setOnDemand(e.target.checked)} />
+            🎯 Formation à la demande
+          </label>
         </div>
 
         <div className="flex gap-3 pt-4">
-          <button type="submit" disabled={submitting} className="bg-blue-800 text-white px-6 py-2 rounded hover:bg-blue-900 transition disabled:opacity-50">{submitting ? "Enregistrement..." : "💾 Enregistrer"}</button>
-          <button type="button" onClick={() => navigate("/formations")} className="bg-gray-300 text-gray-700 px-6 py-2 rounded hover:bg-gray-400 transition">Annuler</button>
+          <button type="submit" disabled={submitting} className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50">
+            {submitting ? "Enregistrement..." : "💾 Enregistrer"}
+          </button>
+          <button type="button" onClick={() => navigate("/formations")} className="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400 transition">
+            Annuler
+          </button>
         </div>
       </form>
     </motion.div>

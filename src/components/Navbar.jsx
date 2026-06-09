@@ -1,3 +1,4 @@
+// frontend/src/components/Navbar.jsx
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Menu, X } from "lucide-react";
@@ -82,27 +83,15 @@ export default function Navbar() {
           {/* MENU DESKTOP */}
           <nav className="hidden md:flex items-center gap-1">
             
-            {/* MENU POUR TOUS (pages publiques) - MASQUER Accueil, À propos, Contact pour l'admin */}
-            {!isAdmin && (
-              <>
-                <Link to="/" className={`px-3 py-2 rounded-lg font-medium ${isActive("/") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>Accueil</Link>
-                <Link to="/a-propos" className={`px-3 py-2 rounded-lg font-medium ${isActive("/a-propos") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>À propos</Link>
-                <Link to="/formations" className={`px-3 py-2 rounded-lg font-medium ${isActive("/formations") || location.pathname.startsWith("/formations/") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>Formations</Link>
-                <Link to="/actualite" className={`px-3 py-2 rounded-lg font-medium ${isActive("/actualite") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>Actualité</Link>
-                <Link to="/contact" className={`px-3 py-2 rounded-lg font-medium ${isActive("/contact") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>Contact</Link>
-              </>
-            )}
+            {/* MENU POUR TOUS (pages publiques) */}
+            <Link to="/" className={`px-3 py-2 rounded-lg font-medium ${isActive("/") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>Accueil</Link>
+            <Link to="/a-propos" className={`px-3 py-2 rounded-lg font-medium ${isActive("/a-propos") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>À propos</Link>
+            <Link to="/formations" className={`px-3 py-2 rounded-lg font-medium ${isActive("/formations") || location.pathname.startsWith("/formations/") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>Formations</Link>
+            <Link to="/actualite" className={`px-3 py-2 rounded-lg font-medium ${isActive("/actualite") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>Actualité</Link>
+            <Link to="/contact" className={`px-3 py-2 rounded-lg font-medium ${isActive("/contact") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>Contact</Link>
 
-            {/* MENU POUR ADMIN UNIQUEMENT */}
-            {isAdmin && (
-              <>
-                <Link to="/formations" className={`px-3 py-2 rounded-lg font-medium ${isActive("/formations") || location.pathname.startsWith("/formations/") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>Formations</Link>
-                <Link to="/actualite" className={`px-3 py-2 rounded-lg font-medium ${isActive("/actualite") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>Actualité</Link>
-              </>
-            )}
-
-            {/* MENU ADMIN (gestion) */}
-            {isAdmin && (
+            {/* MENU ADMIN (gestion) - UNIQUEMENT SI ADMIN CONNECTÉ */}
+            {user && isAdmin && (
               <>
                 <div className="w-px h-6 bg-gray-300 mx-2"></div>
                 <Link to="/admin" className={`px-3 py-2 rounded-lg font-medium ${isActive("/admin") ? "text-[#76c21f]" : "text-gray-600 hover:text-[#76c21f]"}`}>📚 Formations</Link>
@@ -111,13 +100,13 @@ export default function Navbar() {
               </>
             )}
 
-            {/* MENU FORMATEUR */}
-            {!isAdmin && userType === "formateur" && isApproved && (
+            {/* MENU FORMATEUR - UNIQUEMENT SI FORMATEUR CONNECTÉ */}
+            {user && !isAdmin && userType === "formateur" && isApproved && (
               <Link to="/espace-formateur" className={`px-3 py-2 rounded-lg font-medium ${isActive("/espace-formateur") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>👨‍🏫 Espace Formateur</Link>
             )}
 
-            {/* MENU PARTICIPANT */}
-            {!isAdmin && userType === "participant" && isApproved && (
+            {/* MENU PARTICIPANT - UNIQUEMENT SI PARTICIPANT CONNECTÉ */}
+            {user && !isAdmin && userType === "participant" && isApproved && (
               <Link to="/espace-participant" className={`px-3 py-2 rounded-lg font-medium ${isActive("/espace-participant") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>👨‍🎓 Espace Participant</Link>
             )}
 
@@ -147,31 +136,18 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* MENU MOBILE - simplifié */}
+      {/* MENU MOBILE */}
       <AnimatePresence>
         {menuOpen && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="md:hidden border-t bg-white shadow-lg">
             <div className="px-4 py-4 flex flex-col gap-2">
-              {/* Pour non-admin uniquement */}
-              {!isAdmin && (
-                <>
-                  <Link onClick={toggleMenu} to="/" className="px-3 py-2 rounded-lg hover:bg-gray-50">🏠 Accueil</Link>
-                  <Link onClick={toggleMenu} to="/a-propos" className="px-3 py-2 rounded-lg hover:bg-gray-50">ℹ️ À propos</Link>
-                  <Link onClick={toggleMenu} to="/formations" className="px-3 py-2 rounded-lg hover:bg-gray-50">📚 Formations</Link>
-                  <Link onClick={toggleMenu} to="/actualite" className="px-3 py-2 rounded-lg hover:bg-gray-50">📰 Actualité</Link>
-                  <Link onClick={toggleMenu} to="/contact" className="px-3 py-2 rounded-lg hover:bg-gray-50">📧 Contact</Link>
-                </>
-              )}
+              <Link onClick={toggleMenu} to="/" className="px-3 py-2 rounded-lg hover:bg-gray-50">🏠 Accueil</Link>
+              <Link onClick={toggleMenu} to="/a-propos" className="px-3 py-2 rounded-lg hover:bg-gray-50">ℹ️ À propos</Link>
+              <Link onClick={toggleMenu} to="/formations" className="px-3 py-2 rounded-lg hover:bg-gray-50">📚 Formations</Link>
+              <Link onClick={toggleMenu} to="/actualite" className="px-3 py-2 rounded-lg hover:bg-gray-50">📰 Actualité</Link>
+              <Link onClick={toggleMenu} to="/contact" className="px-3 py-2 rounded-lg hover:bg-gray-50">📧 Contact</Link>
 
-              {/* Pour admin uniquement */}
-              {isAdmin && (
-                <>
-                  <Link onClick={toggleMenu} to="/formations" className="px-3 py-2 rounded-lg hover:bg-gray-50">📚 Formations</Link>
-                  <Link onClick={toggleMenu} to="/actualite" className="px-3 py-2 rounded-lg hover:bg-gray-50">📰 Actualité</Link>
-                </>
-              )}
-
-              {isAdmin && (
+              {user && isAdmin && (
                 <>
                   <div className="h-px bg-gray-100 my-1"></div>
                   <Link onClick={toggleMenu} to="/admin" className="px-3 py-2 text-[#76c21f] font-medium">📚 Formations</Link>
@@ -180,11 +156,11 @@ export default function Navbar() {
                 </>
               )}
 
-              {!isAdmin && userType === "formateur" && isApproved && (
+              {user && !isAdmin && userType === "formateur" && isApproved && (
                 <Link onClick={toggleMenu} to="/espace-formateur" className="px-3 py-2 rounded-lg hover:bg-gray-50">👨‍🏫 Espace Formateur</Link>
               )}
 
-              {!isAdmin && userType === "participant" && isApproved && (
+              {user && !isAdmin && userType === "participant" && isApproved && (
                 <Link onClick={toggleMenu} to="/espace-participant" className="px-3 py-2 rounded-lg hover:bg-gray-50">👨‍🎓 Espace Participant</Link>
               )}
 

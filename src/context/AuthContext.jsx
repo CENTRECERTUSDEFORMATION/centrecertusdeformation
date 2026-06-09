@@ -6,118 +6,88 @@ const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [userType, setUserType] = useState(null);
+  const [userType, setUserType] = useState("participant");
   const [isAdmin, setIsAdmin] = useState(false);
   const [isApproved, setIsApproved] = useState(true);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
-  const fetchUserData = async (userId, email) => {
-    if (email === "admin@certus.tn") {
-      return { userType: null, isAdmin: true, isApproved: true, fullName: "Administrateur" };
-    }
-    
-    if (email === "houssem@certus.tn") {
-      return { userType: "formateur", isAdmin: false, isApproved: true, fullName: "Houssem" };
-    }
-    
+  // Récupérer les données depuis la table auth_users
+  const getUserFromTable = async (email) => {
     try {
       const { data, error } = await supabase
-        .from("users")
-        .select("user_type, is_approved, full_name")
-        .eq("id", userId)
+        .from("auth_users")
+        .select("user_type, is_admin, is_approved, display_name")
+        .eq("email", email)
         .maybeSingle();
-      
-      if (error) throw error;
-      
-      if (data) {
-        return {
-          userType: data.user_type || "participant",
-          isAdmin: false,
-          isApproved: data.is_approved === true,
-          fullName: data.full_name || email.split("@")[0]
-        };
+
+      if (error || !data) {
+        return null;
       }
-      
-      return { userType: "participant", isAdmin: false, isApproved: false, fullName: email.split("@")[0] };
+      return data;
     } catch (err) {
-      console.warn("Erreur fetchUserData:", err);
-      return { userType: "participant", isAdmin: false, isApproved: false, fullName: email.split("@")[0] };
+      console.error("Erreur getUserFromTable:", err);
+      return null;
     }
   };
 
   useEffect(() => {
-    let isMounted = true;
-    let initialized = false;
-
-    const initAuth = async () => {
-      if (initialized) return;
-      
+    const checkUser = async () => {
       try {
-        setLoading(true);
-        
         const { data: { session } } = await supabase.auth.getSession();
         
-        if (session?.user && isMounted) {
+        if (session?.user) {
           const email = session.user.email;
-          const userData = await fetchUserData(session.user.id, email);
+          
+          // Récupérer les données depuis auth_users
+          const userData = await getUserFromTable(email);
           
           setUser({
             id: session.user.id,
             email: email,
-            full_name: userData.fullName,
+            full_name: userData?.display_name || session.user.user_metadata?.full_name || email.split("@")[0],
           });
-          setUserType(userData.userType);
-          setIsAdmin(userData.isAdmin);
-          setIsApproved(userData.isApproved);
-        } else {
-          setUser(null);
-          setUserType(null);
-          setIsAdmin(false);
-          setIsApproved(true);
+          setIsAdmin(userData?.is_admin || email === "admin@certus.tn");
+          setUserType(userData?.user_type || session.user.user_metadata?.user_type || "participant");
+          setIsApproved(userData?.is_approved !== false);
+          
+          console.log("✅ AuthContext chargé:", { 
+            email, 
+            userType: userData?.user_type,
+            isAdmin: userData?.is_admin || email === "admin@certus.tn"
+          });
         }
-        initialized = true;
       } catch (err) {
-        console.error("Erreur initAuth:", err);
-        setUser(null);
+        console.error("Auth error:", err);
       } finally {
-        if (isMounted) setLoading(false);
+        setLoading(false);
       }
     };
-
-    initAuth();
+    
+    checkUser();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!isMounted) return;
-      
-      // Ignorer l'événement INITIAL_SESSION car on a déjà chargé la session
-      if (event === "INITIAL_SESSION") return;
-      
       if (event === "SIGNED_IN" && session?.user) {
         const email = session.user.email;
-        const userData = await fetchUserData(session.user.id, email);
+        const userData = await getUserFromTable(email);
         
         setUser({
           id: session.user.id,
           email: email,
-          full_name: userData.fullName,
+          full_name: userData?.display_name || session.user.user_metadata?.full_name || email.split("@")[0],
         });
-        setUserType(userData.userType);
-        setIsAdmin(userData.isAdmin);
-        setIsApproved(userData.isApproved);
-        setLoading(false);
+        setIsAdmin(userData?.is_admin || email === "admin@certus.tn");
+        setUserType(userData?.user_type || session.user.user_metadata?.user_type || "participant");
+        setIsApproved(userData?.is_approved !== false);
       } else if (event === "SIGNED_OUT") {
         setUser(null);
-        setUserType(null);
+        setUserType("participant");
         setIsAdmin(false);
         setIsApproved(true);
-        setLoading(false);
       }
+      setLoading(false);
     });
 
-    return () => {
-      isMounted = false;
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
   const login = async (email, password) => {
@@ -128,20 +98,12 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     await supabase.auth.signOut();
     setUser(null);
-    setUserType(null);
+    setUserType("participant");
     setIsAdmin(false);
     setIsApproved(true);
   };
 
-  const value = {
-    user,
-    isAdmin,
-    userType,
-    isApproved,
-    login,
-    logout,
-    loading,
-  };
+  const value = { user, isAdmin, userType, isApproved, login, logout, loading };
 
   return React.createElement(AuthContext.Provider, { value }, children);
 };

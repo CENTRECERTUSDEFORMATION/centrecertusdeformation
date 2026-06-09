@@ -7,7 +7,8 @@ import { Helmet, HelmetProvider } from 'react-helmet-async';
 import Navbar from "./components/Navbar";
 import PrivateRoute from "./routes/PrivateRoute";
 import { AuthProvider, useAuth } from "./context/AuthContext";
-import { trackingService } from "./services/TrackingService";
+// TrackingService désactivé
+// import { trackingService } from "./services/TrackingService";
 
 const PageLoader = () => (
   <div className="flex justify-center items-center h-64">
@@ -52,9 +53,10 @@ function AppContent() {
     }
   }, []);
 
-  useEffect(() => {
-    trackingService.trackPageView(location.pathname, user?.email);
-  }, [location, user]);
+  // Tracking désactivé
+  // useEffect(() => {
+  //   trackingService.trackPageView(location.pathname, user?.email);
+  // }, [location, user]);
 
   return (
     <>
