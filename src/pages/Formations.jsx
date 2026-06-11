@@ -1,7 +1,9 @@
+// frontend/src/pages/Formations.jsx
 import React, { useEffect, useState } from "react";
-import { supabase } from "../supabaseClient";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { supabase } from "../supabaseClient";
+import { supabaseSelect, supabaseInsert } from "../supabaseFetch";
 import { toast } from "react-toastify";
 import { motion, AnimatePresence } from "framer-motion";
 import emailjs from "@emailjs/browser";
@@ -20,6 +22,10 @@ const EMAILJS_CONFIG = {
   SERVICE_ID: "service_ixutrbl",
   TEMPLATE_ID: "template_5iq0uco"
 };
+
+// Configuration Supabase directe (contournement)
+const SUPABASE_URL = 'https://rdttnpdjeuteeuwvggai.supabase.co';
+const SUPABASE_KEY = 'sb_publishable__KLqCBiq6w5S-4jhoR2bYQ_HB8IVPpT';
 
 // Définition des 7 thèmes
 const THEMES = [
@@ -103,21 +109,36 @@ export default function Formations() {
     setRandomTestimonials(shuffled);
   }, []);
 
-  // Charger toutes les formations
+  // Charger toutes les formations avec fetch direct
   useEffect(() => {
     const fetchFormations = async () => {
       setLoading(true);
-      const { data, error } = await supabase.from("formations").select("*").order("created_at", { ascending: false });
-      if (error) {
-        console.error(error);
+      try {
+        const response = await fetch(
+          `${SUPABASE_URL}/rest/v1/formations?select=*&order=created_at.desc`,
+          {
+            headers: {
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`
+            }
+          }
+        );
+        
+        if (!response.ok) {
+          throw new Error(`Erreur HTTP: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        setFormations(data || []);
+        setFilteredFormations(data || []);
+      } catch (error) {
+        console.error("Erreur chargement formations:", error);
         toast.error("Erreur chargement formations");
         setFormations([]);
         setFilteredFormations([]);
-      } else {
-        setFormations(data || []);
-        setFilteredFormations(data || []);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
     fetchFormations();
   }, []);
@@ -169,12 +190,20 @@ export default function Formations() {
   const updateFormationTheme = async (formationId, newTheme) => {
     if (!isAdmin) return;
     try {
-      const { error } = await supabase
-        .from("formations")
-        .update({ theme: newTheme })
-        .eq("id", formationId);
+      const response = await fetch(
+        `${SUPABASE_URL}/rest/v1/formations?formation_id=eq.${formationId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ theme: newTheme })
+        }
+      );
 
-      if (error) throw error;
+      if (!response.ok) throw new Error("Erreur mise à jour");
 
       setFormations(prev => prev.map(f => 
         f.id === formationId ? { ...f, theme: newTheme } : f
@@ -188,22 +217,31 @@ export default function Formations() {
 
   const getImageUrl = (path) => {
     if (!path) return null;
-    const { data } = supabase.storage.from("uploads").getPublicUrl(path);
-    return data.publicUrl;
+    return `${SUPABASE_URL}/storage/v1/object/public/uploads/${path}`;
   };
 
   const handleDelete = async (id, imagesPaths) => {
     if (!isAdmin) return;
     if (!window.confirm("Supprimer définitivement cette formation ?")) return;
     
-    if (imagesPaths && imagesPaths.length > 0) {
-      await supabase.storage.from("uploads").remove(imagesPaths);
-    }
-    const { error } = await supabase.from("formations").delete().eq("id", id);
-    if (!error) {
+    try {
+      const response = await fetch(
+        `${SUPABASE_URL}/rest/v1/formations?id=eq.${id}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`
+          }
+        }
+      );
+
+      if (!response.ok) throw new Error("Erreur suppression");
+      
       setFormations((prev) => prev.filter((f) => f.id !== id));
       toast.success("Formation supprimée");
-    } else {
+    } catch (error) {
+      console.error(error);
       toast.error("Erreur lors de la suppression");
     }
   };
@@ -247,7 +285,7 @@ export default function Formations() {
     }
   };
 
-  // Fonction pour l'inscription en ligne
+  // Fonction pour l'inscription en ligne (corrigée avec supabaseFetch)
   const handleInscriptionEnLigne = async (formation) => {
     setInscriptionLoading(true);
     try {
@@ -259,23 +297,19 @@ export default function Formations() {
         return;
       }
 
-      const { data: existing } = await supabase
-        .from("inscriptions")
-        .select("id, statut")
-        .eq("user_id", currentUser.id)
-        .eq("formation_id", formation.id)
-        .maybeSingle();
+      const existing = await supabaseSelect("inscriptions", `user_id=eq.${currentUser.id}&formation_id=eq.${formation.id}`);
 
-      if (existing) {
-        if (existing.statut === "en_attente") {
+      if (existing && existing.length > 0) {
+        const statut = existing[0].statut;
+        if (statut === "en_attente") {
           toast.info("Votre inscription est déjà en attente de validation");
-        } else if (existing.statut === "confirme") {
+        } else if (statut === "confirme") {
           toast.success("Vous êtes déjà inscrit à cette formation");
         }
         return;
       }
 
-      await supabase.from("inscriptions").insert({
+      await supabaseInsert("inscriptions", {
         user_id: currentUser.id,
         formation_id: formation.id,
         statut: "en_attente",
@@ -457,7 +491,7 @@ export default function Formations() {
           </div>
         </div>
 
-        {/* LISTE DES FORMATIONS */}
+        {/* LISTE DES FORMATIONS - Le JSX reste inchangé */}
         <div id="formations-list" className="max-w-7xl mx-auto px-6 py-12">
           {filteredFormations.length === 0 ? (
             <div className="text-center py-20 bg-white rounded-2xl shadow-sm">
@@ -511,7 +545,7 @@ export default function Formations() {
                     </h3>
                     <p className="text-gray-500 text-sm line-clamp-2 mb-4 flex-1">{formation.description || "Description à venir"}</p>
 
-                    {/* Boutons d'inscription - Une seule ligne, modernes, sans icônes */}
+                    {/* Boutons d'inscription */}
                     <div className="flex gap-3 mt-auto">
                       {formation.is_online && (
                         <button

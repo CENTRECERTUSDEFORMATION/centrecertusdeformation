@@ -1,7 +1,8 @@
+// frontend/src/pages/TableauDeBordAdmin.jsx
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { supabase } from "../supabaseClient";
+import { supabaseSelect, supabaseInsert, supabaseUpdate, supabaseDelete } from "../supabaseFetch";
 import { toast } from "react-toastify";
 
 const TableauDeBordAdmin = () => {
@@ -26,18 +27,12 @@ const TableauDeBordAdmin = () => {
     setLoading(true);
     try {
       // Formations
-      const { data: formationsData } = await supabase
-        .from("formations")
-        .select("*")
-        .order("created_at", { ascending: false });
+      const formationsData = await supabaseSelect("formations", "order=created_at.desc");
       setFormations(formationsData || []);
 
       // Codes d'accès
       if (formationsData?.length > 0) {
-        const { data: codesData } = await supabase
-          .from("formation_access_codes")
-          .select("*")
-          .in("formation_id", formationsData.map(f => f.id));
+        const codesData = await supabaseSelect("formation_access_codes", `formation_id=in.(${formationsData.map(f => f.id).join(',')})`);
         
         if (codesData) {
           const codesMap = {};
@@ -52,10 +47,7 @@ const TableauDeBordAdmin = () => {
       await fetchAllInscriptions(formationsData || []);
 
       // Actualités
-      const { data: actualitesData } = await supabase
-        .from("actualites")
-        .select("*")
-        .order("created_at", { ascending: false });
+      const actualitesData = await supabaseSelect("actualites", "order=created_at.desc");
       setActualites(actualitesData || []);
 
     } catch (error) {
@@ -71,24 +63,10 @@ const TableauDeBordAdmin = () => {
     if (!formationsList.length) return;
 
     // 1. Récupérer les inscriptions en ligne (table inscriptions)
-    const { data: inscriptionsData } = await supabase
-      .from("inscriptions")
-      .select(`
-        id,
-        user_id,
-        formation_id,
-        statut,
-        created_at,
-        users:user_id (id, email, full_name)
-      `)
-      .in("formation_id", formationsList.map(f => f.id));
+    const inscriptionsData = await supabaseSelect("inscriptions", `select=*,users:user_id(id,email,full_name)&formation_id=in.(${formationsList.map(f => f.id).join(',')})`);
 
     // 2. Récupérer les demandes présentiel (table demandes_presentiel)
-    const { data: demandesData } = await supabase
-      .from("demandes_presentiel")
-      .select("*")
-      .in("formation_id", formationsList.map(f => f.id))
-      .order("created_at", { ascending: false });
+    const demandesData = await supabaseSelect("demandes_presentiel", `formation_id=in.(${formationsList.map(f => f.id).join(',')})&order=created_at.desc`);
 
     // Organiser les inscriptions en ligne par formation
     const enLigneMap = {};
@@ -120,24 +98,10 @@ const TableauDeBordAdmin = () => {
     setLoadingInscriptions(prev => ({ ...prev, [formationId]: true }));
     try {
       // Inscriptions en ligne
-      const { data: inscriptionsData } = await supabase
-        .from("inscriptions")
-        .select(`
-          id,
-          user_id,
-          formation_id,
-          statut,
-          created_at,
-          users:user_id (id, email, full_name)
-        `)
-        .eq("formation_id", formationId);
+      const inscriptionsData = await supabaseSelect("inscriptions", `select=*,users:user_id(id,email,full_name)&formation_id=eq.${formationId}`);
 
       // Demandes présentiel
-      const { data: demandesData } = await supabase
-        .from("demandes_presentiel")
-        .select("*")
-        .eq("formation_id", formationId)
-        .order("created_at", { ascending: false });
+      const demandesData = await supabaseSelect("demandes_presentiel", `formation_id=eq.${formationId}&order=created_at.desc`);
 
       setInscriptionsEnLigne(prev => ({ ...prev, [formationId]: inscriptionsData || [] }));
       setInscriptionsPresentiel(prev => ({ ...prev, [formationId]: demandesData || [] }));
@@ -152,15 +116,12 @@ const TableauDeBordAdmin = () => {
   // Marquer une demande présentiel comme contactée
   const marquerContacte = async (demandeId, formationId) => {
     try {
-      const { error } = await supabase
-        .from("demandes_presentiel")
-        .update({ statut: "contacte", contacte_le: new Date().toISOString() })
-        .eq("id", demandeId);
-      
-      if (error) throw error;
+      await supabaseUpdate("demandes_presentiel", demandeId, { 
+        statut: "contacte", 
+        contacte_le: new Date().toISOString() 
+      });
       
       toast.success("✅ Demandeur marqué comme contacté");
-      // Recharger les inscriptions de cette formation
       await fetchFormationInscriptions(formationId);
     } catch (error) {
       console.error(error);
@@ -171,15 +132,10 @@ const TableauDeBordAdmin = () => {
   // Valider une inscription en ligne
   const validerInscription = async (inscriptionId, formationId, userId) => {
     try {
-      const { error } = await supabase
-        .from("inscriptions")
-        .update({ 
-          statut: "confirme",
-          date_confirmation: new Date().toISOString()
-        })
-        .eq("id", inscriptionId);
-      
-      if (error) throw error;
+      await supabaseUpdate("inscriptions", inscriptionId, { 
+        statut: "confirme",
+        date_confirmation: new Date().toISOString()
+      });
       
       toast.success("✅ Inscription validée");
       await fetchFormationInscriptions(formationId);
@@ -194,12 +150,7 @@ const TableauDeBordAdmin = () => {
     if (!confirm("Confirmer le rejet de cette inscription ?")) return;
     
     try {
-      const { error } = await supabase
-        .from("inscriptions")
-        .update({ statut: "annule" })
-        .eq("id", inscriptionId);
-      
-      if (error) throw error;
+      await supabaseUpdate("inscriptions", inscriptionId, { statut: "annule" });
       
       toast.success("❌ Inscription rejetée");
       await fetchFormationInscriptions(formationId);
@@ -214,21 +165,21 @@ const TableauDeBordAdmin = () => {
     const newCode = Math.random().toString(36).substring(2, 10).toUpperCase();
     
     try {
-      const { data: existing } = await supabase
-        .from("formation_access_codes")
-        .select("*")
-        .eq("formation_id", formationId)
-        .maybeSingle();
+      const existing = await supabaseSelect("formation_access_codes", `formation_id=eq.${formationId}`);
       
-      if (existing) {
-        await supabase
-          .from("formation_access_codes")
-          .update({ teacher_code: newCode, participant_code: newCode, access_code: newCode })
-          .eq("formation_id", formationId);
+      if (existing && existing.length > 0) {
+        await supabaseUpdate("formation_access_codes", existing[0].id, { 
+          teacher_code: newCode, 
+          participant_code: newCode, 
+          access_code: newCode 
+        });
       } else {
-        await supabase
-          .from("formation_access_codes")
-          .insert({ formation_id: formationId, teacher_code: newCode, participant_code: newCode, access_code: newCode });
+        await supabaseInsert("formation_access_codes", { 
+          formation_id: formationId, 
+          teacher_code: newCode, 
+          participant_code: newCode, 
+          access_code: newCode 
+        });
       }
       
       setAccessCodes(prev => ({ ...prev, [formationId]: { access_code: newCode } }));
@@ -244,16 +195,24 @@ const TableauDeBordAdmin = () => {
 
   const deleteFormation = async (id) => {
     if (!confirm("Supprimer cette formation ?")) return;
-    await supabase.from("formations").delete().eq("id", id);
-    setFormations(prev => prev.filter(f => f.id !== id));
-    toast.success("Formation supprimée");
+    try {
+      await supabaseDelete("formations", id);
+      setFormations(prev => prev.filter(f => f.id !== id));
+      toast.success("Formation supprimée");
+    } catch (error) {
+      toast.error("Erreur lors de la suppression");
+    }
   };
 
   const deleteActualite = async (id) => {
     if (!confirm("Supprimer cette actualité ?")) return;
-    await supabase.from("actualites").delete().eq("id", id);
-    setActualites(prev => prev.filter(a => a.id !== id));
-    toast.success("Actualité supprimée");
+    try {
+      await supabaseDelete("actualites", id);
+      setActualites(prev => prev.filter(a => a.id !== id));
+      toast.success("Actualité supprimée");
+    } catch (error) {
+      toast.error("Erreur lors de la suppression");
+    }
   };
 
   const toggleFormationExpand = (formationId, type) => {
@@ -431,7 +390,7 @@ const TableauDeBordAdmin = () => {
           </button>
         </div>
 
-        {/* FORMATIONS AVEC INSCRIPTIONS */}
+        {/* FORMATIONS AVEC INSCRIPTIONS - Le JSX reste inchangé */}
         {activeTab === "formations" && (
           <div>
             <div className="flex justify-between items-center mb-4">

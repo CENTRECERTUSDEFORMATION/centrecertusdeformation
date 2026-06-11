@@ -1,7 +1,7 @@
 // frontend/src/components/Navbar.jsx
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Menu, X } from "lucide-react";
+import { Menu, X, ChevronDown } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import logo from "../assets/logo-certus.png";
 import { motion, AnimatePresence } from "framer-motion";
@@ -10,6 +10,7 @@ import { FaFacebook, FaInstagram, FaTiktok } from "react-icons/fa";
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [adminDropdownOpen, setAdminDropdownOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, isAdmin, userType, isApproved, loading, logout } = useAuth();
@@ -28,14 +29,17 @@ export default function Navbar() {
 
   useEffect(() => {
     setMenuOpen(false);
+    setAdminDropdownOpen(false);
   }, [location]);
 
   const toggleMenu = () => setMenuOpen((prev) => !prev);
+  const toggleAdminDropdown = () => setAdminDropdownOpen((prev) => !prev);
 
   const handleLogout = async () => {
     await logout();
     navigate("/");
     setMenuOpen(false);
+    setAdminDropdownOpen(false);
   };
 
   const isActive = (path) => location.pathname === path || location.pathname.startsWith(path);
@@ -83,31 +87,74 @@ export default function Navbar() {
           {/* MENU DESKTOP */}
           <nav className="hidden md:flex items-center gap-1">
             
-            {/* MENU POUR TOUS (pages publiques) */}
-            <Link to="/" className={`px-3 py-2 rounded-lg font-medium ${isActive("/") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>Accueil</Link>
-            <Link to="/a-propos" className={`px-3 py-2 rounded-lg font-medium ${isActive("/a-propos") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>À propos</Link>
-            <Link to="/formations" className={`px-3 py-2 rounded-lg font-medium ${isActive("/formations") || location.pathname.startsWith("/formations/") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>Formations</Link>
-            <Link to="/actualite" className={`px-3 py-2 rounded-lg font-medium ${isActive("/actualite") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>Actualité</Link>
-            <Link to="/contact" className={`px-3 py-2 rounded-lg font-medium ${isActive("/contact") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>Contact</Link>
+            {/* Pages publiques */}
+            <Link to="/" className={`px-3 py-2 rounded-lg text-sm font-medium transition ${isActive("/") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>Accueil</Link>
+            <Link to="/a-propos" className={`px-3 py-2 rounded-lg text-sm font-medium transition ${isActive("/a-propos") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>À propos</Link>
+            <Link to="/formations" className={`px-3 py-2 rounded-lg text-sm font-medium transition ${isActive("/formations") || location.pathname.startsWith("/formations/") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>Formations</Link>
+            <Link to="/actualite" className={`px-3 py-2 rounded-lg text-sm font-medium transition ${isActive("/actualite") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>Actualité</Link>
+            <Link to="/contact" className={`px-3 py-2 rounded-lg text-sm font-medium transition ${isActive("/contact") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>Contact</Link>
 
-            {/* MENU ADMIN (gestion) - UNIQUEMENT SI ADMIN CONNECTÉ */}
+            {/* MENU ADMIN - DROPDOWN MODERNE */}
             {user && isAdmin && (
-              <>
-                <div className="w-px h-6 bg-gray-300 mx-2"></div>
-                <Link to="/admin" className={`px-3 py-2 rounded-lg font-medium ${isActive("/admin") ? "text-[#76c21f]" : "text-gray-600 hover:text-[#76c21f]"}`}>📚 Formations</Link>
-                <Link to="/admin/users" className={`px-3 py-2 rounded-lg font-medium ${isActive("/admin/users") ? "text-[#76c21f]" : "text-gray-600 hover:text-[#76c21f]"}`}>👥 Utilisateurs</Link>
-                <Link to="/admin/statistics" className={`px-3 py-2 rounded-lg font-medium ${isActive("/admin/statistics") ? "text-[#76c21f]" : "text-gray-600 hover:text-[#76c21f]"}`}>📊 Statistiques</Link>
-              </>
+              <div className="relative ml-2">
+                <button
+                  onClick={toggleAdminDropdown}
+                  className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                    adminDropdownOpen ? "bg-gray-100 text-[#76c21f]" : "text-gray-600 hover:text-[#76c21f]"
+                  }`}
+                >
+                  <span>⚙️</span>
+                  <span>Admin</span>
+                  <ChevronDown className={`w-4 h-4 transition-transform ${adminDropdownOpen ? "rotate-180" : ""}`} />
+                </button>
+                
+                <AnimatePresence>
+                  {adminDropdownOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="absolute right-0 mt-2 w-44 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50"
+                    >
+                      <Link
+                        to="/admin"
+                        onClick={() => setAdminDropdownOpen(false)}
+                        className={`flex items-center gap-2 px-4 py-2.5 text-sm transition ${isActive("/admin") ? "bg-green-50 text-[#76c21f]" : "text-gray-700 hover:bg-gray-50"}`}
+                      >
+                        <span>📚</span> Formations
+                      </Link>
+                      <Link
+                        to="/admin/users"
+                        onClick={() => setAdminDropdownOpen(false)}
+                        className={`flex items-center gap-2 px-4 py-2.5 text-sm transition ${isActive("/admin/users") ? "bg-green-50 text-[#76c21f]" : "text-gray-700 hover:bg-gray-50"}`}
+                      >
+                        <span>👥</span> Utilisateurs
+                      </Link>
+                      <Link
+                        to="/admin/statistics"
+                        onClick={() => setAdminDropdownOpen(false)}
+                        className={`flex items-center gap-2 px-4 py-2.5 text-sm transition ${isActive("/admin/statistics") ? "bg-green-50 text-[#76c21f]" : "text-gray-700 hover:bg-gray-50"}`}
+                      >
+                        <span>📊</span> Statistiques
+                      </Link>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             )}
 
-            {/* MENU FORMATEUR - UNIQUEMENT SI FORMATEUR CONNECTÉ */}
+            {/* ESPACE FORMATEUR */}
             {user && !isAdmin && userType === "formateur" && isApproved && (
-              <Link to="/espace-formateur" className={`px-3 py-2 rounded-lg font-medium ${isActive("/espace-formateur") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>👨‍🏫 Espace Formateur</Link>
+              <Link to="/espace-formateur" className={`px-3 py-2 rounded-lg text-sm font-medium transition ${isActive("/espace-formateur") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>
+                👨‍🏫 Formateur
+              </Link>
             )}
 
-            {/* MENU PARTICIPANT - UNIQUEMENT SI PARTICIPANT CONNECTÉ */}
+            {/* ESPACE PARTICIPANT */}
             {user && !isAdmin && userType === "participant" && isApproved && (
-              <Link to="/espace-participant" className={`px-3 py-2 rounded-lg font-medium ${isActive("/espace-participant") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>👨‍🎓 Espace Participant</Link>
+              <Link to="/espace-participant" className={`px-3 py-2 rounded-lg text-sm font-medium transition ${isActive("/espace-participant") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>
+                👨‍🎓 Mon espace
+              </Link>
             )}
 
             {/* CONNEXION / DÉCONNEXION + RÉSEAUX */}
@@ -121,14 +168,18 @@ export default function Navbar() {
               </div>
               <div className="w-px h-5 bg-gray-300"></div>
               {!user ? (
-                <Link to="/connexion" className="px-5 py-2 rounded-full font-medium text-white" style={{ background: "linear-gradient(135deg, #1a56db 0%, #1a56db 50%, #76c21f 100%)" }}>Connexion</Link>
+                <Link to="/connexion" className="px-5 py-2 rounded-full text-sm font-medium text-white" style={{ background: "linear-gradient(135deg, #1a56db 0%, #1a56db 50%, #76c21f 100%)" }}>
+                  Connexion
+                </Link>
               ) : (
                 <div className="flex items-center gap-2">
                   <div className="text-right hidden lg:block">
-                    <p className="text-xs text-gray-500">Connecté en tant que</p>
-                    <p className="text-sm font-medium text-gray-700">{user?.email}</p>
+                    <p className="text-xs text-gray-500">Connecté</p>
+                    <p className="text-sm font-medium text-gray-700">{user?.email?.split("@")[0]}</p>
                   </div>
-                  <button onClick={handleLogout} className="px-4 py-2 text-red-500 hover:bg-red-50 rounded-full">Déconnexion</button>
+                  <button onClick={handleLogout} className="px-4 py-2 text-sm text-red-500 hover:bg-red-50 rounded-full transition">
+                    Déconnexion
+                  </button>
                 </div>
               )}
             </div>
@@ -136,35 +187,44 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* MENU MOBILE */}
+      {/* MENU MOBILE - MODERNE */}
       <AnimatePresence>
         {menuOpen && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="md:hidden border-t bg-white shadow-lg">
-            <div className="px-4 py-4 flex flex-col gap-2">
-              <Link onClick={toggleMenu} to="/" className="px-3 py-2 rounded-lg hover:bg-gray-50">🏠 Accueil</Link>
-              <Link onClick={toggleMenu} to="/a-propos" className="px-3 py-2 rounded-lg hover:bg-gray-50">ℹ️ À propos</Link>
-              <Link onClick={toggleMenu} to="/formations" className="px-3 py-2 rounded-lg hover:bg-gray-50">📚 Formations</Link>
-              <Link onClick={toggleMenu} to="/actualite" className="px-3 py-2 rounded-lg hover:bg-gray-50">📰 Actualité</Link>
-              <Link onClick={toggleMenu} to="/contact" className="px-3 py-2 rounded-lg hover:bg-gray-50">📧 Contact</Link>
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="md:hidden border-t bg-white shadow-lg"
+          >
+            <div className="px-4 py-4 flex flex-col gap-1">
+              <Link onClick={toggleMenu} to="/" className="px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-50">🏠 Accueil</Link>
+              <Link onClick={toggleMenu} to="/a-propos" className="px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-50">ℹ️ À propos</Link>
+              <Link onClick={toggleMenu} to="/formations" className="px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-50">📚 Formations</Link>
+              <Link onClick={toggleMenu} to="/actualite" className="px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-50">📰 Actualité</Link>
+              <Link onClick={toggleMenu} to="/contact" className="px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-50">📧 Contact</Link>
 
+              {/* Admin - mobile */}
               {user && isAdmin && (
                 <>
-                  <div className="h-px bg-gray-100 my-1"></div>
-                  <Link onClick={toggleMenu} to="/admin" className="px-3 py-2 text-[#76c21f] font-medium">📚 Formations</Link>
-                  <Link onClick={toggleMenu} to="/admin/users" className="px-3 py-2 text-[#76c21f]">👥 Utilisateurs</Link>
-                  <Link onClick={toggleMenu} to="/admin/statistics" className="px-3 py-2 text-[#76c21f]">📊 Statistiques</Link>
+                  <div className="h-px bg-gray-100 my-2"></div>
+                  <div className="text-[#76c21f] font-medium px-3 py-1 text-sm">⚙️ Administration</div>
+                  <Link onClick={toggleMenu} to="/admin" className="px-6 py-2 rounded-lg text-gray-700 hover:bg-gray-50 text-sm">📚 Formations</Link>
+                  <Link onClick={toggleMenu} to="/admin/users" className="px-6 py-2 rounded-lg text-gray-700 hover:bg-gray-50 text-sm">👥 Utilisateurs</Link>
+                  <Link onClick={toggleMenu} to="/admin/statistics" className="px-6 py-2 rounded-lg text-gray-700 hover:bg-gray-50 text-sm">📊 Statistiques</Link>
                 </>
               )}
 
+              {/* Formateur - mobile */}
               {user && !isAdmin && userType === "formateur" && isApproved && (
-                <Link onClick={toggleMenu} to="/espace-formateur" className="px-3 py-2 rounded-lg hover:bg-gray-50">👨‍🏫 Espace Formateur</Link>
+                <Link onClick={toggleMenu} to="/espace-formateur" className="px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-50">👨‍🏫 Espace Formateur</Link>
               )}
 
+              {/* Participant - mobile */}
               {user && !isAdmin && userType === "participant" && isApproved && (
-                <Link onClick={toggleMenu} to="/espace-participant" className="px-3 py-2 rounded-lg hover:bg-gray-50">👨‍🎓 Espace Participant</Link>
+                <Link onClick={toggleMenu} to="/espace-participant" className="px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-50">👨‍🎓 Mon espace</Link>
               )}
 
-              <div className="flex gap-6 justify-center py-3">
+              <div className="flex gap-6 justify-center py-3 mt-2">
                 {socialLinks.map((social, index) => (
                   <a key={index} href={social.url} target="_blank" rel="noopener noreferrer" style={{ color: social.color }}>
                     <social.icon className="w-6 h-6" />
@@ -173,12 +233,14 @@ export default function Navbar() {
               </div>
 
               {!user ? (
-                <Link onClick={toggleMenu} to="/connexion" className="px-3 py-2 text-white rounded-full text-center" style={{ background: "linear-gradient(135deg, #1a56db 0%, #1a56db 50%, #76c21f 100%)" }}>Connexion</Link>
+                <Link onClick={toggleMenu} to="/connexion" className="mt-2 px-3 py-2 text-white rounded-full text-center text-sm font-medium" style={{ background: "linear-gradient(135deg, #1a56db 0%, #1a56db 50%, #76c21f 100%)" }}>
+                  Connexion
+                </Link>
               ) : (
                 <>
-                  <div className="px-3 py-2">
+                  <div className="px-3 py-2 mt-2">
                     <p className="text-xs text-gray-500">Connecté en tant que</p>
-                    <p className="text-sm font-medium">{user?.email}</p>
+                    <p className="text-sm font-medium text-gray-700">{user?.email}</p>
                   </div>
                   <button onClick={handleLogout} className="px-3 py-2 text-red-500 text-center">Déconnexion</button>
                 </>

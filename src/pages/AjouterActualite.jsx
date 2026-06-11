@@ -1,5 +1,7 @@
+// frontend/src/pages/AjouterActualite.jsx
 import React, { useState } from "react";
 import { supabase } from "../supabaseClient";
+import { supabaseInsert } from "../supabaseFetch";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 
@@ -46,7 +48,6 @@ export default function AjouterActualite() {
       const newText = `${beforeText}<strong>${selectedText}</strong>${afterText}`;
       setContenu(newText);
       
-      // Replacer le curseur après le texte sélectionné
       setTimeout(() => {
         textarea.focus();
         textarea.setSelectionRange(start + 17, end + 17);
@@ -87,7 +88,6 @@ export default function AjouterActualite() {
     
     if (selectedText) {
       const lines = selectedText.split('\n');
-      const listItems = lines.map(line => `• ${line}`).join('\n');
       const beforeText = contenu.substring(0, start);
       const afterText = contenu.substring(end);
       const newText = `${beforeText}\n<ul>\n${lines.map(line => `  <li>${line}</li>`).join('\n')}\n</ul>\n${afterText}`;
@@ -122,16 +122,13 @@ export default function AjouterActualite() {
         uploadedPaths.push(fileName);
       }
 
-      const { error: insertError } = await supabase.from("actualites").insert([
-        {
-          titre,
-          contenu: contenu || null,
-          images: uploadedPaths,
-          created_at: new Date().toISOString(),
-        },
-      ]);
-
-      if (insertError) throw insertError;
+      // Utilisation de supabaseInsert au lieu de supabase.from().insert()
+      await supabaseInsert("actualites", {
+        titre,
+        contenu: contenu || null,
+        images: uploadedPaths,
+        created_at: new Date().toISOString(),
+      });
 
       toast.success(`Actualité ajoutée avec ${uploadedPaths.length} image(s) !`);
       navigate("/actualite");

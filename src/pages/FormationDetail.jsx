@@ -1,6 +1,8 @@
+// frontend/src/pages/FormationDetail.jsx
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
+import { supabaseSelect, supabaseInsert } from "../supabaseFetch";
 import { motion } from "framer-motion";
 import { Helmet } from "react-helmet-async";
 import { toast } from "react-toastify";
@@ -55,14 +57,8 @@ export default function FormationDetail() {
   useEffect(() => {
     const fetchFormation = async () => {
       try {
-        const { data, error } = await supabase
-          .from("formations")
-          .select("*")
-          .eq("id", id)
-          .single();
-
-        if (error) throw error;
-        setFormation(data || null);
+        const data = await supabaseSelect("formations", { id: id });
+        setFormation(data?.[0] || null);
       } catch (err) {
         console.error("Erreur fetch:", err);
         setFormation(null);
@@ -145,23 +141,21 @@ export default function FormationDetail() {
         return;
       }
 
-      const { data: existing } = await supabase
-        .from("inscriptions")
-        .select("id, statut")
-        .eq("user_id", user.id)
-        .eq("formation_id", formation.id)
-        .maybeSingle();
+      const existing = await supabaseSelect("inscriptions", { 
+        filter: `user_id=eq.${user.id}&formation_id=eq.${formation.id}`
+      });
 
-      if (existing) {
-        if (existing.statut === "en_attente") {
+      if (existing && existing.length > 0) {
+        const statut = existing[0].statut;
+        if (statut === "en_attente") {
           toast.info("⏳ Votre inscription est déjà en attente de validation");
-        } else if (existing.statut === "confirme") {
+        } else if (statut === "confirme") {
           toast.success("✅ Vous êtes déjà inscrit à cette formation");
         }
         return;
       }
 
-      await supabase.from("inscriptions").insert({
+      await supabaseInsert("inscriptions", {
         user_id: user.id,
         formation_id: formation.id,
         statut: "en_attente",

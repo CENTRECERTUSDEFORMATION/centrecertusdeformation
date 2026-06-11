@@ -1,14 +1,16 @@
+// frontend/src/pages/AjouterFormation.jsx
 import React, { useState } from "react";
 import { supabase } from "../supabaseClient";
+import { supabaseInsert } from "../supabaseFetch";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { useAuth } from "../context/AuthContext";
 
 export default function AjouterFormation() {
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();  // ✅ Correction: utiliser isAdmin directement
+  const { isAdmin } = useAuth();
 
-  // ✅ Vérification admin
+  // Vérification admin
   if (!isAdmin) {
     return <p className="text-center mt-20">Accès refusé</p>;
   }
@@ -122,25 +124,22 @@ export default function AjouterFormation() {
         uploadedPaths.push(fileName);
       }
 
-      const { error: insertError } = await supabase.from("formations").insert([
-        {
-          title: title,
-          description,
-          fullDescription,
-          preinscriptionLink,
-          test_link: testLink || null,
-          theme: theme,
-          langue: langue,
-          duration: duration || null,
-          price: price || null,
-          is_online: isOnline,
-          images: uploadedPaths,
-          onDemand,
-          created_at: new Date().toISOString(),
-        },
-      ]);
-
-      if (insertError) throw insertError;
+      // Utilisation de supabaseInsert au lieu de supabase.from().insert()
+      await supabaseInsert("formations", {
+        title: title,
+        description,
+        fullDescription,
+        preinscriptionLink,
+        test_link: testLink || null,
+        theme: theme,
+        langue: langue,
+        duration: duration || null,
+        price: price || null,
+        is_online: isOnline,
+        images: uploadedPaths,
+        onDemand,
+        created_at: new Date().toISOString(),
+      });
 
       toast.success(`Formation ajoutée avec ${uploadedPaths.length} image(s) !`);
       navigate("/formations");

@@ -1,6 +1,7 @@
 // frontend/src/pages/EspaceFormateur.jsx
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "../supabaseClient";
+import { supabaseSelect, supabaseInsert, supabaseDelete } from "../supabaseFetch";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
@@ -40,11 +41,7 @@ const EspaceFormateur = () => {
     if (!user?.id) return;
     setLoadingData(true);
     try {
-      const { data, error } = await supabase
-        .from("formateur_assignments")
-        .select(`*, formations:formation_id (id, title, description, duration)`)
-        .eq("formateur_id", user.id);
-      if (error) throw error;
+      const data = await supabaseSelect("formateur_assignments", `select=*,formations:formation_id(id,title,description,duration)&formateur_id=eq.${user.id}`);
       const formatted = (data || []).map(ass => ({ ...ass, formations: ass.formations ? { ...ass.formations, duree_totale: extractDurationHours(ass.formations.duration) } : null }));
       setAssignments(formatted);
     } catch (err) {
@@ -58,12 +55,7 @@ const EspaceFormateur = () => {
   const fetchSeances = async (assignmentId) => {
     setLoadingSeances(true);
     try {
-      const { data, error } = await supabase
-        .from("seances")
-        .select("*")
-        .eq("assignment_id", assignmentId)
-        .order("date_seance", { ascending: true });
-      if (error) throw error;
+      const data = await supabaseSelect("seances", `assignment_id=eq.${assignmentId}&order=date_seance.asc`);
       setSeances(data || []);
     } catch (err) {
       toast.error("Erreur chargement séances");
@@ -79,7 +71,7 @@ const EspaceFormateur = () => {
     }
     setAddingSeance(true);
     try {
-      await supabase.from("seances").insert({
+      await supabaseInsert("seances", {
         assignment_id: selectedAssignment.id,
         titre: newSeance.titre.trim(),
         date_seance: newSeance.date_heure,
@@ -91,7 +83,8 @@ const EspaceFormateur = () => {
       await fetchSeances(selectedAssignment.id);
       setNewSeance({ titre: "", date_heure: "", duree: 60, lien_reunion: "" });
     } catch (err) {
-      toast.error("❌ Erreur");
+      console.error(err);
+      toast.error("❌ Erreur: " + err.message);
     } finally {
       setAddingSeance(false);
     }
@@ -100,11 +93,11 @@ const EspaceFormateur = () => {
   const deleteSeance = async (seanceId) => {
     if (!window.confirm("Supprimer cette séance ?")) return;
     try {
-      await supabase.from("seances").delete().eq("id", seanceId);
+      await supabaseDelete("seances", seanceId);
       toast.success("Séance supprimée");
       await fetchSeances(selectedAssignment.id);
     } catch (err) {
-      toast.error("❌ Erreur");
+      toast.error("❌ Erreur: " + err.message);
     }
   };
 
@@ -121,39 +114,25 @@ const EspaceFormateur = () => {
     }
     setVerifying(true);
     try {
-      console.log("1. Vérification du code:", accessCode.toUpperCase(), "formation_id:", selectedAssignment.formation_id);
+      console.log("🔍 Vérification du code:", accessCode.toUpperCase());
       
       // 1. Vérifier le code d'accès
-      const { data: codeData, error: codeError } = await supabase
-        .from("formation_access_codes")
-        .select("*")
-        .eq("formation_id", selectedAssignment.formation_id)
-        .eq("access_code", accessCode.toUpperCase())
-        .maybeSingle();
-
-      console.log("2. Résultat vérification code:", { codeData, codeError });
-
-      if (codeError || !codeData) {
+      const codeData = await supabaseSelect("formation_access_codes", `formation_id=eq.${selectedAssignment.formation_id}&access_code=eq.${accessCode.toUpperCase()}`);
+      
+      if (!codeData || codeData.length === 0) {
         toast.error("Code invalide pour cette formation");
         setVerifying(false);
         return;
       }
 
+      console.log("✅ Code valide");
+
       // 2. Générer le lien Jitsi
-      const roomName = `certus_${selectedAssignment.formation_id}_${Date.now()}`;
-      const jitsiUrl = `https://meet.jit.si/${roomName}`;
-      console.log("3. Lien Jitsi généré:", jitsiUrl);
+      const jitsiUrl = `https://meet.jit.si/certus_${selectedAssignment.formation_id}_${Date.now()}`;
+      console.log("🔗 Lien Jitsi:", jitsiUrl);
 
-      // 3. Vérifier que selectedAssignment.id existe
-      if (!selectedAssignment.id) {
-        console.error("selectedAssignment.id est manquant!");
-        toast.error("Erreur: assignment_id manquant");
-        setVerifying(false);
-        return;
-      }
-
-      // 4. Créer la séance
-      const seanceData = {
+      // 3. Créer la séance
+      await supabaseInsert("seances", {
         assignment_id: selectedAssignment.id,
         titre: "Session en direct",
         date_seance: new Date().toISOString(),
@@ -162,42 +141,29 @@ const EspaceFormateur = () => {
         lien_reunion: jitsiUrl,
         lien_partage_le: new Date().toISOString(),
         lien_partage_par: user?.id
-      };
-      console.log("4. Insertion séance:", seanceData);
+      });
 
-      const { data: newSeance, error: seanceError } = await supabase
-        .from("seances")
-        .insert(seanceData)
-        .select();
+      console.log("✅ Séance créée");
 
-      console.log("5. Résultat insertion:", { newSeance, seanceError });
-
-      if (seanceError) {
-        console.error("Erreur détaillée seanceError:", seanceError);
-        toast.error("Erreur lors de la création: " + (seanceError.message || "inconnue"));
-        setVerifying(false);
-        return;
-      }
-
-      // 5. Copier le lien
+      // 4. Copier le lien
       await navigator.clipboard.writeText(jitsiUrl);
       
-      // 6. Ouvrir Jitsi
+      // 5. Ouvrir Jitsi
       window.open(jitsiUrl, "_blank");
       
-      // 7. Succès
+      // 6. Succès
       toast.success("✅ Session démarrée ! Lien copié et disponible pour les participants");
       
-      // 8. Fermer le modal
+      // 7. Fermer le modal et nettoyer
       setShowCodeModal(false);
       setAccessCode("");
       
-      // 9. Rafraîchir les séances
+      // 8. Rafraîchir les séances
       await fetchSeances(selectedAssignment.id);
       
     } catch (err) {
-      console.error("Erreur catch verifyCodeAndStartSession:", err);
-      toast.error("Erreur lors du démarrage de la session: " + (err.message || "inconnue"));
+      console.error("❌ Erreur:", err);
+      toast.error("Erreur: " + (err.message || "inconnue"));
     } finally {
       setVerifying(false);
     }
