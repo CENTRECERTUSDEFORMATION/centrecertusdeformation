@@ -197,7 +197,7 @@ export default function Connexion() {
             <form onSubmit={handleSubmit} className="space-y-5">
               {/* Champ Email */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
                   Email
                 </label>
                 <div className="relative">
@@ -207,6 +207,7 @@ export default function Connexion() {
                     </svg>
                   </div>
                   <input
+                    id="email"
                     className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1a56db] focus:border-transparent transition"
                     placeholder="votre@email.com"
                     type="email"
@@ -214,13 +215,14 @@ export default function Connexion() {
                     onChange={(e) => setEmail(e.target.value)}
                     required
                     disabled={submitting}
+                    autoComplete="email"
                   />
                 </div>
               </div>
 
               {/* Champ Mot de passe */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
                   Mot de passe
                 </label>
                 <div className="relative">
@@ -230,6 +232,7 @@ export default function Connexion() {
                     </svg>
                   </div>
                   <input
+                    id="password"
                     className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1a56db] focus:border-transparent transition"
                     placeholder="Votre mot de passe"
                     type={showPassword ? "text" : "password"}
@@ -237,11 +240,13 @@ export default function Connexion() {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     disabled={submitting}
+                    autoComplete="current-password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                    aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
                   >
                     {showPassword ? (
                       <svg className="h-5 w-5 text-gray-400 hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">

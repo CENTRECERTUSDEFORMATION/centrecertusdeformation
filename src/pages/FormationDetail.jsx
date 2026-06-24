@@ -1,5 +1,4 @@
-// frontend/src/pages/FormationDetail.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import { supabaseSelect, supabaseInsert } from "../supabaseFetch";
@@ -69,6 +68,31 @@ export default function FormationDetail() {
     fetchFormation();
   }, [id]);
 
+  // Fonctions mémorisées
+  const handleNavigateBack = useCallback(() => {
+    navigate("/formations");
+  }, [navigate]);
+
+  const handleDevisChange = useCallback((e) => {
+    setDevisData({ ...devisData, [e.target.name]: e.target.value });
+  }, [devisData]);
+
+  const handleCloseDevisModal = useCallback(() => {
+    setShowDevisModal(false);
+  }, []);
+
+  const handleCloseInscriptionModal = useCallback(() => {
+    setShowInscriptionDemandeModal(false);
+  }, []);
+
+  const handleInscriptionDemande = useCallback(() => {
+    setShowInscriptionDemandeModal(true);
+  }, []);
+
+  const handleImageSelect = useCallback((idx) => {
+    setSelectedImage(idx);
+  }, []);
+
   const getImageUrl = (path) => {
     if (!path) return null;
     try {
@@ -87,11 +111,7 @@ export default function FormationDetail() {
     return LANGUE_CONFIG[langueCode] || LANGUE_CONFIG.fr;
   };
 
-  const handleDevisChange = (e) => {
-    setDevisData({ ...devisData, [e.target.name]: e.target.value });
-  };
-
-  const sendDevis = async (e) => {
+  const sendDevis = useCallback(async (e) => {
     e.preventDefault();
     setSendingDevis(true);
     try {
@@ -128,9 +148,9 @@ export default function FormationDetail() {
     } finally {
       setSendingDevis(false);
     }
-  };
+  }, [devisData, formation]);
 
-  const handleInscriptionEnLigne = async () => {
+  const handleInscriptionEnLigne = useCallback(async () => {
     setInscriptionLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -170,7 +190,7 @@ export default function FormationDetail() {
     } finally {
       setInscriptionLoading(false);
     }
-  };
+  }, [formation, navigate]);
 
   const themeConfig = formation ? getThemeConfig(formation.theme) : THEME_CONFIG.digital;
   const langueConfig = formation ? getLangueConfig(formation.langue) : LANGUE_CONFIG.fr;
@@ -187,7 +207,7 @@ export default function FormationDetail() {
     return (
       <div className="text-center mt-20">
         <p className="text-red-600">Formation introuvable</p>
-        <button onClick={() => navigate("/formations")} className="mt-4 bg-blue-600 text-white px-4 py-2 rounded">Retour aux formations</button>
+        <button onClick={handleNavigateBack} className="mt-4 bg-blue-600 text-white px-4 py-2 rounded">Retour aux formations</button>
       </div>
     );
   }
@@ -198,10 +218,16 @@ export default function FormationDetail() {
         <html lang={formation.langue || "fr"} dir={langueConfig.direction} />
         <title>{formation.title} | Centre Certus Monastir</title>
         <meta name="description" content={formation.description} />
+        <meta name="keywords" content={`${formation.title}, formation ${formation.theme}, Certus Monastir, centre formation Tunisie`} />
+        <link rel="canonical" href={`https://centrecertusdeformation.tn/formations/${formation.id}`} />
       </Helmet>
 
       <div className="max-w-6xl mx-auto px-4 py-8 mt-20" dir={langueConfig.direction}>
-        <button onClick={() => navigate("/formations")} className="mb-6 text-gray-600 hover:text-blue-600 transition">
+        <button 
+          onClick={handleNavigateBack} 
+          className="mb-6 text-gray-600 hover:text-blue-600 transition"
+          aria-label="Retour à la liste des formations"
+        >
           ← Retour aux formations
         </button>
 
@@ -242,9 +268,12 @@ export default function FormationDetail() {
             <div className="relative h-96 rounded-xl overflow-hidden shadow-xl mb-4 bg-gray-100">
               <img 
                 src={getImageUrl(formation.images[selectedImage])} 
-                alt={formation.title} 
+                alt={`${formation.title} - Image principale`}
+                width="800"
+                height="400"
+                loading="lazy"
                 className="w-full h-full object-contain"
-                onError={(e) => e.target.src = "https://placehold.co/800x400?text=Image+non+disponible"} 
+                onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/800x400?text=Image+non+disponible"; }}
               />
             </div>
             {formation.images.length > 1 && (
@@ -253,10 +282,16 @@ export default function FormationDetail() {
                   <img 
                     key={idx} 
                     src={getImageUrl(img)} 
-                    alt={`Miniature ${idx + 1}`} 
-                    className={`w-20 h-20 object-cover rounded-lg cursor-pointer transition-all ${selectedImage === idx ? "ring-2 ring-blue-500 shadow-lg" : "opacity-70"}`} 
-                    onClick={() => setSelectedImage(idx)} 
-                    onError={(e) => e.target.style.display = "none"} 
+                    alt={`Aperçu ${idx + 1} - ${formation.title}`}
+                    width="80"
+                    height="80"
+                    loading="lazy"
+                    className={`w-20 h-20 object-cover rounded-lg cursor-pointer transition-all ${selectedImage === idx ? "ring-2 ring-blue-500 shadow-lg" : "opacity-70 hover:opacity-100"}`} 
+                    onClick={() => handleImageSelect(idx)}
+                    onError={(e) => { e.target.onerror = null; e.target.style.display = "none"; }}
+                    role="button"
+                    tabIndex="0"
+                    aria-label={`Afficher l'image ${idx + 1} de ${formation.title}`}
                   />
                 ))}
               </div>
@@ -299,6 +334,7 @@ export default function FormationDetail() {
               target="_blank" 
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg font-medium shadow-md hover:bg-blue-700 transition"
+              aria-label="Accéder au test de niveau ou à la démo"
             >
               🚀 Accéder au test / démo
               <span>→</span>
@@ -321,6 +357,7 @@ export default function FormationDetail() {
               target="_blank" 
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 bg-green-600 text-white px-6 py-3 rounded-lg font-medium shadow-md hover:bg-green-700 transition"
+              aria-label="Préinscription à la formation"
             >
               📝 Préinscription
               <span>→</span>
@@ -349,6 +386,7 @@ export default function FormationDetail() {
               onClick={handleInscriptionEnLigne}
               disabled={inscriptionLoading}
               className="bg-gradient-to-r from-blue-500 to-blue-700 text-white px-8 py-3 rounded-lg font-medium shadow-lg disabled:opacity-50 hover:shadow-xl transition-all"
+              aria-label={`S'inscrire en ligne à ${formation.title}`}
             >
               {inscriptionLoading ? "Chargement..." : "🌍 S'inscrire en ligne"}
             </button>
@@ -356,8 +394,9 @@ export default function FormationDetail() {
 
           {formation.onDemand && (
             <button 
-              onClick={() => setShowInscriptionDemandeModal(true)}
+              onClick={handleInscriptionDemande}
               className="bg-gradient-to-r from-orange-500 to-orange-700 text-white px-8 py-3 rounded-lg font-medium shadow-lg hover:shadow-xl transition-all"
+              aria-label={`S'inscrire en présentiel à ${formation.title}`}
             >
               🏢 S'inscrire à la demande (Présentiel)
             </button>
@@ -366,6 +405,7 @@ export default function FormationDetail() {
           <button 
             onClick={() => setShowDevisModal(true)} 
             className="bg-gradient-to-r from-green-500 to-green-700 text-white px-8 py-3 rounded-lg font-medium shadow-lg hover:shadow-xl transition-all"
+            aria-label="Demander un devis pour cette formation"
           >
             📩 Demander un devis
           </button>
@@ -373,7 +413,7 @@ export default function FormationDetail() {
 
         {/* Modal Devis */}
         {showDevisModal && (
-          <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setShowDevisModal(false)}>
+          <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={handleCloseDevisModal}>
             <div className="relative max-w-2xl w-full bg-white rounded-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
               <div className="bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white px-6 py-4 sticky top-0">
                 <div className="flex justify-between items-center">
@@ -381,27 +421,105 @@ export default function FormationDetail() {
                     <h2 className="text-xl font-bold">Demande de devis</h2>
                     <p className="text-blue-100 text-sm">Pour : {formation.title}</p>
                   </div>
-                  <button onClick={() => setShowDevisModal(false)} className="text-white text-2xl hover:text-gray-200">✕</button>
+                  <button 
+                    onClick={handleCloseDevisModal} 
+                    className="text-white text-2xl hover:text-gray-200"
+                    aria-label="Fermer la modal de devis"
+                  >
+                    ✕
+                  </button>
                 </div>
               </div>
               <form onSubmit={sendDevis} className="p-6 space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <input type="text" name="name" placeholder="Nom complet *" required value={devisData.name} onChange={handleDevisChange} className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                  <input type="email" name="email" placeholder="Email *" required value={devisData.email} onChange={handleDevisChange} className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                  <input type="tel" name="telephone" placeholder="Téléphone *" required value={devisData.telephone} onChange={handleDevisChange} className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                  <input type="text" name="city" placeholder="Ville" value={devisData.city} onChange={handleDevisChange} className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                  <select name="country" required value={devisData.country} onChange={handleDevisChange} className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                    <option value="">Pays d'origine *</option>
-                    <option value="Tunisie">🇹🇳 Tunisie</option>
-                    <option value="France">🇫🇷 France</option>
-                    <option value="Belgique">🇧🇪 Belgique</option>
-                    <option value="Suisse">🇨🇭 Suisse</option>
-                    <option value="Canada">🇨🇦 Canada</option>
-                    <option value="Autre">🌍 Autre pays</option>
-                  </select>
+                  <div>
+                    <label htmlFor="devis-name" className="sr-only">Nom complet</label>
+                    <input 
+                      id="devis-name"
+                      type="text" 
+                      name="name" 
+                      placeholder="Nom complet *" 
+                      required 
+                      value={devisData.name} 
+                      onChange={handleDevisChange} 
+                      className="border border-gray-300 rounded-lg px-4 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="devis-email" className="sr-only">Email</label>
+                    <input 
+                      id="devis-email"
+                      type="email" 
+                      name="email" 
+                      placeholder="Email *" 
+                      required 
+                      value={devisData.email} 
+                      onChange={handleDevisChange} 
+                      className="border border-gray-300 rounded-lg px-4 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="devis-telephone" className="sr-only">Téléphone</label>
+                    <input 
+                      id="devis-telephone"
+                      type="tel" 
+                      name="telephone" 
+                      placeholder="Téléphone *" 
+                      required 
+                      value={devisData.telephone} 
+                      onChange={handleDevisChange} 
+                      className="border border-gray-300 rounded-lg px-4 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="devis-city" className="sr-only">Ville</label>
+                    <input 
+                      id="devis-city"
+                      type="text" 
+                      name="city" 
+                      placeholder="Ville" 
+                      value={devisData.city} 
+                      onChange={handleDevisChange} 
+                      className="border border-gray-300 rounded-lg px-4 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label htmlFor="devis-country" className="sr-only">Pays d'origine</label>
+                    <select 
+                      id="devis-country"
+                      name="country" 
+                      required 
+                      value={devisData.country} 
+                      onChange={handleDevisChange} 
+                      className="border border-gray-300 rounded-lg px-4 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Pays d'origine *</option>
+                      <option value="Tunisie">🇹🇳 Tunisie</option>
+                      <option value="France">🇫🇷 France</option>
+                      <option value="Belgique">🇧🇪 Belgique</option>
+                      <option value="Suisse">🇨🇭 Suisse</option>
+                      <option value="Canada">🇨🇦 Canada</option>
+                      <option value="Autre">🌍 Autre pays</option>
+                    </select>
+                  </div>
                 </div>
-                <textarea name="message" rows="3" placeholder="Message / Projet" value={devisData.message} onChange={handleDevisChange} className="border border-gray-300 rounded-lg px-4 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                <button type="submit" disabled={sendingDevis} className="w-full bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50">
+                <div>
+                  <label htmlFor="devis-message" className="sr-only">Message</label>
+                  <textarea 
+                    id="devis-message"
+                    name="message" 
+                    rows="3" 
+                    placeholder="Message / Projet" 
+                    value={devisData.message} 
+                    onChange={handleDevisChange} 
+                    className="border border-gray-300 rounded-lg px-4 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                  />
+                </div>
+                <button 
+                  type="submit" 
+                  disabled={sendingDevis} 
+                  className="w-full bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50"
+                >
                   {sendingDevis ? "Envoi en cours..." : "📩 Envoyer la demande"}
                 </button>
               </form>
@@ -412,7 +530,7 @@ export default function FormationDetail() {
         {/* Modal Inscription présentiel */}
         <ModalInscriptionDemande
           isOpen={showInscriptionDemandeModal}
-          onClose={() => setShowInscriptionDemandeModal(false)}
+          onClose={handleCloseInscriptionModal}
           formation={formation}
           onSuccess={() => {
             setShowInscriptionDemandeModal(false);

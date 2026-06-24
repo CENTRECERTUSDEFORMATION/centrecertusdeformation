@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { motion, AnimatePresence } from "framer-motion";
+import parse from 'html-react-parser';
 
 // Couleurs pour le texte sélectionné
 const TEXT_COLORS = [
@@ -31,6 +32,15 @@ export default function Actualite() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filteredActualites, setFilteredActualites] = useState([]);
   const [selectedImage, setSelectedImage] = useState(null);
+
+  // Navigation optimisée
+  const handleNavigateToAdd = useCallback(() => {
+    navigate("/ajouter-actualite");
+  }, [navigate]);
+
+  const handleNavigateToEdit = useCallback((id) => {
+    navigate(`/modifier-actualite/${id}`);
+  }, [navigate]);
 
   useEffect(() => {
     const fetchActualites = async () => {
@@ -82,7 +92,7 @@ export default function Actualite() {
     }
   };
 
-  const handleDelete = async (id, imagesPaths) => {
+  const handleDelete = useCallback(async (id, imagesPaths) => {
     if (!isAdmin) return;
     if (!window.confirm("Supprimer cette actualité ?")) return;
 
@@ -101,13 +111,13 @@ export default function Actualite() {
     } else {
       toast.error("Erreur lors de la suppression");
     }
-  };
+  }, [isAdmin]);
 
   // Fonction pour appliquer la couleur à une partie du texte sélectionné
-  const applyColorToSelection = async (id, colorHex) => {
+  const applyColorToSelection = useCallback(async (id, colorHex) => {
     // Récupérer le texte sélectionné
     const selection = window.getSelection();
-    const selectedText = selection.toString();
+    const selectedText = selection?.toString()?.trim();
     
     if (!selectedText) {
       toast.info("Sélectionnez d'abord le texte à colorer");
@@ -151,10 +161,10 @@ export default function Actualite() {
       console.error(err);
       toast.error("Erreur lors de l'application de la couleur");
     }
-  };
+  }, []);
 
   // Fonction pour appliquer un fond à l'actualité
-  const applyBackgroundColor = async (id, bgColorHex) => {
+  const applyBackgroundColor = useCallback(async (id, bgColorHex) => {
     try {
       const { error: updateError } = await supabase
         .from("actualites")
@@ -175,7 +185,22 @@ export default function Actualite() {
       console.error(err);
       toast.error("Erreur lors de l'application du fond");
     }
-  };
+  }, []);
+
+  // Navigation dans la galerie
+  const handlePrevImage = useCallback(() => {
+    setSelectedImage(prev => ({
+      ...prev,
+      index: (prev.index - 1 + prev.images.length) % prev.images.length
+    }));
+  }, []);
+
+  const handleNextImage = useCallback(() => {
+    setSelectedImage(prev => ({
+      ...prev,
+      index: (prev.index + 1) % prev.images.length
+    }));
+  }, []);
 
   if (loading) return (
     <div className="flex justify-center items-center h-96">
@@ -202,6 +227,7 @@ export default function Actualite() {
                   className="border border-gray-300 rounded-lg px-4 py-2 pl-9 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
+                  aria-label="Rechercher une actualité"
                 />
                 <svg className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -211,7 +237,7 @@ export default function Actualite() {
               {isAdmin && (
                 <button
                   className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition text-sm font-medium"
-                  onClick={() => navigate("/ajouter-actualite")}
+                  onClick={handleNavigateToAdd}
                 >
                   + Nouvelle actualité
                 </button>
@@ -267,6 +293,7 @@ export default function Actualite() {
                                 className="w-6 h-6 rounded-full transition-transform hover:scale-110 shadow-sm"
                                 style={{ backgroundColor: color.hex }}
                                 title={`Appliquer ${color.name} au texte sélectionné`}
+                                aria-label={`Appliquer la couleur ${color.name}`}
                               />
                             ))}
                           </div>
@@ -281,14 +308,16 @@ export default function Actualite() {
                                 className={`w-6 h-6 rounded-full transition-transform hover:scale-110 shadow-sm ${color.class}`}
                                 style={{ backgroundColor: color.hex }}
                                 title={`Fond ${color.name}`}
+                                aria-label={`Appliquer le fond ${color.name}`}
                               />
                             ))}
                           </div>
                           
                           <button
-                            onClick={() => navigate(`/modifier-actualite/${a.id}`)}
+                            onClick={() => handleNavigateToEdit(a.id)}
                             className="text-gray-500 hover:text-yellow-600 text-sm px-2 py-1"
                             title="Modifier"
+                            aria-label="Modifier l'actualité"
                           >
                             ✏️ Modifier
                           </button>
@@ -296,6 +325,7 @@ export default function Actualite() {
                             onClick={() => handleDelete(a.id, a.images)}
                             className="text-gray-500 hover:text-red-600 text-sm px-2 py-1"
                             title="Supprimer"
+                            aria-label="Supprimer l'actualité"
                           >
                             🗑️ Supprimer
                           </button>
@@ -312,12 +342,9 @@ export default function Actualite() {
                         </h2>
                         
                         <div className="prose prose-lg max-w-none">
-                          <div 
-                            className="leading-relaxed text-gray-600"
-                            dangerouslySetInnerHTML={{ 
-                              __html: a.contenu ? a.contenu.replace(/\n/g, '<br/>') : "Aucun contenu"
-                            }}
-                          />
+                          <div className="leading-relaxed text-gray-600">
+                            {a.contenu ? parse(a.contenu) : "Aucun contenu"}
+                          </div>
                         </div>
                       </div>
                       
@@ -328,9 +355,14 @@ export default function Actualite() {
                             <img
                               src={getImageUrl(a.images[0])}
                               alt={a.titre}
-                              className="w-full h-auto"
-                              style={{ display: 'block' }}
+                              width="400"
+                              height="300"
+                              loading="lazy"
+                              className="w-full h-auto object-cover"
                               onClick={() => setSelectedImage({ images: a.images, index: 0 })}
+                              role="button"
+                              tabIndex="0"
+                              aria-label={`Voir l'image principale de ${a.titre}`}
                             />
                             {a.images.length > 1 && (
                               <div className="flex justify-between items-center mt-2 px-2 pb-2">
@@ -339,9 +371,15 @@ export default function Actualite() {
                                     <img
                                       key={idx}
                                       src={getImageUrl(img)}
-                                      alt={`Miniature ${idx + 2}`}
+                                      alt={`Miniature ${idx + 2} de ${a.titre}`}
+                                      loading="lazy"
+                                      width="48"
+                                      height="48"
                                       className="w-12 h-12 object-cover rounded cursor-pointer hover:opacity-80 transition"
                                       onClick={() => setSelectedImage({ images: a.images, index: idx + 1 })}
+                                      role="button"
+                                      tabIndex="0"
+                                      aria-label={`Voir l'image ${idx + 2}`}
                                     />
                                   ))}
                                 </div>
@@ -381,28 +419,25 @@ export default function Actualite() {
             >
               <img
                 src={getImageUrl(selectedImage.images[selectedImage.index])}
-                alt="Agrandissement"
+                alt={`Agrandissement ${selectedImage.index + 1}`}
                 className="w-full rounded-lg shadow-2xl"
                 style={{ maxHeight: "85vh", objectFit: "contain" }}
+                loading="lazy"
               />
               
               {selectedImage.images.length > 1 && (
                 <>
                   <button
-                    onClick={() => setSelectedImage({
-                      ...selectedImage,
-                      index: (selectedImage.index - 1 + selectedImage.images.length) % selectedImage.images.length
-                    })}
+                    onClick={handlePrevImage}
                     className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full p-3 hover:bg-black/70 transition"
+                    aria-label="Image précédente"
                   >
                     ◀
                   </button>
                   <button
-                    onClick={() => setSelectedImage({
-                      ...selectedImage,
-                      index: (selectedImage.index + 1) % selectedImage.images.length
-                    })}
+                    onClick={handleNextImage}
                     className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full p-3 hover:bg-black/70 transition"
+                    aria-label="Image suivante"
                   >
                     ▶
                   </button>
@@ -416,6 +451,7 @@ export default function Actualite() {
               <button
                 onClick={() => setSelectedImage(null)}
                 className="absolute top-4 right-4 bg-black/50 text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-black/70 transition text-xl"
+                aria-label="Fermer la galerie"
               >
                 ✕
               </button>

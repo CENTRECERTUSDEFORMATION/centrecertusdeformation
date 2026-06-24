@@ -14,19 +14,19 @@ import emailjs from '@emailjs/browser';
 import { toast } from 'react-toastify';
 import { Helmet } from 'react-helmet-async';
 
-import couverture from '../assets/couverture.jpg';
-import img1 from '../assets/Image 1.jpg';
-import img2 from '../assets/Image 2.jpg';
-import img3 from '../assets/Image 3.jpg';
-import img4 from '../assets/Image 4.jpg';
-import img5 from '../assets/Image 5.jpg';
-import img6 from '../assets/Image 6.jpg';
-import img7 from '../assets/Image 7.jpg';
-import img8 from '../assets/Image 8.jpg';
-import img9 from '../assets/Image 9.jpg';
-import img10 from '../assets/Image 10.jpg';
-import img11 from '../assets/Image 11.jpg';
-import img12 from '../assets/Image 12.jpg';
+import couverture from '../assets/couverture.WebP';
+import img1 from '../assets/Image 1.WebP';
+import img2 from '../assets/Image 2.WebP';
+import img3 from '../assets/Image 3.WebP';
+import img4 from '../assets/Image 4.WebP';
+import img5 from '../assets/Image 5.WebP';
+import img6 from '../assets/Image 6.WebP';
+import img7 from '../assets/Image 7.WebP';
+import img8 from '../assets/Image 8.WebP';
+import img9 from '../assets/Image 9.WebP';
+import img10 from '../assets/Image 10.WebP';
+import img11 from '../assets/Image 11.WebP';
+import img12 from '../assets/Image 12.WebP';
 
 import Footer from '../components/Footer';
 
@@ -45,7 +45,7 @@ const images = [
   { src: img12, title: "Formation IA" },
 ];
 
-// ========== 50+ AVIS GOOGLE ==========
+// ========== AVIS GOOGLE ==========
 const testimonials = [
   { name: "Sahar Fredj", role: "Stagiaire", text: "Je suis venue de Monastir pour suivre la formation Pack Assistante de direction, qui comprend la comptabilité sur Sage. Une excellente expérience !", rating: 5, date: "2026-05-11" },
   { name: "Ines Fahem", role: "Stagiaire", text: "J'ai fait la formation Assistante de direction au centre certus à Monastir. Comptabilité sur SAGE, très professionnel !", rating: 5, date: "2026-05-11" },
@@ -81,14 +81,15 @@ const services = [
   { icon: "🤝", title: "Accompagnement", desc: "Suivi personnalisé" },
 ];
 
-// Services cliquables avec liens vers les thèmes
+// ========== 7 THÈMES (CORRIGÉ) ==========
 const servicesDetail = [
   { icon: "💻", title: "Digital & Web", desc: "Développement web, marketing digital", theme: "digital" },
   { icon: "📊", title: "Data & IA", desc: "Science des données, intelligence artificielle", theme: "data" },
   { icon: "🎨", title: "Design & Créativité", desc: "UI/UX design, graphisme", theme: "design" },
-  { icon: "📈", title: "Management & Leadership", desc: "Gestion d'équipe", theme: "management" },
-  { icon: "💰", title: "Finance & Comptabilité", desc: "Gestion financière", theme: "finance" },
-  { icon: "🌱", title: "Énergies renouvelables", desc: "Développement durable", theme: "energie" },
+  { icon: "📈", title: "Management & Leadership", desc: "Gestion d'équipe, project management", theme: "management" },
+  { icon: "💰", title: "Finance & Comptabilité", desc: "Gestion financière, comptabilité, audit", theme: "finance" },
+  { icon: "🌱", title: "Énergies renouvelables", desc: "Développement durable, photovoltaïque", theme: "energie" },
+  { icon: "🗣️", title: "Langues & Communication", desc: "Anglais, Allemand, Français des affaires, TOEIC", theme: "langues" },
 ];
 
 const partners = [
@@ -293,7 +294,7 @@ const Home = () => {
           </div>
         </div>
 
-        {/* GALERIE DE FORMATIONS - avec navigation manuelle et défilement accéléré */}
+        {/* GALERIE DE FORMATIONS */}
         <div className="py-16 bg-gray-50">
           <div className="max-w-6xl mx-auto px-4">
             <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-12">
@@ -326,7 +327,7 @@ const Home = () => {
 
         {open && <Lightbox open={open} close={() => setOpen(false)} slides={images.map(({ src, title }) => ({ src, title }))} index={index} plugins={[Captions]} captions={{ descriptionTextAlign: "center" }} />}
 
-        {/* NOS SERVICES - Version cliquable avec liens vers les thèmes */}
+        {/* NOS SERVICES - Version cliquable avec 7 thèmes */}
         <div className="py-16">
           <div className="max-w-6xl mx-auto px-4">
             <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-12">
@@ -359,7 +360,7 @@ const Home = () => {
           </div>
         </div>
 
-        {/* TEMOIGNAGES - Version avec navigation manuelle */}
+        {/* TEMOIGNAGES */}
         <div className="py-16 bg-gradient-to-r from-blue-50 to-indigo-50">
           <div className="max-w-6xl mx-auto px-4">
             <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-12">
@@ -406,7 +407,7 @@ const Home = () => {
           </div>
         </div>
 
-        {/* ILS NOUS FONT CONFIANCE - AVEC DÉFILEMENT MANUEL */}
+        {/* ILS NOUS FONT CONFIANCE */}
         <div className="py-16 overflow-hidden bg-gray-50">
           <div className="max-w-7xl mx-auto px-4">
             <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-12">

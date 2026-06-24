@@ -1,6 +1,5 @@
-// frontend/src/pages/Formations.jsx
-import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useState, useCallback } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../supabaseClient";
 import { supabaseSelect, supabaseInsert } from "../supabaseFetch";
@@ -23,7 +22,7 @@ const EMAILJS_CONFIG = {
   TEMPLATE_ID: "template_5iq0uco"
 };
 
-// Configuration Supabase directe (contournement)
+// Configuration Supabase directe
 const SUPABASE_URL = 'https://rdttnpdjeuteeuwvggai.supabase.co';
 const SUPABASE_KEY = 'sb_publishable__KLqCBiq6w5S-4jhoR2bYQ_HB8IVPpT';
 
@@ -57,9 +56,18 @@ const testimonials = [
   { name: "Chtioui Malek", role: "Stagiaire", text: "Excellent centre de formation, je recommande vivement !", rating: 5, date: "2023-10-02" },
   { name: "Hatem Ben Amor", role: "Stagiaire", text: "Centre Certus bon accueil, top organisation, personnels pro et aidants. Diplôme certifié et reconnu.", rating: 5, date: "2023-10-02" },
   { name: "Belsem Mansour", role: "Stagiaire", text: "Excellent centre de formation, ils sont très professionnels. J'ai suivi des cours d'anglais, les propriétaires sont très à l'écoute.", rating: 5, date: "2023-10-02" },
-  { name: "Mariem Aouissaoui", role: "Stagiaire", text: "Formation au top ! J'ai beaucoup appris merci.", rating: 5, date: "2026-04-29" },
-  { name: "Latifa Touzi", role: "Designer", text: "I learned graphic design and photography in this center and i really recommend it", rating: 5, date: "2026-04-28" },
-  { name: "Sabrine Chalbi", role: "Designer Graphique", text: "Un grand merci au centre certus pour sa belle expérience.", rating: 5, date: "2026-04-27" }
+  { name: "Ilyes Elwaer", role: "Stagiaire", text: "Très bonne expérience, formation de qualité !", rating: 5, date: "2019-07-02" },
+  { name: "Haithem Khadraoui", role: "Stagiaire", text: "Centre sérieux et professionnel, je recommande.", rating: 5, date: "2018-03-30" },
+  { name: "Moez Chargui", role: "Stagiaire", text: "Formation de qualité avec des formateurs compétents.", rating: 5, date: "2018-02-22" },
+  { name: "Mariem Aouissaoui", role: "Stagiaire", text: "Formation au top ! J'ai beaucoup appris merci. Votre accompagnement et votre bienveillance m'ont beaucoup aidée.", rating: 5, date: "2026-04-29" },
+  { name: "Latifa Touzi", role: "Designer", text: "I learned graphic design and photography in this center and I really recommend it ❤️❤️", rating: 5, date: "2026-04-28" },
+  { name: "Sabrine Chalbi", role: "Designer Graphique", text: "Un grand merci au centre certus pour sa belle expérience. J'étudie 2 pack de design graphique et assistant manager.", rating: 5, date: "2026-04-27" },
+  { name: "Marwa Bacha", role: "Stagiaire", text: "Votre accompagnement et votre bienveillance m'ont beaucoup aidée. Merci de tout cœur.", rating: 5, date: "2026-04-26" },
+  { name: "Ahmed Ben Slimane", role: "Développeur Web", text: "Excellente formation ! Les formateurs sont très compétents.", rating: 5, date: "2026-04-25" },
+  { name: "Nour Chaker", role: "Chef de projet", text: "Une expérience enrichissante avec des professionnels passionnés.", rating: 5, date: "2026-04-24" },
+  { name: "Kamel Jlassi", role: "Manager", text: "Formation très professionnelle, je recommande vivement Certus.", rating: 5, date: "2026-04-20" },
+  { name: "Olfa Ben Ahmed", role: "Consultante", text: "Une équipe à l'écoute et des formations de qualité. Merci Certus !", rating: 5, date: "2026-04-15" },
+  { name: "Mohamed Ali Hammami", role: "Ingénieur", text: "Formation en Data IA très complète. Je recommande !", rating: 5, date: "2026-04-10" },
 ];
 
 // Partenaires
@@ -84,6 +92,7 @@ const partners = [
 
 export default function Formations() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { isAdmin, user } = useAuth();
 
   const [formations, setFormations] = useState([]);
@@ -102,6 +111,19 @@ export default function Formations() {
     hebergement: "non", hebergementType: "", visaAssistance: "non", source: "", message: ""
   });
   const [sendingDevis, setSendingDevis] = useState(false);
+
+  // Fonctions de navigation mémorisées
+  const handleNavigateToAdd = useCallback(() => {
+    navigate("/ajouter-formation");
+  }, [navigate]);
+
+  const handleNavigateToEdit = useCallback((id) => {
+    navigate(`/modifier-formation/${id}`);
+  }, [navigate]);
+
+  const handleNavigateToDetail = useCallback((id) => {
+    navigate(`/formations/${id}`);
+  }, [navigate]);
 
   useEffect(() => {
     emailjs.init(EMAILJS_CONFIG.PUBLIC_KEY);
@@ -131,6 +153,12 @@ export default function Formations() {
         const data = await response.json();
         setFormations(data || []);
         setFilteredFormations(data || []);
+        
+        // Lire le thème depuis l'URL (paramètre ?theme=)
+        const themeParam = searchParams.get('theme');
+        if (themeParam) {
+          setSelectedTheme(themeParam);
+        }
       } catch (error) {
         console.error("Erreur chargement formations:", error);
         toast.error("Erreur chargement formations");
@@ -141,7 +169,7 @@ export default function Formations() {
       }
     };
     fetchFormations();
-  }, []);
+  }, [searchParams]);
 
   // Fonction de recherche étendue
   const searchInFormation = (formation, searchLower) => {
@@ -187,7 +215,7 @@ export default function Formations() {
   }, [searchTerm, selectedTheme, formations]);
 
   // Mettre à jour le thème d'une formation
-  const updateFormationTheme = async (formationId, newTheme) => {
+  const updateFormationTheme = useCallback(async (formationId, newTheme) => {
     if (!isAdmin) return;
     try {
       const response = await fetch(
@@ -213,14 +241,14 @@ export default function Formations() {
       console.error(error);
       toast.error("Erreur lors de la mise à jour");
     }
-  };
+  }, [isAdmin]);
 
   const getImageUrl = (path) => {
     if (!path) return null;
     return `${SUPABASE_URL}/storage/v1/object/public/uploads/${path}`;
   };
 
-  const handleDelete = async (id, imagesPaths) => {
+  const handleDelete = useCallback(async (id, imagesPaths) => {
     if (!isAdmin) return;
     if (!window.confirm("Supprimer définitivement cette formation ?")) return;
     
@@ -244,13 +272,13 @@ export default function Formations() {
       console.error(error);
       toast.error("Erreur lors de la suppression");
     }
-  };
+  }, [isAdmin]);
 
-  const handleDevisChange = (e) => {
+  const handleDevisChange = useCallback((e) => {
     setDevisData({ ...devisData, [e.target.name]: e.target.value });
-  };
+  }, [devisData]);
 
-  const sendDevis = async (e) => {
+  const sendDevis = useCallback(async (e) => {
     e.preventDefault();
     setSendingDevis(true);
     try {
@@ -283,10 +311,10 @@ export default function Formations() {
     } finally {
       setSendingDevis(false);
     }
-  };
+  }, [devisData]);
 
-  // Fonction pour l'inscription en ligne (corrigée avec supabaseFetch)
-  const handleInscriptionEnLigne = async (formation) => {
+  // Fonction pour l'inscription en ligne
+  const handleInscriptionEnLigne = useCallback(async (formation) => {
     setInscriptionLoading(true);
     try {
       const { data: { user: currentUser } } = await supabase.auth.getUser();
@@ -323,19 +351,19 @@ export default function Formations() {
     } finally {
       setInscriptionLoading(false);
     }
-  };
+  }, [navigate]);
 
-  const handleInscriptionDemande = (formation) => {
+  const handleInscriptionDemande = useCallback((formation) => {
     setSelectedFormation(formation);
     setShowInscriptionDemandeModal(true);
-  };
+  }, []);
 
-  const scrollToFormations = () => {
+  const scrollToFormations = useCallback(() => {
     const element = document.getElementById('formations-list');
     if (element) {
       element.scrollIntoView({ behavior: 'smooth' });
     }
-  };
+  }, []);
 
   const activeFormationsCount = formations.length;
   const satisfactionRate = "4.9";
@@ -476,6 +504,7 @@ export default function Formations() {
                 className="w-full border border-gray-300 rounded-xl px-4 py-2 pl-10 focus:outline-none focus:ring-2 focus:ring-[#1a56db]" 
                 value={searchTerm} 
                 onChange={(e) => setSearchTerm(e.target.value)} 
+                aria-label="Rechercher une formation"
               />
               <svg className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             </div>
@@ -483,7 +512,7 @@ export default function Formations() {
             
             {isAdmin && (
               <div className="text-center mt-3">
-                <button onClick={() => navigate("/ajouter-formation")} className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-lg text-sm font-semibold transition-all shadow-md hover:shadow-lg inline-flex items-center gap-2">
+                <button onClick={handleNavigateToAdd} className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-lg text-sm font-semibold transition-all shadow-md hover:shadow-lg inline-flex items-center gap-2">
                   <span>➕</span> Ajouter une formation
                 </button>
               </div>
@@ -491,7 +520,7 @@ export default function Formations() {
           </div>
         </div>
 
-        {/* LISTE DES FORMATIONS - Le JSX reste inchangé */}
+        {/* LISTE DES FORMATIONS */}
         <div id="formations-list" className="max-w-7xl mx-auto px-6 py-12">
           {filteredFormations.length === 0 ? (
             <div className="text-center py-20 bg-white rounded-2xl shadow-sm">
@@ -499,7 +528,7 @@ export default function Formations() {
               <h3 className="text-xl font-semibold text-gray-700">Aucune formation trouvée</h3>
               <p className="text-gray-500">Essayez de modifier votre recherche</p>
               {isAdmin && (
-                <button onClick={() => navigate("/ajouter-formation")} className="mt-4 bg-green-600 text-white px-4 py-2 rounded-lg">+ Ajouter une formation</button>
+                <button onClick={handleNavigateToAdd} className="mt-4 bg-green-600 text-white px-4 py-2 rounded-lg">+ Ajouter une formation</button>
               )}
             </div>
           ) : (
@@ -516,9 +545,19 @@ export default function Formations() {
                   onHoverEnd={() => setHoveredCard(null)}
                   className="group bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 flex flex-col"
                 >
-                  <div className="relative h-48 overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 cursor-pointer" onClick={() => navigate(`/formations/${formation.id}`)}>
+                  <div className="relative h-48 overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 cursor-pointer" onClick={() => handleNavigateToDetail(formation.id)}>
                     {formation.images && formation.images.length > 0 ? (
-                      <motion.img animate={{ scale: hoveredCard === formation.id ? 1.1 : 1 }} transition={{ duration: 0.3 }} src={getImageUrl(formation.images[0])} alt={formation.title} className="w-full h-full object-cover" onError={(e) => e.target.src = "https://placehold.co/400x300?text=📚+Formation"} />
+                      <motion.img 
+                        animate={{ scale: hoveredCard === formation.id ? 1.1 : 1 }} 
+                        transition={{ duration: 0.3 }} 
+                        src={getImageUrl(formation.images[0])} 
+                        alt={`Formation ${formation.title} - Centre Certus`} 
+                        width="400" 
+                        height="300" 
+                        loading="lazy" 
+                        className="w-full h-full object-cover" 
+                        onError={(e) => e.target.src = "https://placehold.co/400x300?text=📚+Formation"} 
+                      />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-5xl">📚</div>
                     )}
@@ -540,7 +579,7 @@ export default function Formations() {
                         {THEMES.find(t => t.id === formation.theme)?.icon} {THEMES.find(t => t.id === formation.theme)?.name || "Non classé"}
                       </span>
                     </div>
-                    <h3 className="font-bold text-xl mb-2 line-clamp-2 text-gray-800 cursor-pointer" onClick={() => navigate(`/formations/${formation.id}`)}>
+                    <h3 className="font-bold text-xl mb-2 line-clamp-2 text-gray-800 cursor-pointer" onClick={() => handleNavigateToDetail(formation.id)}>
                       {formation.title}
                     </h3>
                     <p className="text-gray-500 text-sm line-clamp-2 mb-4 flex-1">{formation.description || "Description à venir"}</p>
@@ -552,6 +591,7 @@ export default function Formations() {
                           onClick={() => handleInscriptionEnLigne(formation)}
                           disabled={inscriptionLoading}
                           className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg text-sm font-medium transition-all duration-200 shadow-sm hover:shadow disabled:opacity-50"
+                          aria-label={`S'inscrire en ligne à ${formation.title}`}
                         >
                           {inscriptionLoading ? "Chargement..." : "S'inscrire en ligne"}
                         </button>
@@ -560,14 +600,16 @@ export default function Formations() {
                         <button
                           onClick={() => handleInscriptionDemande(formation)}
                           className="flex-1 bg-orange-600 hover:bg-orange-700 text-white py-2.5 rounded-lg text-sm font-medium transition-all duration-200 shadow-sm hover:shadow"
+                          aria-label={`S'inscrire en présentiel à ${formation.title}`}
                         >
                           S'inscrire en présentiel
                         </button>
                       )}
                       {!formation.is_online && !formation.onDemand && (
                         <button
-                          onClick={() => navigate(`/formations/${formation.id}`)}
+                          onClick={() => handleNavigateToDetail(formation.id)}
                           className="w-full bg-gray-500 hover:bg-gray-600 text-white py-2.5 rounded-lg text-sm font-medium transition-all duration-200 shadow-sm hover:shadow"
+                          aria-label={`Voir les détails de ${formation.title}`}
                         >
                           Voir les détails
                         </button>
@@ -577,8 +619,12 @@ export default function Formations() {
                     {isAdmin && (
                       <div className="space-y-2 mt-4 pt-3 border-t border-gray-100">
                         <div className="flex gap-2">
-                          <button onClick={() => navigate(`/modifier-formation/${formation.id}`)} className="flex-1 text-sm bg-yellow-500 text-white px-2 py-1 rounded-lg hover:bg-yellow-600 transition">Modifier</button>
-                          <button onClick={() => handleDelete(formation.id, formation.images)} className="flex-1 text-sm bg-red-500 text-white px-2 py-1 rounded-lg hover:bg-red-600 transition">Supprimer</button>
+                          <button onClick={() => handleNavigateToEdit(formation.id)} className="flex-1 text-sm bg-yellow-500 text-white px-2 py-1 rounded-lg hover:bg-yellow-600 transition" aria-label={`Modifier ${formation.title}`}>
+                            Modifier
+                          </button>
+                          <button onClick={() => handleDelete(formation.id, formation.images)} className="flex-1 text-sm bg-red-500 text-white px-2 py-1 rounded-lg hover:bg-red-600 transition" aria-label={`Supprimer ${formation.title}`}>
+                            Supprimer
+                          </button>
                         </div>
                         <div className="flex flex-wrap gap-1">
                           <span className="text-xs text-gray-500 mr-1">Classer :</span>
@@ -588,6 +634,7 @@ export default function Formations() {
                               onClick={() => updateFormationTheme(formation.id, theme.id)}
                               className={`text-xs px-2 py-0.5 rounded-full transition ${formation.theme === theme.id ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
                               title={`Déplacer vers ${theme.name}`}
+                              aria-label={`Déplacer vers ${theme.name}`}
                             >
                               {theme.icon}
                             </button>
@@ -677,8 +724,11 @@ export default function Formations() {
                       <div className="h-24 w-24 flex items-center justify-center bg-white rounded-xl shadow-md p-3 hover:shadow-lg transition-shadow duration-300">
                         <img
                           src={partner.logo}
-                          alt={partner.name}
+                          alt={`Logo ${partner.name} - Partenaire Certus`}
                           className="max-w-full max-h-full object-contain"
+                          loading="lazy"
+                          width="80"
+                          height="80"
                           onError={(e) => {
                             e.target.style.display = 'none';
                             const parent = e.target.parentElement;
@@ -730,32 +780,96 @@ export default function Formations() {
                       <h2 className="text-xl font-bold">Demande de devis</h2>
                       <p className="text-blue-100 text-sm">Nous vous répondrons sous 24h</p>
                     </div>
-                    <button onClick={() => setShowDevisModal(false)} className="text-white/80 hover:text-white transition text-2xl">✕</button>
+                    <button onClick={() => setShowDevisModal(false)} className="text-white/80 hover:text-white transition text-2xl" aria-label="Fermer la modal de devis">
+                      ✕
+                    </button>
                   </div>
                 </div>
                 <form onSubmit={sendDevis} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Nom complet *</label><input type="text" name="name" required value={devisData.name} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2" placeholder="Jean Dupont" /></div>
-                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Email *</label><input type="email" name="email" required value={devisData.email} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2" placeholder="jean.dupont@email.com" /></div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="devis-name">Nom complet *</label>
+                      <input id="devis-name" type="text" name="name" required value={devisData.name} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2" placeholder="Jean Dupont" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="devis-email">Email *</label>
+                      <input id="devis-email" type="email" name="email" required value={devisData.email} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2" placeholder="jean.dupont@email.com" />
+                    </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Téléphone *</label><input type="tel" name="telephone" required value={devisData.telephone} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2" placeholder="06 12 34 56 78" /></div>
-                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Ville</label><input type="text" name="city" value={devisData.city} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2" placeholder="Monastir / Tunis / ..." /></div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="devis-telephone">Téléphone *</label>
+                      <input id="devis-telephone" type="tel" name="telephone" required value={devisData.telephone} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2" placeholder="06 12 34 56 78" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="devis-city">Ville</label>
+                      <input id="devis-city" type="text" name="city" value={devisData.city} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2" placeholder="Monastir / Tunis / ..." />
+                    </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Pays d'origine *</label><select name="country" required value={devisData.country} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2"><option value="">Sélectionnez</option><option value="Tunisie">🇹🇳 Tunisie</option><option value="France">🇫🇷 France</option><option value="Belgique">🇧🇪 Belgique</option><option value="Suisse">🇨🇭 Suisse</option><option value="Canada">🇨🇦 Canada</option><option value="Autre">🌍 Autre pays</option></select></div>
-                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Formation souhaitée *</label><select name="formation" required value={devisData.formation} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2"><option value="">Sélectionnez</option>{formations.map((f) => (<option key={f.id} value={f.title}>{f.title}</option>))}<option value="Autre">Autre formation</option></select></div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="devis-country">Pays d'origine *</label>
+                      <select id="devis-country" name="country" required value={devisData.country} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2">
+                        <option value="">Sélectionnez</option>
+                        <option value="Tunisie">🇹🇳 Tunisie</option>
+                        <option value="France">🇫🇷 France</option>
+                        <option value="Belgique">🇧🇪 Belgique</option>
+                        <option value="Suisse">🇨🇭 Suisse</option>
+                        <option value="Canada">🇨🇦 Canada</option>
+                        <option value="Autre">🌍 Autre pays</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="devis-formation">Formation souhaitée *</label>
+                      <select id="devis-formation" name="formation" required value={devisData.formation} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2">
+                        <option value="">Sélectionnez</option>
+                        {formations.map((f) => (<option key={f.id} value={f.title}>{f.title}</option>))}
+                        <option value="Autre">Autre formation</option>
+                      </select>
+                    </div>
                   </div>
                   <div className="border-t border-gray-200 pt-4">
                     <h3 className="font-semibold text-gray-800 mb-3">Hébergement</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div><label className="block text-sm font-medium text-gray-700 mb-1">Hébergement nécessaire ?</label><select name="hebergement" value={devisData.hebergement} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2"><option value="non">Non</option><option value="oui">Oui, besoin d'un logement</option><option value="international">Oui (package international)</option></select></div>
-                      {devisData.hebergement !== "non" && <div><label className="block text-sm font-medium text-gray-700 mb-1">Type d'hébergement</label><select name="hebergementType" value={devisData.hebergementType} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2"><option value="">Sélectionnez</option><option value="residence">Résidence étudiante</option><option value="hotel">Hôtel partenaire</option><option value="appartement">Appartement meublé</option></select></div>}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="devis-hebergement">Hébergement nécessaire ?</label>
+                        <select id="devis-hebergement" name="hebergement" value={devisData.hebergement} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2">
+                          <option value="non">Non</option>
+                          <option value="oui">Oui, besoin d'un logement</option>
+                          <option value="international">Oui (package international)</option>
+                        </select>
+                      </div>
+                      {devisData.hebergement !== "non" && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="devis-hebergement-type">Type d'hébergement</label>
+                          <select id="devis-hebergement-type" name="hebergementType" value={devisData.hebergementType} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2">
+                            <option value="">Sélectionnez</option>
+                            <option value="residence">Résidence étudiante</option>
+                            <option value="hotel">Hôtel partenaire</option>
+                            <option value="appartement">Appartement meublé</option>
+                          </select>
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Comment avez-vous connu CERTUS ?</label><select name="source" value={devisData.source} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2"><option value="">Sélectionnez</option><option value="google">Google</option><option value="facebook">Facebook / Instagram</option><option value="linkedin">LinkedIn</option><option value="bouche">Bouche à oreille</option><option value="autre">Autre</option></select></div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Message / Projet</label><textarea name="message" rows="4" value={devisData.message} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2 resize-none" placeholder="Décrivez votre projet..." /></div>
-                  <button type="submit" disabled={sendingDevis} className="w-full bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50">{sendingDevis ? "Envoi en cours..." : "Envoyer la demande"}</button>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="devis-source">Comment avez-vous connu CERTUS ?</label>
+                    <select id="devis-source" name="source" value={devisData.source} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2">
+                      <option value="">Sélectionnez</option>
+                      <option value="google">Google</option>
+                      <option value="facebook">Facebook / Instagram</option>
+                      <option value="linkedin">LinkedIn</option>
+                      <option value="bouche">Bouche à oreille</option>
+                      <option value="autre">Autre</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="devis-message">Message / Projet</label>
+                    <textarea id="devis-message" name="message" rows="4" value={devisData.message} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2 resize-none" placeholder="Décrivez votre projet..." />
+                  </div>
+                  <button type="submit" disabled={sendingDevis} className="w-full bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50">
+                    {sendingDevis ? "Envoi en cours..." : "Envoyer la demande"}
+                  </button>
                   <p className="text-xs text-gray-400 text-center">En envoyant ce formulaire, vous acceptez d'être contacté par notre équipe.</p>
                 </form>
               </motion.div>
