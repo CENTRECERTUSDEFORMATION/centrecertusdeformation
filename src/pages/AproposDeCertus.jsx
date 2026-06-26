@@ -3,10 +3,12 @@ import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
 import Aos from 'aos';
 import 'aos/dist/aos.css';
-import pyramide from '../assets/pyramide.WebP';
-import approche from '../assets/approche.WebP';
-import humain from '../assets/humain.WebP';
-import partenaire from '../assets/partenaire.WebP';
+
+// ✅ CORRIGÉ : extensions en minuscules .webp
+import pyramide from '../assets/pyramide.webp';
+import approche from '../assets/approche.webp';
+import humain from '../assets/humain.webp';
+import partenaire from '../assets/partenaire.webp';
 import logo from '../assets/logo-certus.png';
 import Footer from '../components/Footer';
 
