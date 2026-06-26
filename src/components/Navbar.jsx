@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Menu, X, ChevronDown } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import logo from "../assets/logo-certus.png";
+import logo from "../assets/logo-certus.webp";
 import { motion, AnimatePresence } from "framer-motion";
 import { FaFacebook, FaInstagram, FaTiktok } from "react-icons/fa";
 

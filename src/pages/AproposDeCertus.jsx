@@ -9,7 +9,7 @@ import pyramide from '../assets/pyramide.webp';
 import approche from '../assets/approche.webp';
 import humain from '../assets/humain.webp';
 import partenaire from '../assets/partenaire.webp';
-import logo from '../assets/logo-certus.png';
+import logo from '../assets/logo-certus.webp';
 import Footer from '../components/Footer';
 
 const AproposDeCertus = () => {

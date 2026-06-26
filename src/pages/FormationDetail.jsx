@@ -286,14 +286,14 @@ export default function FormationDetail() {
         <meta property="og:url" content={`https://centrecertusdeformation.tn/formations/${formation.id}`} />
         <meta property="og:title" content={`${formation.title} | Centre Certus`} />
         <meta property="og:description" content={formation.description || `Formation ${formation.title} au Centre Certus de Monastir`} />
-        <meta property="og:image" content={formation.images?.length > 0 ? getImageUrl(formation.images[0]) : "https://centrecertusdeformation.tn/logo-certus.png"} />
+        <meta property="og:image" content={formation.images?.length > 0 ? getImageUrl(formation.images[0]) : "https://centrecertusdeformation.tn/logo-certus.webp"} />
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
         
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={`${formation.title} | Centre Certus`} />
         <meta name="twitter:description" content={formation.description || `Formation ${formation.title} au Centre Certus de Monastir`} />
-        <meta name="twitter:image" content={formation.images?.length > 0 ? getImageUrl(formation.images[0]) : "https://centrecertusdeformation.tn/logo-certus.png"} />
+        <meta name="twitter:image" content={formation.images?.length > 0 ? getImageUrl(formation.images[0]) : "https://centrecertusdeformation.tn/logo-certus.webp"} />
         
         <script type="application/ld+json">
           {JSON.stringify({

@@ -405,7 +405,7 @@ export default function Formations() {
         <meta property="og:description" content={getPageDescription()} />
         <meta property="og:type" content="website" />
         <meta property="og:url" content={`https://centrecertusdeformation.tn/formations`} />
-        <meta property="og:image" content="https://centrecertusdeformation.tn/logo-certus.png" />
+        <meta property="og:image" content="https://centrecertusdeformation.tn/logo-certus.webp" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={getPageTitle()} />
         <meta name="twitter:description" content={getPageDescription()} />
