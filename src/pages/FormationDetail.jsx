@@ -195,35 +195,77 @@ export default function FormationDetail() {
     }
   }, [formation, navigate]);
 
-  // ============ PARTAGE FACEBOOK ============
+  // ============ PARTAGE NATIF (Mobile/Desktop) ============
+  const handleNativeShare = useCallback(async () => {
+    if (shareInProgress.current) return;
+    shareInProgress.current = true;
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: `${formation?.title || 'Formation'} | Centre Certus`,
+          text: `Découvrez la formation "${formation?.title}" au Centre Certus de Monastir`,
+          url: window.location.href,
+        });
+        toast.success("✅ Partagé avec succès !");
+      } else {
+        // Fallback vers Facebook si Web Share n'est pas disponible
+        await handleFacebookShare();
+      }
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        console.error("❌ Erreur partage:", error);
+        toast.error("❌ Erreur lors du partage");
+      }
+    } finally {
+      setTimeout(() => {
+        shareInProgress.current = false;
+      }, 2000);
+    }
+  }, [formation]);
+
+  // ============ PARTAGE FACEBOOK AMÉLIORÉ ============
   const handleFacebookShare = useCallback(async () => {
     if (shareInProgress.current) return;
     shareInProgress.current = true;
 
     try {
       const shareUrl = window.location.href;
-      const facebookShareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`;
-
+      const facebookShareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}&display=popup&hashtag=#CertusFormation`;
+      
+      // Version 1 : Tentative d'ouverture en popup avec fallback
       const width = 600;
       const height = 500;
       const left = (window.innerWidth - width) / 2;
       const top = (window.innerHeight - height) / 2;
       
-      const shareWindow = window.open(
+      const popup = window.open(
         facebookShareUrl,
-        '_blank',
+        'facebook-share-dialog',
         `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes`
       );
 
-      if (!shareWindow || shareWindow.closed || typeof shareWindow.closed === 'undefined') {
-        window.location.href = facebookShareUrl;
+      // Si la popup est bloquée, on redirige directement
+      if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+        // Pour mobile, on utilise window.location
+        if (window.innerWidth <= 768) {
+          window.location.href = facebookShareUrl;
+        } else {
+          // Pour desktop, on tente une redirection dans un nouvel onglet
+          window.open(facebookShareUrl, '_blank');
+        }
       }
 
-      toast.success("📘 Fenêtre Facebook ouverte !");
+      toast.success("📘 Fenêtre de partage ouverte !");
 
     } catch (error) {
       console.error("❌ Erreur partage:", error);
-      toast.error("❌ Erreur lors du partage. Veuillez réessayer.");
+      // Fallback ultime : redirection directe
+      try {
+        window.location.href = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`;
+      } catch (e) {
+        toast.error("❌ Erreur lors du partage. Veuillez réessayer.");
+      }
     } finally {
       setTimeout(() => {
         shareInProgress.current = false;
@@ -231,21 +273,57 @@ export default function FormationDetail() {
     }
   }, []);
 
+  // ============ PARTAGE PAR EMAIL ============
+  const shareByEmail = useCallback(() => {
+    if (shareInProgress.current) return;
+    shareInProgress.current = true;
+
+    try {
+      const subject = encodeURIComponent(`Formation "${formation?.title}" - Centre Certus`);
+      const body = encodeURIComponent(
+        `Bonjour,\n\nJe souhaite partager avec vous cette formation :\n\n` +
+        `📚 ${formation?.title}\n` +
+        `🏢 Centre Certus de Monastir\n` +
+        `🔗 ${window.location.href}\n\n` +
+        `Cordialement.`
+      );
+      window.location.href = `mailto:?subject=${subject}&body=${body}`;
+    } catch (error) {
+      console.error("❌ Erreur partage email:", error);
+      toast.error("❌ Erreur lors de l'ouverture de l'email");
+    } finally {
+      setTimeout(() => {
+        shareInProgress.current = false;
+      }, 1000);
+    }
+  }, [formation]);
+
   // ============ COPIER LE LIEN ============
   const copyLink = useCallback(async () => {
+    if (shareInProgress.current) return;
+    shareInProgress.current = true;
+
     try {
-      await navigator.clipboard.writeText(window.location.href);
-      toast.success("📋 Lien copié dans le presse-papiers !");
+      const shareUrl = window.location.href;
+      const message = `📚 ${formation?.title}\n🏢 Centre Certus de Monastir\n🔗 ${shareUrl}`;
+      
+      await navigator.clipboard.writeText(message);
+      toast.success("📋 Lien et informations copiés !");
     } catch (error) {
+      // Fallback pour les navigateurs plus anciens
       const textArea = document.createElement('textarea');
-      textArea.value = window.location.href;
+      textArea.value = `${formation?.title} - Centre Certus\n${window.location.href}`;
       document.body.appendChild(textArea);
       textArea.select();
       document.execCommand('copy');
       document.body.removeChild(textArea);
       toast.success("📋 Lien copié !");
+    } finally {
+      setTimeout(() => {
+        shareInProgress.current = false;
+      }, 1000);
     }
-  }, []);
+  }, [formation]);
 
   const themeConfig = formation ? getThemeConfig(formation.theme) : THEME_CONFIG.digital;
   const langueConfig = formation ? getLangueConfig(formation.langue) : LANGUE_CONFIG.fr;
@@ -499,12 +577,26 @@ export default function FormationDetail() {
             </div>
           </div>
 
-          {/* ============ BOUTONS DE PARTAGE ============ */}
+          {/* ============ BOUTONS DE PARTAGE AMÉLIORÉS ============ */}
           <div className="mb-8">
             <div className="flex flex-wrap items-center justify-center gap-3">
               <span className="text-sm font-medium text-gray-600 mr-2">📤 Partager :</span>
               
-              {/* Facebook */}
+              {/* Bouton de partage natif (prioritaire sur mobile) */}
+              {navigator.share && (
+                <button
+                  onClick={handleNativeShare}
+                  className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg"
+                  aria-label="Partager"
+                >
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/>
+                  </svg>
+                  Partager
+                </button>
+              )}
+              
+              {/* Facebook - toujours visible */}
               <button
                 onClick={handleFacebookShare}
                 className="flex items-center gap-2 bg-[#1877f2] hover:bg-[#0d65d9] text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg"
@@ -516,6 +608,18 @@ export default function FormationDetail() {
                 Facebook
               </button>
 
+              {/* Email */}
+              <button
+                onClick={shareByEmail}
+                className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg"
+                aria-label="Partager par email"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+                </svg>
+                Email
+              </button>
+
               {/* Copier le lien */}
               <button
                 onClick={copyLink}
@@ -525,7 +629,7 @@ export default function FormationDetail() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
                 </svg>
-                Copier le lien
+                Copier
               </button>
             </div>
           </div>
