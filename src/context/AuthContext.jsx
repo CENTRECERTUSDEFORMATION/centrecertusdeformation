@@ -6,146 +6,172 @@ const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [userType, setUserType] = useState(null);
+  const [userType, setUserType] = useState("participant");
   const [isAdmin, setIsAdmin] = useState(false);
-  const [isApproved, setIsApproved] = useState(false);
+  const [isApproved, setIsApproved] = useState(true);
   const [loading, setLoading] = useState(true);
 
-  const fetchUserProfile = async (userId) => {
-    try {
-      const { data, error } = await supabase
-        .from("users")
-        .select("user_type, is_admin, is_approved")
-        .eq("id", userId)
-        .single();
-
-      if (error) {
-        console.error("❌ Erreur fetch profile:", error);
-        return null;
-      }
-      return data;
-    } catch (err) {
-      console.error("❌ Erreur:", err);
-      return null;
-    }
-  };
-
+  // Mettre à jour l'utilisateur
   const updateUser = async (session) => {
+    console.log("🔄 updateUser appelé");
+    
     if (!session?.user) {
+      console.log("❌ Pas de session");
       setUser(null);
-      setUserType(null);
+      setUserType("participant");
       setIsAdmin(false);
-      setIsApproved(false);
+      setIsApproved(true);
+      setLoading(false);
       return;
     }
 
     const email = session.user.email;
+    console.log("👤 Utilisateur:", email);
+    
+    // Mettre à jour l'utilisateur
     setUser(session.user);
 
-    // Récupérer le profil depuis la table users
-    const profile = await fetchUserProfile(session.user.id);
-
-    if (profile) {
-      setUserType(profile.user_type || "participant");
-      setIsAdmin(profile.is_admin || false);
-      setIsApproved(profile.is_approved !== false);
-      
-      console.log("✅ Utilisateur mis à jour:", {
-        email,
-        userType: profile.user_type || "participant",
-        isAdmin: profile.is_admin || false,
-        isApproved: profile.is_approved !== false
-      });
-    } else {
-      // Fallback : utiliser l'email pour admin
-      const isAdminEmail = email === "admin@certus.tn";
-      setIsAdmin(isAdminEmail);
-      setUserType(isAdminEmail ? "admin" : "participant");
+    // ADMIN DÉTECTÉ PAR EMAIL
+    if (email === "admin@certus.tn") {
+      console.log("👑 ADMIN détecté !");
+      setUserType("admin");
+      setIsAdmin(true);
       setIsApproved(true);
-      
-      console.log("✅ Utilisateur mis à jour (fallback):", {
-        email,
-        isAdmin: isAdminEmail,
-        userType: isAdminEmail ? "admin" : "participant"
-      });
+      setLoading(false);
+      return;
     }
+
+    // Pour les autres, essayer la table
+    try {
+      const { data, error } = await supabase
+        .from("users")
+        .select("user_type, is_admin, is_approved")
+        .eq("email", email);
+
+      console.log("📊 Résultat requête:", data);
+
+      if (data && data.length > 0) {
+        const profile = data[0];
+        setUserType(profile.user_type || "participant");
+        setIsAdmin(profile.is_admin || false);
+        setIsApproved(profile.is_approved !== false);
+        console.log("✅ Profil chargé");
+      } else {
+        setUserType("participant");
+        setIsAdmin(false);
+        setIsApproved(true);
+        console.log("⚠️ Profil non trouvé, fallback participant");
+      }
+    } catch (err) {
+      console.error("❌ Erreur:", err);
+      setUserType("participant");
+      setIsAdmin(false);
+      setIsApproved(true);
+    }
+    
+    setLoading(false);
   };
 
+  // Initialisation
   useEffect(() => {
-    let isMounted = true;
+    let mounted = true;
 
-    const initAuth = async () => {
-      setLoading(true);
+    const init = async () => {
       try {
+        console.log("🚀 Init Auth...");
         const { data: { session } } = await supabase.auth.getSession();
-        if (isMounted) {
+        console.log("📦 Session:", session?.user?.email || "Aucune");
+        
+        if (mounted) {
           await updateUser(session);
         }
       } catch (err) {
-        console.error("❌ Auth error:", err);
-      } finally {
-        if (isMounted) setLoading(false);
+        console.error("❌ Erreur init:", err);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
-    initAuth();
+    init();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("🔄 Auth event:", event);
+      if (!mounted) return;
+
       if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
-        await updateUser(session);
+        if (session?.user) {
+          await updateUser(session);
+        }
       } else if (event === "SIGNED_OUT") {
         setUser(null);
-        setUserType(null);
+        setUserType("participant");
         setIsAdmin(false);
-        setIsApproved(false);
+        setIsApproved(true);
+        setLoading(false);
       }
-      if (isMounted) setLoading(false);
     });
 
     return () => {
-      isMounted = false;
+      mounted = false;
       subscription.unsubscribe();
     };
   }, []);
 
+  // Login
   const login = async (email, password) => {
-    console.log("🔐 Tentative connexion:", email);
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password
-    });
-    if (error) {
-      console.error("❌ Erreur:", error.message);
-      throw error;
+    console.log("🔐 Connexion:", email);
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password
+      });
+      if (error) throw error;
+      console.log("✅ Connecté");
+      return data;
+    } catch (err) {
+      console.error("❌ Erreur:", err.message);
+      throw err;
+    } finally {
+      setLoading(false);
     }
-    console.log("✅ Connexion réussie:", data.user?.email);
-    return data;
   };
 
+  // Logout
   const logout = async () => {
     await supabase.auth.signOut();
     setUser(null);
-    setUserType(null);
+    setUserType("participant");
     setIsAdmin(false);
-    setIsApproved(false);
+    setIsApproved(true);
+    setLoading(false);
   };
 
   const value = {
     user,
-    isAdmin,
     userType,
+    isAdmin,
     isApproved,
+    loading,
     login,
-    logout,
-    loading
+    logout
   };
+
+  console.log("📊 État Auth FINAL:", { 
+    user: user?.email || "aucun", 
+    userType, 
+    isAdmin, 
+    loading 
+  });
 
   return React.createElement(AuthContext.Provider, { value }, children);
 };
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) throw new Error("useAuth must be used within AuthProvider");
+  if (!context) {
+    throw new Error("useAuth must be used within AuthProvider");
+  }
   return context;
 };

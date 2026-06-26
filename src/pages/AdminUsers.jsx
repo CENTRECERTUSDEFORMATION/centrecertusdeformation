@@ -8,11 +8,15 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Helmet } from "react-helmet-async";
 
+const MASTER_ADMIN_EMAIL = "admin@certus.tn";
+
 const AdminUsers = () => {
   const { isAdmin, loading } = useAuth();
   const navigate = useNavigate();
   const initialFetchDone = useRef(false);
+  const isMounted = useRef(true);
 
+  // ============ ÉTATS ============
   const [users, setUsers] = useState([]);
   const [formations, setFormations] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
@@ -20,6 +24,7 @@ const AdminUsers = () => {
   const [activeTab, setActiveTab] = useState("users");
   const [updating, setUpdating] = useState(null);
 
+  // MODALS
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showSeancesModal, setShowSeancesModal] = useState(false);
@@ -27,6 +32,8 @@ const AdminUsers = () => {
   const [selectedFormateur, setSelectedFormateur] = useState(null);
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [selectedAssignment, setSelectedAssignment] = useState(null);
+
+  // GROUPE
   const [newAssignment, setNewAssignment] = useState({
     formation_id: "",
     groupe_nom: "",
@@ -37,14 +44,17 @@ const AdminUsers = () => {
   });
   const [assigning, setAssigning] = useState(false);
 
+  // GROUPES
   const [groupesData, setGroupesData] = useState([]);
   const [loadingGroupes, setLoadingGroupes] = useState(false);
 
+  // PARTICIPANTS
   const [groupParticipants, setGroupParticipants] = useState([]);
   const [loadingParticipants, setLoadingParticipants] = useState(false);
   const [availableParticipants, setAvailableParticipants] = useState([]);
   const [loadingAvailableParticipants, setLoadingAvailableParticipants] = useState(false);
 
+  // SÉANCES
   const [seances, setSeances] = useState([]);
   const [loadingSeances, setLoadingSeances] = useState(false);
   const [newSeance, setNewSeance] = useState({
@@ -55,92 +65,106 @@ const AdminUsers = () => {
   });
   const [addingSeance, setAddingSeance] = useState(false);
 
+  // INSCRIPTIONS
   const [inscriptionsEnAttente, setInscriptionsEnAttente] = useState([]);
   const [loadingInscriptions, setLoadingInscriptions] = useState(false);
   const [selectedGroupeId, setSelectedGroupeId] = useState({});
   const [validatingInscription, setValidatingInscription] = useState(false);
 
+  // DEMANDES PRÉSENTIEL
   const [demandesPresentiel, setDemandesPresentiel] = useState([]);
   const [loadingDemandes, setLoadingDemandes] = useState(false);
 
+  // CODES
   const [codesMap, setCodesMap] = useState({});
   const [generatingCode, setGeneratingCode] = useState(false);
   const [showCodeModal, setShowCodeModal] = useState(false);
   const [generatedCode, setGeneratedCode] = useState("");
   const [selectedFormationForCode, setSelectedFormationForCode] = useState(null);
 
+  // NOUVEL UTILISATEUR - AMÉLIORÉ AVEC FORMATION
   const [newUser, setNewUser] = useState({
     email: "",
     password: "",
     full_name: "",
     user_type: "participant",
-    is_approved: true
+    is_approved: true,
+    formation_id: "" // ✅ AJOUT : formation pour le participant
   });
   const [creating, setCreating] = useState(false);
-
-  const MASTER_ADMIN_EMAIL = "admin@certus.tn";
+  const [formationSearchTerm, setFormationSearchTerm] = useState("");
 
   // ============ FETCH FUNCTIONS ============
   const fetchUsers = useCallback(async () => {
+    if (!isMounted.current) return;
     setLoadingUsers(true);
     try {
       const data = await supabaseSelect("users", "order=created_at.desc");
-      const sorted = (data || []).sort((a, b) => {
-        if (a.email === MASTER_ADMIN_EMAIL) return -1;
-        if (b.email === MASTER_ADMIN_EMAIL) return 1;
-        if (a.is_admin && !b.is_admin) return -1;
-        if (!a.is_admin && b.is_admin) return 1;
-        return 0;
-      });
-      setUsers(sorted);
-    } catch {
+      if (isMounted.current) {
+        const sorted = (data || []).sort((a, b) => {
+          if (a.email === MASTER_ADMIN_EMAIL) return -1;
+          if (b.email === MASTER_ADMIN_EMAIL) return 1;
+          if (a.is_admin && !b.is_admin) return -1;
+          if (!a.is_admin && b.is_admin) return 1;
+          return 0;
+        });
+        setUsers(sorted);
+      }
+    } catch (err) {
+      console.error(err);
       toast.error("Erreur chargement utilisateurs");
     } finally {
-      setLoadingUsers(false);
+      if (isMounted.current) setLoadingUsers(false);
     }
   }, []);
 
   const fetchFormationsList = useCallback(async () => {
     try {
       const data = await supabaseSelect("formations", "select=id,title,duration,is_online,on_demand");
-      setFormations(data || []);
+      if (isMounted.current) setFormations(data || []);
     } catch (err) {
       console.error(err);
     }
   }, []);
 
-  const fetchInscriptionsEnAttente = async () => {
+  const fetchInscriptionsEnAttente = useCallback(async () => {
+    if (!isMounted.current) return;
     setLoadingInscriptions(true);
     try {
       const data = await supabaseSelect("inscriptions",
         "select=*,users:user_id(id,email,full_name,display_name),formations:formation_id(id,title,is_online,on_demand)&statut=eq.en_attente&order=created_at.asc"
       );
-      setInscriptionsEnAttente((data || []).filter(ins => ins.formations?.is_online === true));
-    } catch {
+      if (isMounted.current) {
+        setInscriptionsEnAttente((data || []).filter(ins => ins.formations?.is_online === true));
+      }
+    } catch (err) {
+      console.error(err);
       toast.error("Erreur chargement inscriptions");
     } finally {
-      setLoadingInscriptions(false);
+      if (isMounted.current) setLoadingInscriptions(false);
     }
-  };
+  }, []);
 
-  const fetchDemandesPresentiel = async () => {
+  const fetchDemandesPresentiel = useCallback(async () => {
+    if (!isMounted.current) return;
     setLoadingDemandes(true);
     try {
       const data = await supabaseSelect("demandes_presentiel",
         "select=*,formations:formation_id(id,title,is_online,on_demand)&statut=eq.nouvelle&order=created_at.asc"
       );
-      setDemandesPresentiel(data || []);
-    } catch {
+      if (isMounted.current) setDemandesPresentiel(data || []);
+    } catch (err) {
+      console.error(err);
       toast.error("Erreur chargement demandes");
     } finally {
-      setLoadingDemandes(false);
+      if (isMounted.current) setLoadingDemandes(false);
     }
-  };
+  }, []);
 
-  const fetchGroupes = async () => {
+  const fetchGroupes = useCallback(async () => {
+    if (!isMounted.current) return;
     setLoadingGroupes(true);
     try {
-      // Récupérer tous les groupes
       const groupes = await supabaseSelect("groupes_formation", `
         select=*,
         formations:formation_id(id,title,duration,description,is_online),
@@ -148,12 +172,11 @@ const AdminUsers = () => {
       `);
       
       if (!groupes || groupes.length === 0) {
-        setGroupesData([]);
+        if (isMounted.current) setGroupesData([]);
         setLoadingGroupes(false);
         return;
       }
 
-      // Récupérer toutes les inscriptions avec les utilisateurs
       const { data: inscriptionsData, error } = await supabase
         .from('inscriptions')
         .select(`
@@ -176,7 +199,6 @@ const AdminUsers = () => {
         console.error("Erreur inscriptions:", error);
       }
 
-      // Construire les groupes avec participants
       const groupesAvecParticipants = groupes.map(groupe => {
         const participants = (inscriptionsData || [])
           .filter(ins => ins.groupe_id === groupe.id)
@@ -196,14 +218,13 @@ const AdminUsers = () => {
         return { ...groupe, participants };
       });
       
-      setGroupesData(groupesAvecParticipants);
+      if (isMounted.current) setGroupesData(groupesAvecParticipants);
 
-      // Codes d'accès
       const { data: codes } = await supabase
         .from("formation_access_codes")
         .select("formation_id, access_code");
         
-      if (codes) {
+      if (codes && isMounted.current) {
         const cmap = {};
         codes.forEach(c => { cmap[c.formation_id] = c.access_code; });
         setCodesMap(cmap);
@@ -212,25 +233,64 @@ const AdminUsers = () => {
       console.error("Erreur fetchGroupes:", err);
       toast.error("Erreur chargement groupes");
     } finally {
-      setLoadingGroupes(false);
+      if (isMounted.current) setLoadingGroupes(false);
     }
-  };
+  }, []);
 
-  const fetchAvailableParticipantsForGroup = async (groupeId, formationId) => {
+  // ✅ AMÉLIORÉ : récupère les participants disponibles avec leur formation
+  const fetchAvailableParticipantsForGroup = useCallback(async (groupeId, formationId) => {
     setLoadingAvailableParticipants(true);
     try {
-      const all = await supabaseSelect("users", "select=id,email,full_name,display_name,is_approved&user_type=eq.participant&is_admin=eq.false");
-      const existing = await supabaseSelect("inscriptions", `select=user_id&formation_id=eq.${formationId}&statut=eq.confirme`);
+      // Récupérer tous les participants
+      const all = await supabaseSelect("users", 
+        "select=id,email,full_name,display_name,is_approved&user_type=eq.participant&is_admin=eq.false"
+      );
+      
+      // Récupérer les inscriptions existantes pour cette formation
+      const existing = await supabaseSelect("inscriptions", 
+        `select=user_id&formation_id=eq.${formationId}&statut=eq.confirme`
+      );
+      
       const assignedIds = new Set(existing.map(ins => ins.user_id));
-      setAvailableParticipants(all.filter(p => !assignedIds.has(p.id)));
-    } catch {
+      
+      // Récupérer les formations des participants disponibles
+      const availableUsers = all.filter(p => !assignedIds.has(p.id));
+      
+      // Pour chaque participant, récupérer sa formation actuelle (si inscrit ailleurs)
+      const userFormations = {};
+      if (availableUsers.length > 0) {
+        const userIds = availableUsers.map(u => u.id);
+        const { data: userInscriptions } = await supabase
+          .from('inscriptions')
+          .select('user_id, formation_id, formations:formation_id(title)')
+          .in('user_id', userIds)
+          .eq('statut', 'confirme');
+          
+        if (userInscriptions) {
+          userInscriptions.forEach(ins => {
+            userFormations[ins.user_id] = ins.formations?.title || 'Formation inconnue';
+          });
+        }
+      }
+      
+      // Ajouter la formation à chaque participant
+      const availableWithFormation = availableUsers.map(user => ({
+        ...user,
+        formation_actuelle: userFormations[user.id] || 'Aucune formation'
+      }));
+      
+      if (isMounted.current) {
+        setAvailableParticipants(availableWithFormation);
+      }
+    } catch (err) {
+      console.error(err);
       toast.error("Erreur chargement participants");
     } finally {
-      setLoadingAvailableParticipants(false);
+      if (isMounted.current) setLoadingAvailableParticipants(false);
     }
-  };
+  }, []);
 
-  const fetchGroupParticipants = async (groupeId) => {
+  const fetchGroupParticipants = useCallback(async (groupeId) => {
     setLoadingParticipants(true);
     try {
       const { data } = await supabase
@@ -252,36 +312,42 @@ const AdminUsers = () => {
         .eq('groupe_id', groupeId)
         .eq('statut', 'confirme');
         
-      setGroupParticipants((data || []).map(ins => ({
-        id: ins.id,
-        user_id: ins.user_id,
-        formation_id: ins.formation_id,
-        groupe_id: ins.groupe_id,
-        statut: ins.statut,
-        created_at: ins.created_at,
-        full_name: ins.users?.full_name || ins.users?.display_name || "Nom inconnu",
-        email: ins.users?.email || "Email inconnu"
-      })));
-    } catch {
+      if (isMounted.current) {
+        setGroupParticipants((data || []).map(ins => ({
+          id: ins.id,
+          user_id: ins.user_id,
+          formation_id: ins.formation_id,
+          groupe_id: ins.groupe_id,
+          statut: ins.statut,
+          created_at: ins.created_at,
+          full_name: ins.users?.full_name || ins.users?.display_name || "Nom inconnu",
+          email: ins.users?.email || "Email inconnu"
+        })));
+      }
+    } catch (err) {
+      console.error(err);
       toast.error("Erreur chargement participants");
     } finally {
-      setLoadingParticipants(false);
+      if (isMounted.current) setLoadingParticipants(false);
     }
-  };
+  }, []);
 
-  const fetchSeances = async (assignmentId) => {
+  const fetchSeances = useCallback(async (assignmentId) => {
+    if (!isMounted.current) return;
     setLoadingSeances(true);
     try {
       const data = await supabaseSelect("seances", `assignment_id=eq.${assignmentId}&order=date_seance.asc`);
-      setSeances(data || []);
-    } catch {
+      if (isMounted.current) setSeances(data || []);
+    } catch (err) {
+      console.error(err);
       toast.error("Erreur chargement séances");
     } finally {
-      setLoadingSeances(false);
+      if (isMounted.current) setLoadingSeances(false);
     }
-  };
+  }, []);
 
   // ============ ACTIONS UTILISATEURS ============
+  // ✅ AMÉLIORÉ : création d'utilisateur avec formation
   const createUser = async (e) => {
     e.preventDefault();
     if (!newUser.email || !newUser.password || !newUser.full_name || newUser.password.length < 6) {
@@ -291,37 +357,82 @@ const AdminUsers = () => {
     setCreating(true);
     try {
       if (!supabaseAdmin) throw new Error("Configuration admin Supabase manquante");
+      
       const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email: newUser.email,
         password: newUser.password,
         email_confirm: true,
-        user_metadata: { full_name: newUser.full_name, user_type: newUser.user_type }
+        user_metadata: { 
+          full_name: newUser.full_name, 
+          user_type: newUser.user_type 
+        }
       });
+      
       if (authError) {
         toast.error(authError.message.includes("already been registered") ? `Email ${newUser.email} existe déjà` : "Erreur Auth");
+        setCreating(false);
         return;
       }
+      
       const isAdminUser = newUser.user_type === "admin";
-      await supabaseInsert("users", {
-        id: authData.user.id,
-        email: newUser.email,
-        full_name: newUser.full_name,
-        user_type: isAdminUser ? "participant" : newUser.user_type,
-        is_admin: isAdminUser,
-        is_approved: newUser.is_approved
-      });
+      
+      // Insérer l'utilisateur
+      const { error: insertError } = await supabase
+        .from("users")
+        .upsert({
+          id: authData.user.id,
+          email: newUser.email,
+          full_name: newUser.full_name,
+          user_type: isAdminUser ? "admin" : newUser.user_type,
+          is_admin: isAdminUser,
+          is_approved: newUser.is_approved,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+
+      if (insertError) throw insertError;
+
+      // ✅ Si participant et formation sélectionnée, créer l'inscription
+      if (newUser.user_type === "participant" && newUser.formation_id) {
+        const { error: insError } = await supabase
+          .from("inscriptions")
+          .insert({
+            user_id: authData.user.id,
+            formation_id: newUser.formation_id,
+            statut: "confirme",
+            created_at: new Date().toISOString()
+          });
+          
+        if (insError) {
+          console.error("Erreur inscription:", insError);
+          toast.warning("⚠️ Utilisateur créé mais inscription à la formation échouée");
+        } else {
+          toast.success(`✅ Inscrit à la formation sélectionnée`);
+        }
+      }
+
       toast.success(`✅ ${isAdminUser ? "Administrateur" : "Utilisateur"} ${newUser.email} créé`);
       setShowAddModal(false);
-      setNewUser({ email: "", password: "", full_name: "", user_type: "participant", is_approved: true });
-      fetchUsers();
+      setNewUser({
+        email: "", 
+        password: "", 
+        full_name: "", 
+        user_type: "participant", 
+        is_approved: true,
+        formation_id: ""
+      });
+      await fetchUsers();
+      await fetchGroupes();
+      await fetchInscriptionsEnAttente();
     } catch (err) {
-      toast.error(err.message);
+      console.error(err);
+      toast.error(err.message || "Erreur création");
     } finally {
       setCreating(false);
     }
   };
 
-  const toggleApprove = async (user) => {
+  const toggleApprove = useCallback(async (user) => {
     if (user.email === MASTER_ADMIN_EMAIL) {
       toast.warning("⚠️ Admin principal non modifiable");
       return;
@@ -332,14 +443,15 @@ const AdminUsers = () => {
       await supabaseUpdate("users", user.id, { is_approved: newStatus });
       setUsers(prev => prev.map(u => u.id === user.id ? { ...u, is_approved: newStatus } : u));
       toast.success(`✅ ${newStatus ? "Approuvé" : "Désapprouvé"}`);
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.error("❌ Erreur");
     } finally {
       setUpdating(null);
     }
-  };
+  }, []);
 
-  const deleteUser = async (id, email) => {
+  const deleteUser = useCallback(async (id, email) => {
     if (email === MASTER_ADMIN_EMAIL) {
       toast.warning("⚠️ Admin principal non supprimable");
       return;
@@ -351,15 +463,16 @@ const AdminUsers = () => {
       await supabaseDelete("users", id);
       setUsers(prev => prev.filter(u => u.id !== id));
       toast.success(`✅ ${email} supprimé`);
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.error("❌ Erreur");
     } finally {
       setUpdating(null);
     }
-  };
+  }, []);
 
   // ============ ACTIONS GROUPES ============
-  const addAssignment = async () => {
+  const addAssignment = useCallback(async () => {
     if (!newAssignment.formation_id || !newAssignment.groupe_nom.trim()) {
       toast.error("Formation et nom du groupe requis");
       return;
@@ -387,25 +500,27 @@ const AdminUsers = () => {
         date_debut: "",
         date_fin: ""
       });
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.error("❌ Erreur");
     } finally {
       setAssigning(false);
     }
-  };
+  }, [newAssignment, selectedFormateur, fetchGroupes]);
 
-  const removeAssignment = async (groupId) => {
+  const removeAssignment = useCallback(async (groupId) => {
     if (!window.confirm("Retirer ce groupe ?")) return;
     try {
       await supabaseDelete("groupes_formation", groupId);
       toast.success("Groupe retiré");
       await fetchGroupes();
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.error("❌ Erreur");
     }
-  };
+  }, [fetchGroupes]);
 
-  const assignParticipantToGroup = async (groupeId, formationId, userId) => {
+  const assignParticipantToGroup = useCallback(async (groupeId, formationId, userId) => {
     try {
       const existing = await supabaseSelect("inscriptions", `user_id=eq.${userId}&formation_id=eq.${formationId}&statut=eq.confirme`);
       if (existing && existing.length > 0) {
@@ -422,25 +537,27 @@ const AdminUsers = () => {
       toast.success("✅ Participant assigné");
       await fetchGroupes();
       if (selectedGroup) await fetchGroupParticipants(selectedGroup.id);
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.error("❌ Erreur assignation");
     }
-  };
+  }, [selectedGroup, fetchGroupes, fetchGroupParticipants]);
 
-  const removeParticipantFromGroup = async (inscriptionId) => {
+  const removeParticipantFromGroup = useCallback(async (inscriptionId) => {
     if (!window.confirm("Retirer ce participant ?")) return;
     try {
       await supabaseDelete("inscriptions", inscriptionId);
       toast.success("✅ Participant retiré");
       await fetchGroupes();
       if (selectedGroup) await fetchGroupParticipants(selectedGroup.id);
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.error("❌ Erreur");
     }
-  };
+  }, [selectedGroup, fetchGroupes, fetchGroupParticipants]);
 
   // ============ ACTIONS SÉANCES ============
-  const addSeance = async () => {
+  const addSeance = useCallback(async () => {
     if (!newSeance.titre.trim() || !newSeance.date_heure) {
       toast.error("Titre et date/heure requis");
       return;
@@ -458,32 +575,34 @@ const AdminUsers = () => {
       toast.success("✅ Séance ajoutée");
       await fetchSeances(selectedAssignment.id);
       setNewSeance({ titre: "", date_heure: "", duree: 60, lien_reunion: "" });
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.error("❌ Erreur");
     } finally {
       setAddingSeance(false);
     }
-  };
+  }, [newSeance, selectedAssignment, fetchSeances]);
 
-  const deleteSeance = async (seanceId) => {
+  const deleteSeance = useCallback(async (seanceId) => {
     if (!window.confirm("Supprimer cette séance ?")) return;
     try {
       await supabaseDelete("seances", seanceId);
       toast.success("Séance supprimée");
       await fetchSeances(selectedAssignment.id);
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.error("❌ Erreur");
     }
-  };
+  }, [selectedAssignment, fetchSeances]);
 
-  const genererLienJitsi = () => {
+  const genererLienJitsi = useCallback(() => {
     const nomSalle = `certus_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-    setNewSeance({ ...newSeance, lien_reunion: `https://meet.jit.si/${nomSalle}` });
+    setNewSeance(prev => ({ ...prev, lien_reunion: `https://meet.jit.si/${nomSalle}` }));
     toast.success("🔗 Lien Jitsi généré");
-  };
+  }, []);
 
   // ============ ACTIONS INSCRIPTIONS ============
-  const validerInscription = async (inscriptionId, formationId, userId, groupeId) => {
+  const validerInscription = useCallback(async (inscriptionId, formationId, userId, groupeId) => {
     if (!groupeId) {
       toast.error("Sélectionnez un groupe");
       return;
@@ -506,14 +625,15 @@ const AdminUsers = () => {
       toast.success("✅ Inscription validée");
       await fetchInscriptionsEnAttente();
       await fetchGroupes();
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.error("❌ Erreur");
     } finally {
       setValidatingInscription(false);
     }
-  };
+  }, [fetchInscriptionsEnAttente, fetchGroupes]);
 
-  const marquerDemandeContactee = async (demandeId) => {
+  const marquerDemandeContactee = useCallback(async (demandeId) => {
     try {
       await supabaseUpdate("demandes_presentiel", demandeId, {
         statut: "contacte",
@@ -521,13 +641,14 @@ const AdminUsers = () => {
       });
       toast.success("✅ Demandeur contacté");
       await fetchDemandesPresentiel();
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.error("❌ Erreur");
     }
-  };
+  }, [fetchDemandesPresentiel]);
 
   // ============ ACTIONS CODES ============
-  const generateAccessCode = async (formationId, formationTitle) => {
+  const generateAccessCode = useCallback(async (formationId, formationTitle) => {
     setGeneratingCode(true);
     const newCode = Math.random().toString(36).substring(2, 10).toUpperCase();
     try {
@@ -542,14 +663,22 @@ const AdminUsers = () => {
       setShowCodeModal(true);
       await fetchGroupes();
       toast.success(`✅ Code: ${newCode}`);
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.error("❌ Erreur");
     } finally {
       setGeneratingCode(false);
     }
-  };
+  }, [fetchGroupes]);
 
   // ============ INITIALISATION ============
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
   useEffect(() => {
     if (!loading && !isAdmin) {
       toast.error("Accès refusé");
@@ -566,11 +695,17 @@ const AdminUsers = () => {
       fetchDemandesPresentiel();
       fetchGroupes();
     }
-  }, [isAdmin]);
+  }, [isAdmin, fetchUsers, fetchFormationsList, fetchInscriptionsEnAttente, fetchDemandesPresentiel, fetchGroupes]);
 
+  // Filtrage des utilisateurs
   const filteredUsers = users.filter(u =>
     u.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     u.email?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Filtrer les formations pour le select
+  const filteredFormations = formations.filter(f =>
+    f.title?.toLowerCase().includes(formationSearchTerm.toLowerCase())
   );
 
   const vraiFormateursCount = users.filter(u => u.user_type === "formateur" && !u.is_admin).length;
@@ -586,7 +721,7 @@ const AdminUsers = () => {
   if (loading || loadingUsers) {
     return (
       <div className="flex justify-center items-center h-96 mt-20">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1a56db]"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1a56db]" aria-label="Chargement en cours"></div>
       </div>
     );
   }
@@ -595,7 +730,10 @@ const AdminUsers = () => {
 
   return (
     <>
-      <Helmet><title>Admin - Gestion | Centre Certus</title></Helmet>
+      <Helmet>
+        <title>Admin - Gestion | Centre Certus</title>
+        <meta name="robots" content="noindex, nofollow" />
+      </Helmet>
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 pt-20">
         <div className="max-w-7xl mx-auto p-6">
           {/* En-tête */}
@@ -603,9 +741,13 @@ const AdminUsers = () => {
             <div className="flex justify-between items-center flex-wrap gap-4">
               <div>
                 <h1 className="text-3xl font-bold">⚙️ Administration</h1>
-                <p className="text-blue-100 mt-1">Gérez les utilisateurs, groupes et inscriptions</p>
+                <p className="text-blue-100 mt-1">Gérez les utilisateurs, groupes, inscriptions et formations</p>
               </div>
-              <button onClick={() => setShowAddModal(true)} className="bg-white text-[#1a56db] px-5 py-2.5 rounded-xl font-semibold">
+              <button 
+                onClick={() => setShowAddModal(true)} 
+                className="bg-white text-[#1a56db] px-5 py-2.5 rounded-xl font-semibold hover:shadow-lg transition"
+                aria-label="Ajouter un utilisateur"
+              >
                 ➕ Ajouter un utilisateur
               </button>
             </div>
@@ -616,7 +758,10 @@ const AdminUsers = () => {
             {stats.map((stat, i) => (
               <div key={i} className={`bg-gradient-to-r ${stat.color} rounded-xl p-4 text-white shadow-lg`}>
                 <div className="flex justify-between items-center">
-                  <div><p className="text-sm opacity-90">{stat.label}</p><p className="text-2xl font-bold">{stat.value}</p></div>
+                  <div>
+                    <p className="text-sm opacity-90">{stat.label}</p>
+                    <p className="text-2xl font-bold">{stat.value}</p>
+                  </div>
                   <div className="text-3xl">{stat.icon}</div>
                 </div>
               </div>
@@ -624,28 +769,64 @@ const AdminUsers = () => {
           </div>
 
           {/* Onglets */}
-          <div className="flex gap-4 mb-6 border-b flex-wrap">
-            <button onClick={() => setActiveTab("users")} className={`pb-2 px-4 font-medium ${activeTab === "users" ? "border-b-2 border-[#1a56db] text-[#1a56db]" : "text-gray-500"}`}>👥 Utilisateurs ({users.length})</button>
-            <button onClick={() => setActiveTab("inscriptions")} className={`pb-2 px-4 font-medium ${activeTab === "inscriptions" ? "border-b-2 border-[#1a56db] text-[#1a56db]" : "text-gray-500"}`}>📝 Inscriptions ({inscriptionsEnAttente.length})</button>
-            <button onClick={() => setActiveTab("demandes")} className={`pb-2 px-4 font-medium ${activeTab === "demandes" ? "border-b-2 border-[#1a56db] text-[#1a56db]" : "text-gray-500"}`}>📋 Demandes ({demandesPresentiel.length})</button>
-            <button onClick={() => setActiveTab("groupes")} className={`pb-2 px-4 font-medium ${activeTab === "groupes" ? "border-b-2 border-[#1a56db] text-[#1a56db]" : "text-gray-500"}`}>👨‍🏫 Groupes ({groupesData.length})</button>
+          <div className="flex gap-4 mb-6 border-b flex-wrap" role="tablist">
+            <button 
+              role="tab"
+              aria-selected={activeTab === "users"}
+              onClick={() => setActiveTab("users")} 
+              className={`pb-2 px-4 font-medium transition ${activeTab === "users" ? "border-b-2 border-[#1a56db] text-[#1a56db]" : "text-gray-500 hover:text-gray-700"}`}
+            >
+              👥 Utilisateurs ({users.length})
+            </button>
+            <button 
+              role="tab"
+              aria-selected={activeTab === "inscriptions"}
+              onClick={() => setActiveTab("inscriptions")} 
+              className={`pb-2 px-4 font-medium transition ${activeTab === "inscriptions" ? "border-b-2 border-[#1a56db] text-[#1a56db]" : "text-gray-500 hover:text-gray-700"}`}
+            >
+              📝 Inscriptions en attente ({inscriptionsEnAttente.length})
+            </button>
+            <button 
+              role="tab"
+              aria-selected={activeTab === "demandes"}
+              onClick={() => setActiveTab("demandes")} 
+              className={`pb-2 px-4 font-medium transition ${activeTab === "demandes" ? "border-b-2 border-[#1a56db] text-[#1a56db]" : "text-gray-500 hover:text-gray-700"}`}
+            >
+              📋 Demandes présentiel ({demandesPresentiel.length})
+            </button>
+            <button 
+              role="tab"
+              aria-selected={activeTab === "groupes"}
+              onClick={() => setActiveTab("groupes")} 
+              className={`pb-2 px-4 font-medium transition ${activeTab === "groupes" ? "border-b-2 border-[#1a56db] text-[#1a56db]" : "text-gray-500 hover:text-gray-700"}`}
+            >
+              👨‍🏫 Groupes ({groupesData.length})
+            </button>
           </div>
 
           {/* ==================== VUE UTILISATEURS ==================== */}
           {activeTab === "users" && (
             <>
               <div className="bg-white rounded-xl shadow-md p-4 mb-6">
-                <input type="text" placeholder="🔍 Rechercher par nom ou email..." className="w-full p-3 border rounded-lg" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                <label htmlFor="search-users" className="sr-only">Rechercher des utilisateurs</label>
+                <input 
+                  id="search-users"
+                  type="text" 
+                  placeholder="🔍 Rechercher par nom ou email..." 
+                  className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-[#1a56db] focus:border-transparent" 
+                  value={searchTerm} 
+                  onChange={e => setSearchTerm(e.target.value)} 
+                />
               </div>
               <div className="bg-white rounded-xl shadow-md overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm" aria-label="Liste des utilisateurs">
                     <thead className="bg-gray-50 border-b">
                       <tr>
                         <th className="p-4 text-left">Utilisateur</th>
                         <th className="p-4 text-left">Email</th>
                         <th className="p-4 text-left">Type</th>
-                        <th className="p-4 text-left">Formations</th>
+                        <th className="p-4 text-left">Formation</th>
                         <th className="p-4 text-left">Statut</th>
                         <th className="p-4 text-left">Actions</th>
                       </tr>
@@ -658,11 +839,21 @@ const AdminUsers = () => {
                         if (isAdminUser) userTypeLabel = "👑 Administrateur";
                         else if (u.user_type === "formateur") userTypeLabel = "👨‍🏫 Formateur";
                         
-                        // Récupérer les formations de l'utilisateur
-                        const userFormations = groupesData
-                          .filter(g => g.participants?.some(p => p.user_id === u.id))
-                          .map(g => g.formations?.title)
-                          .filter(Boolean);
+                        // Récupérer la formation de l'utilisateur
+                        let userFormation = "Aucune";
+                        if (!isAdminUser && u.user_type !== "formateur") {
+                          const formation = groupesData
+                            .filter(g => g.participants?.some(p => p.user_id === u.id))
+                            .map(g => g.formations?.title)
+                            .filter(Boolean);
+                          userFormation = formation.length > 0 ? formation.join(", ") : "Aucune";
+                        } else if (u.user_type === "formateur") {
+                          userFormation = "Formateur (non assigné)";
+                          const assigned = groupesData.filter(g => g.formateur_id === u.id);
+                          if (assigned.length > 0) {
+                            userFormation = assigned.map(g => g.formations?.title).filter(Boolean).join(", ");
+                          }
+                        }
                         
                         return (
                           <tr key={u.id} className={`border-b hover:bg-gray-50 ${isAdminUser ? "bg-blue-50" : ""}`}>
@@ -676,18 +867,10 @@ const AdminUsers = () => {
                             </td>
                             <td className="p-4 text-gray-600">{u.email}</td>
                             <td className="p-4">{userTypeLabel}</td>
-                            <td className="p-4">
-                              {userFormations.length > 0 ? (
-                                <div className="flex flex-wrap gap-1">
-                                  {userFormations.map((f, idx) => (
-                                    <span key={idx} className="inline-block text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
-                                      {f}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span className="text-xs text-gray-400">Aucune</span>
-                              )}
+                            <td className="p-4 max-w-[200px]">
+                              <span className="text-xs truncate block" title={userFormation}>
+                                {userFormation}
+                              </span>
                             </td>
                             <td className="p-4">
                               <span className={`px-2 py-1 rounded-full text-xs ${u.is_approved ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
@@ -697,10 +880,18 @@ const AdminUsers = () => {
                             <td className="p-4">
                               {!isMaster && (
                                 <div className="flex gap-2">
-                                  <button onClick={() => toggleApprove(u)} className="px-2 py-1 bg-green-500 text-white rounded-lg text-xs">
+                                  <button 
+                                    onClick={() => toggleApprove(u)} 
+                                    className="px-2 py-1 bg-green-500 text-white rounded-lg text-xs hover:bg-green-600 transition"
+                                    aria-label={u.is_approved ? "Désapprouver" : "Approuver"}
+                                  >
                                     {u.is_approved ? "⛔ Désapprouver" : "✅ Approuver"}
                                   </button>
-                                  <button onClick={() => deleteUser(u.id, u.email)} className="px-2 py-1 bg-red-600 text-white rounded-lg text-xs">
+                                  <button 
+                                    onClick={() => deleteUser(u.id, u.email)} 
+                                    className="px-2 py-1 bg-red-600 text-white rounded-lg text-xs hover:bg-red-700 transition"
+                                    aria-label={`Supprimer ${u.email}`}
+                                  >
                                     🗑️
                                   </button>
                                 </div>
@@ -721,11 +912,14 @@ const AdminUsers = () => {
             <div className="bg-white rounded-xl shadow-md overflow-hidden">
               <div className="p-4 bg-gray-50 border-b">
                 <h2 className="font-semibold text-gray-800">📝 Inscriptions en attente</h2>
+                <p className="text-sm text-gray-500">Validez les inscriptions des participants aux formations en ligne</p>
               </div>
               {loadingInscriptions ? (
-                <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1a56db]"></div></div>
+                <div className="flex justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1a56db]"></div>
+                </div>
               ) : inscriptionsEnAttente.length === 0 ? (
-                <div className="p-8 text-center text-gray-500">Aucune inscription</div>
+                <div className="p-8 text-center text-gray-500">Aucune inscription en attente</div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -744,16 +938,17 @@ const AdminUsers = () => {
                         return (
                           <tr key={ins.id} className="border-b hover:bg-gray-50">
                             <td className="p-4">
-                              <p className="font-medium">{ins.users?.full_name || "—"}</p>
+                              <p className="font-medium">{ins.users?.full_name || ins.users?.display_name || "—"}</p>
                               <p className="text-xs text-gray-500">{ins.users?.email}</p>
                             </td>
                             <td className="p-4">{ins.formations?.title}</td>
                             <td className="p-4 text-gray-500">{new Date(ins.created_at).toLocaleDateString()}</td>
                             <td className="p-4">
                               <select
-                                className="border rounded-lg px-3 py-1 text-sm w-44"
+                                className="border rounded-lg px-3 py-1 text-sm w-44 focus:ring-2 focus:ring-[#1a56db] focus:border-transparent"
                                 value={selectedGroupeId[ins.id] || ""}
                                 onChange={(e) => setSelectedGroupeId(prev => ({ ...prev, [ins.id]: e.target.value }))}
+                                aria-label="Sélectionner un groupe"
                               >
                                 <option value="">Sélectionner</option>
                                 {groupesDisponibles.map(g => (
@@ -764,8 +959,8 @@ const AdminUsers = () => {
                             <td className="p-4">
                               <button
                                 onClick={() => validerInscription(ins.id, ins.formation_id, ins.user_id, selectedGroupeId[ins.id])}
-                                disabled={!selectedGroupeId[ins.id]}
-                                className="px-3 py-1 bg-green-500 text-white rounded-lg text-xs disabled:opacity-50"
+                                disabled={!selectedGroupeId[ins.id] || validatingInscription}
+                                className="px-3 py-1 bg-green-500 text-white rounded-lg text-xs hover:bg-green-600 transition disabled:opacity-50"
                               >
                                 ✅ Valider
                               </button>
@@ -780,16 +975,19 @@ const AdminUsers = () => {
             </div>
           )}
 
-          {/* ==================== VUE DEMANDES ==================== */}
+          {/* ==================== VUE DEMANDES PRÉSENTIEL ==================== */}
           {activeTab === "demandes" && (
             <div className="bg-white rounded-xl shadow-md overflow-hidden">
               <div className="p-4 bg-gray-50 border-b">
                 <h2 className="font-semibold text-gray-800">📋 Demandes présentiel</h2>
+                <p className="text-sm text-gray-500">Gérez les demandes d'inscription en présentiel</p>
               </div>
               {loadingDemandes ? (
-                <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1a56db]"></div></div>
+                <div className="flex justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1a56db]"></div>
+                </div>
               ) : demandesPresentiel.length === 0 ? (
-                <div className="p-8 text-center text-gray-500">Aucune demande</div>
+                <div className="p-8 text-center text-gray-500">Aucune demande présentiel</div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -818,9 +1016,27 @@ const AdminUsers = () => {
                           </td>
                           <td className="p-4">
                             <div className="flex gap-2">
-                              <a href={`tel:${d.telephone}`} className="px-3 py-1 bg-blue-500 text-white rounded-lg text-xs">📞</a>
-                              <a href={`mailto:${d.email}`} className="px-3 py-1 bg-purple-500 text-white rounded-lg text-xs">✉️</a>
-                              <button onClick={() => marquerDemandeContactee(d.id)} className="px-3 py-1 bg-green-500 text-white rounded-lg text-xs">✅</button>
+                              <a 
+                                href={`tel:${d.telephone}`} 
+                                className="px-3 py-1 bg-blue-500 text-white rounded-lg text-xs hover:bg-blue-600 transition"
+                                aria-label={`Appeler ${d.nom}`}
+                              >
+                                📞
+                              </a>
+                              <a 
+                                href={`mailto:${d.email}`} 
+                                className="px-3 py-1 bg-purple-500 text-white rounded-lg text-xs hover:bg-purple-600 transition"
+                                aria-label={`Envoyer un email à ${d.nom}`}
+                              >
+                                ✉️
+                              </a>
+                              <button 
+                                onClick={() => marquerDemandeContactee(d.id)} 
+                                className="px-3 py-1 bg-green-500 text-white rounded-lg text-xs hover:bg-green-600 transition"
+                                aria-label="Marquer comme contacté"
+                              >
+                                ✅
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -838,11 +1054,13 @@ const AdminUsers = () => {
               {loadingGroupes ? (
                 <div className="bg-white rounded-xl shadow-md p-8 text-center">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1a56db] mx-auto"></div>
+                  <p className="mt-3 text-gray-500">Chargement des groupes...</p>
                 </div>
               ) : groupesData.length === 0 ? (
                 <div className="bg-white rounded-xl shadow-md p-8 text-center">
-                  <p className="text-gray-500">Aucun groupe</p>
-                  <p className="text-sm text-gray-400 mt-2">Créez un groupe via "Assigner formation"</p>
+                  <div className="text-6xl mb-4">📚</div>
+                  <p className="text-gray-500">Aucun groupe créé</p>
+                  <p className="text-sm text-gray-400 mt-2">Créez un groupe via "Assigner formation" ci-dessous</p>
                 </div>
               ) : (
                 groupesData.map(groupe => {
@@ -854,8 +1072,12 @@ const AdminUsers = () => {
                           <div>
                             <h3 className="text-xl font-bold">{groupe.formations?.title}</h3>
                             <p className="text-purple-200 text-sm">Groupe: {groupe.nom}</p>
-                            {groupe.horaire && <p className="text-purple-200 text-xs mt-1">📅 {groupe.horaire} • {groupe.jours || ""}</p>}
-                            {codesMap[groupe.formation_id] && <p className="text-purple-200 text-xs mt-1">🔑 Code: {codesMap[groupe.formation_id]}</p>}
+                            {groupe.horaire && (
+                              <p className="text-purple-200 text-xs mt-1">📅 {groupe.horaire} • {groupe.jours || ""}</p>
+                            )}
+                            {codesMap[groupe.formation_id] && (
+                              <p className="text-purple-200 text-xs mt-1">🔑 Code: {codesMap[groupe.formation_id]}</p>
+                            )}
                           </div>
                           <div className="text-right">
                             <p className="text-sm font-medium">{formateur?.full_name || "Formateur"}</p>
@@ -884,10 +1106,9 @@ const AdminUsers = () => {
                                       <button
                                         onClick={() => removeParticipantFromGroup(p.id)}
                                         className="ml-2 text-red-400 hover:text-red-600 p-1"
+                                        aria-label={`Retirer ${displayName}`}
                                       >
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                        </svg>
+                                        ✕
                                       </button>
                                     </div>
                                   </div>
@@ -896,16 +1117,20 @@ const AdminUsers = () => {
                             </div>
                           ) : (
                             <div className="bg-gray-50 rounded-lg p-4 text-center border border-dashed">
-                              <p className="text-sm text-gray-400">Aucun participant</p>
+                              <p className="text-sm text-gray-400">Aucun participant assigné</p>
                             </div>
                           )}
                         </div>
                         <div className="flex flex-wrap gap-2 pt-3 border-t">
                           <button
-                            onClick={async () => { setSelectedAssignment(groupe); await fetchSeances(groupe.id); setShowSeancesModal(true); }}
-                            className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-sm"
+                            onClick={async () => { 
+                              setSelectedAssignment(groupe); 
+                              await fetchSeances(groupe.id); 
+                              setShowSeancesModal(true); 
+                            }}
+                            className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition"
                           >
-                            📅 Séances
+                            📅 Gérer séances
                           </button>
                           <button
                             onClick={async () => {
@@ -914,22 +1139,22 @@ const AdminUsers = () => {
                               await fetchGroupParticipants(groupe.id);
                               setShowAssignParticipantsModal(true);
                             }}
-                            className="px-3 py-1.5 bg-purple-500 text-white rounded-lg text-sm"
+                            className="px-3 py-1.5 bg-purple-500 text-white rounded-lg text-sm hover:bg-purple-600 transition"
                           >
-                            ➕ Assigner
+                            ➕ Assigner participants
                           </button>
                           <button
                             onClick={() => generateAccessCode(groupe.formation_id, groupe.formations?.title)}
                             disabled={generatingCode}
-                            className="px-3 py-1.5 bg-yellow-500 text-white rounded-lg text-sm"
+                            className="px-3 py-1.5 bg-yellow-500 text-white rounded-lg text-sm hover:bg-yellow-600 transition disabled:opacity-50"
                           >
-                            🎲 Code
+                            🎲 Générer code
                           </button>
                           <button
                             onClick={() => removeAssignment(groupe.id)}
-                            className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-sm"
+                            className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-sm hover:bg-red-600 transition"
                           >
-                            🗑️ Retirer
+                            🗑️ Retirer groupe
                           </button>
                         </div>
                       </div>
@@ -940,15 +1165,19 @@ const AdminUsers = () => {
               <div className="bg-white rounded-xl shadow-md p-6 text-center">
                 <h3 className="text-lg font-semibold text-gray-700 mb-3">📚 Créer un nouveau groupe</h3>
                 <div className="flex flex-wrap gap-4 justify-center">
-                  {users.filter(u => u.user_type === "formateur" && !u.is_admin).map(f => (
-                    <button
-                      key={f.id}
-                      onClick={() => { setSelectedFormateur(f); setShowAssignModal(true); }}
-                      className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm"
-                    >
-                      + {f.full_name || f.email?.split("@")[0]}
-                    </button>
-                  ))}
+                  {users.filter(u => u.user_type === "formateur" && !u.is_admin).length === 0 ? (
+                    <p className="text-gray-500">Aucun formateur disponible</p>
+                  ) : (
+                    users.filter(u => u.user_type === "formateur" && !u.is_admin).map(f => (
+                      <button
+                        key={f.id}
+                        onClick={() => { setSelectedFormateur(f); setShowAssignModal(true); }}
+                        className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 transition"
+                      >
+                        + {f.full_name || f.email?.split("@")[0]}
+                      </button>
+                    ))
+                  )}
                 </div>
               </div>
             </div>
@@ -956,28 +1185,128 @@ const AdminUsers = () => {
         </div>
       </div>
 
-      {/* MODAL AJOUT UTILISATEUR */}
+      {/* ============ MODAL AJOUT UTILISATEUR ============ */}
       <AnimatePresence>
         {showAddModal && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowAddModal(false)}>
-            <div className="bg-white rounded-2xl max-w-md w-full" onClick={e => e.stopPropagation()}>
-              <div className="bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white p-5 rounded-t-2xl flex justify-between">
-                <h3 className="text-xl font-bold">Ajouter un utilisateur</h3>
-                <button onClick={() => setShowAddModal(false)}>✕</button>
+          <div 
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" 
+            onClick={() => setShowAddModal(false)}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="add-user-title"
+          >
+            <div className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              <div className="bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white p-5 rounded-t-2xl flex justify-between items-center sticky top-0">
+                <h3 id="add-user-title" className="text-xl font-bold">➕ Ajouter un utilisateur</h3>
+                <button 
+                  onClick={() => setShowAddModal(false)} 
+                  className="text-white hover:text-gray-200 text-xl"
+                  aria-label="Fermer"
+                >
+                  ✕
+                </button>
               </div>
               <form onSubmit={createUser} className="p-6 space-y-4">
-                <input type="text" placeholder="Nom complet" className="w-full border rounded-xl p-3" value={newUser.full_name} onChange={e => setNewUser({ ...newUser, full_name: e.target.value })} required />
-                <input type="email" placeholder="Email" className="w-full border rounded-xl p-3" value={newUser.email} onChange={e => setNewUser({ ...newUser, email: e.target.value })} required />
-                <input type="password" placeholder="Mot de passe (min. 6)" className="w-full border rounded-xl p-3" value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} required />
-                <select className="w-full border rounded-xl p-3" value={newUser.user_type} onChange={e => setNewUser({ ...newUser, user_type: e.target.value })}>
-                  <option value="participant">👨‍🎓 Participant</option>
-                  <option value="formateur">👨‍🏫 Formateur</option>
-                  <option value="admin">👑 Administrateur</option>
-                </select>
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" checked={newUser.is_approved} onChange={e => setNewUser({ ...newUser, is_approved: e.target.checked })} /> ✅ Approuvé
+                <div>
+                  <label htmlFor="new-user-name" className="block text-sm font-medium text-gray-700 mb-1">Nom complet *</label>
+                  <input 
+                    id="new-user-name"
+                    type="text" 
+                    placeholder="Nom complet" 
+                    className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-[#1a56db] focus:border-transparent" 
+                    value={newUser.full_name} 
+                    onChange={e => setNewUser({ ...newUser, full_name: e.target.value })} 
+                    required 
+                  />
+                </div>
+                <div>
+                  <label htmlFor="new-user-email" className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                  <input 
+                    id="new-user-email"
+                    type="email" 
+                    placeholder="Email" 
+                    className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-[#1a56db] focus:border-transparent" 
+                    value={newUser.email} 
+                    onChange={e => setNewUser({ ...newUser, email: e.target.value })} 
+                    required 
+                  />
+                </div>
+                <div>
+                  <label htmlFor="new-user-password" className="block text-sm font-medium text-gray-700 mb-1">Mot de passe (min. 6) *</label>
+                  <input 
+                    id="new-user-password"
+                    type="password" 
+                    placeholder="Mot de passe" 
+                    className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-[#1a56db] focus:border-transparent" 
+                    value={newUser.password} 
+                    onChange={e => setNewUser({ ...newUser, password: e.target.value })} 
+                    required 
+                    minLength={6}
+                    autoComplete="new-password"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="new-user-type" className="block text-sm font-medium text-gray-700 mb-1">Type d'utilisateur *</label>
+                  <select 
+                    id="new-user-type"
+                    className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-[#1a56db] focus:border-transparent" 
+                    value={newUser.user_type} 
+                    onChange={e => setNewUser({ ...newUser, user_type: e.target.value })}
+                  >
+                    <option value="participant">👨‍🎓 Participant</option>
+                    <option value="formateur">👨‍🏫 Formateur</option>
+                    <option value="admin">👑 Administrateur</option>
+                  </select>
+                </div>
+                
+                {/* ✅ AJOUT : Sélection de formation pour participant */}
+                {newUser.user_type === "participant" && (
+                  <div>
+                    <label htmlFor="new-user-formation" className="block text-sm font-medium text-gray-700 mb-1">
+                      🎓 Formation (optionnel)
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="new-user-formation-search"
+                        type="text"
+                        placeholder="Rechercher une formation..."
+                        className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-[#1a56db] focus:border-transparent"
+                        value={formationSearchTerm}
+                        onChange={(e) => setFormationSearchTerm(e.target.value)}
+                      />
+                    </div>
+                    <select
+                      id="new-user-formation"
+                      className="w-full border rounded-xl p-3 mt-2 focus:ring-2 focus:ring-[#1a56db] focus:border-transparent"
+                      value={newUser.formation_id}
+                      onChange={(e) => setNewUser({ ...newUser, formation_id: e.target.value })}
+                    >
+                      <option value="">Aucune formation</option>
+                      {filteredFormations.map(f => (
+                        <option key={f.id} value={f.id}>
+                          {f.title} {f.is_online ? "🌍" : f.on_demand ? "🏢" : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Sélectionnez une formation pour inscrire automatiquement le participant
+                    </p>
+                  </div>
+                )}
+
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={newUser.is_approved} 
+                    onChange={e => setNewUser({ ...newUser, is_approved: e.target.checked })} 
+                  /> 
+                  ✅ Approuvé
                 </label>
-                <button type="submit" disabled={creating} className="w-full bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white py-3 rounded-xl font-semibold">
+                <button 
+                  type="submit" 
+                  disabled={creating} 
+                  className="w-full bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white py-3 rounded-xl font-semibold disabled:opacity-50 hover:shadow-lg transition"
+                >
                   {creating ? "Création..." : "➕ Créer"}
                 </button>
               </form>
@@ -986,32 +1315,104 @@ const AdminUsers = () => {
         )}
       </AnimatePresence>
 
-      {/* MODAL CRÉATION GROUPE */}
+      {/* ============ MODAL CRÉATION GROUPE ============ */}
       <AnimatePresence>
         {showAssignModal && selectedFormateur && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto" onClick={() => setShowAssignModal(false)}>
+          <div 
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto" 
+            onClick={() => setShowAssignModal(false)}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="assign-modal-title"
+          >
             <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-              <div className="bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white p-5 rounded-t-2xl sticky top-0 flex justify-between">
+              <div className="bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white p-5 rounded-t-2xl sticky top-0 flex justify-between items-center">
                 <div>
-                  <h3 className="text-xl font-bold">📚 Créer un groupe</h3>
+                  <h3 id="assign-modal-title" className="text-xl font-bold">📚 Créer un groupe</h3>
                   <p className="text-blue-100 text-sm">Formateur: {selectedFormateur.full_name}</p>
                 </div>
-                <button onClick={() => setShowAssignModal(false)}>✕</button>
+                <button 
+                  onClick={() => setShowAssignModal(false)} 
+                  className="text-white hover:text-gray-200 text-xl"
+                  aria-label="Fermer"
+                >
+                  ✕
+                </button>
               </div>
               <div className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-                  <select className="border rounded-lg p-2" value={newAssignment.formation_id} onChange={e => setNewAssignment({ ...newAssignment, formation_id: e.target.value })}>
-                    <option value="">Sélectionner</option>
-                    {formations.map(f => <option key={f.id} value={f.id}>{f.title}</option>)}
-                  </select>
-                  <input type="text" placeholder="Nom du groupe *" className="border rounded-lg p-2" value={newAssignment.groupe_nom} onChange={e => setNewAssignment({ ...newAssignment, groupe_nom: e.target.value })} />
-                  <input type="text" placeholder="Horaire" className="border rounded-lg p-2" value={newAssignment.horaire} />
-                  <input type="text" placeholder="Jours" className="border rounded-lg p-2" value={newAssignment.jours} />
-                  <input type="date" className="border rounded-lg p-2" value={newAssignment.date_debut} />
-                  <input type="date" className="border rounded-lg p-2" value={newAssignment.date_fin} />
+                  <div>
+                    <label htmlFor="assign-formation" className="block text-sm font-medium text-gray-700 mb-1">Formation *</label>
+                    <select 
+                      id="assign-formation"
+                      className="border rounded-lg p-2 w-full focus:ring-2 focus:ring-[#1a56db] focus:border-transparent" 
+                      value={newAssignment.formation_id} 
+                      onChange={e => setNewAssignment({ ...newAssignment, formation_id: e.target.value })}
+                    >
+                      <option value="">Sélectionner</option>
+                      {formations.map(f => <option key={f.id} value={f.id}>{f.title}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="assign-group-name" className="block text-sm font-medium text-gray-700 mb-1">Nom du groupe *</label>
+                    <input 
+                      id="assign-group-name"
+                      type="text" 
+                      placeholder="Nom du groupe" 
+                      className="border rounded-lg p-2 w-full focus:ring-2 focus:ring-[#1a56db] focus:border-transparent" 
+                      value={newAssignment.groupe_nom} 
+                      onChange={e => setNewAssignment({ ...newAssignment, groupe_nom: e.target.value })} 
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="assign-horaire" className="block text-sm font-medium text-gray-700 mb-1">Horaire</label>
+                    <input 
+                      id="assign-horaire"
+                      type="text" 
+                      placeholder="Horaire" 
+                      className="border rounded-lg p-2 w-full focus:ring-2 focus:ring-[#1a56db] focus:border-transparent" 
+                      value={newAssignment.horaire} 
+                      onChange={e => setNewAssignment({ ...newAssignment, horaire: e.target.value })} 
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="assign-jours" className="block text-sm font-medium text-gray-700 mb-1">Jours</label>
+                    <input 
+                      id="assign-jours"
+                      type="text" 
+                      placeholder="Jours" 
+                      className="border rounded-lg p-2 w-full focus:ring-2 focus:ring-[#1a56db] focus:border-transparent" 
+                      value={newAssignment.jours} 
+                      onChange={e => setNewAssignment({ ...newAssignment, jours: e.target.value })} 
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="assign-date-debut" className="block text-sm font-medium text-gray-700 mb-1">Date début</label>
+                    <input 
+                      id="assign-date-debut"
+                      type="date" 
+                      className="border rounded-lg p-2 w-full focus:ring-2 focus:ring-[#1a56db] focus:border-transparent" 
+                      value={newAssignment.date_debut} 
+                      onChange={e => setNewAssignment({ ...newAssignment, date_debut: e.target.value })} 
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="assign-date-fin" className="block text-sm font-medium text-gray-700 mb-1">Date fin</label>
+                    <input 
+                      id="assign-date-fin"
+                      type="date" 
+                      className="border rounded-lg p-2 w-full focus:ring-2 focus:ring-[#1a56db] focus:border-transparent" 
+                      value={newAssignment.date_fin} 
+                      onChange={e => setNewAssignment({ ...newAssignment, date_fin: e.target.value })} 
+                    />
+                  </div>
                 </div>
-                <button onClick={addAssignment} disabled={assigning} className="w-full bg-green-600 text-white py-2 rounded-lg">
-                  {assigning ? "Création..." : "➕ Créer"}
+                <button 
+                  onClick={addAssignment} 
+                  disabled={assigning} 
+                  className="w-full bg-green-600 text-white py-2 rounded-lg font-semibold hover:bg-green-700 transition disabled:opacity-50"
+                >
+                  {assigning ? "Création..." : "➕ Créer le groupe"}
                 </button>
               </div>
             </div>
@@ -1019,22 +1420,36 @@ const AdminUsers = () => {
         )}
       </AnimatePresence>
 
-      {/* MODAL SÉANCES */}
+      {/* ============ MODAL SÉANCES ============ */}
       <AnimatePresence>
         {showSeancesModal && selectedAssignment && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto" onClick={() => setShowSeancesModal(false)}>
+          <div 
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto" 
+            onClick={() => setShowSeancesModal(false)}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="seances-modal-title"
+          >
             <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-              <div className="bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white p-5 rounded-t-2xl sticky top-0 flex justify-between">
+              <div className="bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white p-5 rounded-t-2xl sticky top-0 flex justify-between items-center">
                 <div>
-                  <h3 className="text-xl font-bold">📅 Séances</h3>
+                  <h3 id="seances-modal-title" className="text-xl font-bold">📅 Séances</h3>
                   <p className="text-blue-100 text-sm">{selectedAssignment.formations?.title}</p>
                 </div>
-                <button onClick={() => setShowSeancesModal(false)}>✕</button>
+                <button 
+                  onClick={() => setShowSeancesModal(false)} 
+                  className="text-white hover:text-gray-200 text-xl"
+                  aria-label="Fermer"
+                >
+                  ✕
+                </button>
               </div>
               <div className="p-6">
-                <h4 className="font-semibold mb-3">Séances</h4>
+                <h4 className="font-semibold mb-3">Séances existantes</h4>
                 {loadingSeances ? (
-                  <div className="flex justify-center py-4"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#1a56db]"></div></div>
+                  <div className="flex justify-center py-4">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#1a56db]"></div>
+                  </div>
                 ) : seances.length === 0 ? (
                   <p className="text-gray-500 text-center py-4">Aucune séance</p>
                 ) : (
@@ -1044,24 +1459,89 @@ const AdminUsers = () => {
                         <div>
                           <p className="font-medium">{s.titre}</p>
                           <p className="text-xs text-gray-500">{new Date(s.date_seance).toLocaleString()} - {s.duree} min</p>
-                          {s.lien_reunion && <a href={s.lien_reunion} target="_blank" className="text-xs text-blue-600 break-all">🔗 {s.lien_reunion}</a>}
+                          {s.lien_reunion && (
+                            <a 
+                              href={s.lien_reunion} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              className="text-xs text-blue-600 hover:underline break-all"
+                            >
+                              🔗 {s.lien_reunion}
+                            </a>
+                          )}
                         </div>
-                        <button onClick={() => deleteSeance(s.id)} className="text-red-500 text-sm px-2">🗑️</button>
+                        <button 
+                          onClick={() => deleteSeance(s.id)} 
+                          className="text-red-500 text-sm px-2 hover:text-red-700"
+                          aria-label={`Supprimer la séance ${s.titre}`}
+                        >
+                          🗑️
+                        </button>
                       </div>
                     </div>
                   ))
                 )}
-                <h4 className="font-semibold mt-4 mb-3">➕ Ajouter</h4>
+                <h4 className="font-semibold mt-4 mb-3">➕ Ajouter une séance</h4>
                 <div className="grid grid-cols-1 gap-3">
-                  <input type="text" placeholder="Titre" className="border rounded-lg p-2" value={newSeance.titre} onChange={e => setNewSeance({ ...newSeance, titre: e.target.value })} />
-                  <input type="datetime-local" className="border rounded-lg p-2" value={newSeance.date_heure} onChange={e => setNewSeance({ ...newSeance, date_heure: e.target.value })} />
-                  <input type="number" placeholder="Durée (minutes)" className="border rounded-lg p-2" value={newSeance.duree} onChange={e => setNewSeance({ ...newSeance, duree: parseInt(e.target.value) || 60 })} />
-                  <div className="flex gap-2">
-                    <input type="text" placeholder="Lien Jitsi" className="border rounded-lg p-2 flex-1" value={newSeance.lien_reunion} />
-                    <button type="button" onClick={genererLienJitsi} className="bg-gray-200 px-3 rounded-lg text-sm">🎲 Jitsi</button>
+                  <div>
+                    <label htmlFor="seance-title" className="sr-only">Titre de la séance</label>
+                    <input 
+                      id="seance-title"
+                      type="text" 
+                      placeholder="Titre de la séance" 
+                      className="border rounded-lg p-2 w-full focus:ring-2 focus:ring-[#1a56db] focus:border-transparent" 
+                      value={newSeance.titre} 
+                      onChange={e => setNewSeance({ ...newSeance, titre: e.target.value })} 
+                    />
                   </div>
-                  <button onClick={addSeance} disabled={addingSeance} className="bg-blue-600 text-white py-2 rounded-lg">
-                    {addingSeance ? "Ajout..." : "➕ Ajouter"}
+                  <div>
+                    <label htmlFor="seance-datetime" className="sr-only">Date et heure</label>
+                    <input 
+                      id="seance-datetime"
+                      type="datetime-local" 
+                      className="border rounded-lg p-2 w-full focus:ring-2 focus:ring-[#1a56db] focus:border-transparent" 
+                      value={newSeance.date_heure} 
+                      onChange={e => setNewSeance({ ...newSeance, date_heure: e.target.value })} 
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="seance-duration" className="sr-only">Durée (minutes)</label>
+                    <input 
+                      id="seance-duration"
+                      type="number" 
+                      placeholder="Durée (minutes)" 
+                      className="border rounded-lg p-2 w-full focus:ring-2 focus:ring-[#1a56db] focus:border-transparent" 
+                      value={newSeance.duree} 
+                      onChange={e => setNewSeance({ ...newSeance, duree: parseInt(e.target.value) || 60 })} 
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label htmlFor="seance-link" className="sr-only">Lien Jitsi / Zoom / Meet</label>
+                      <input 
+                        id="seance-link"
+                        type="text" 
+                        placeholder="Lien Jitsi / Zoom / Meet" 
+                        className="border rounded-lg p-2 w-full focus:ring-2 focus:ring-[#1a56db] focus:border-transparent" 
+                        value={newSeance.lien_reunion} 
+                        onChange={e => setNewSeance({ ...newSeance, lien_reunion: e.target.value })} 
+                      />
+                    </div>
+                    <button 
+                      type="button" 
+                      onClick={genererLienJitsi} 
+                      className="bg-gray-200 text-gray-700 px-3 rounded-lg text-sm hover:bg-gray-300 transition"
+                      aria-label="Générer un lien Jitsi"
+                    >
+                      🎲 Jitsi
+                    </button>
+                  </div>
+                  <button 
+                    onClick={addSeance} 
+                    disabled={addingSeance} 
+                    className="bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition disabled:opacity-50"
+                  >
+                    {addingSeance ? "Ajout..." : "➕ Ajouter la séance"}
                   </button>
                 </div>
               </div>
@@ -1070,63 +1550,131 @@ const AdminUsers = () => {
         )}
       </AnimatePresence>
 
-      {/* MODAL ASSIGNER PARTICIPANTS */}
+      {/* ============ MODAL ASSIGNER PARTICIPANTS ============ */}
       <AnimatePresence>
         {showAssignParticipantsModal && selectedGroup && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto" onClick={() => setShowAssignParticipantsModal(false)}>
+          <div 
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto" 
+            onClick={() => setShowAssignParticipantsModal(false)}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="assign-participants-title"
+          >
             <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-              <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white p-5 rounded-t-2xl flex justify-between">
+              <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white p-5 rounded-t-2xl flex justify-between items-center">
                 <div>
-                  <h3 className="text-xl font-bold">👥 Participants</h3>
-                  <p className="text-purple-200 text-sm">{selectedGroup.formations?.title}</p>
+                  <h3 id="assign-participants-title" className="text-xl font-bold">👥 Assigner des participants</h3>
+                  <p className="text-purple-200 text-sm">{selectedGroup.formations?.title} - {selectedGroup.nom}</p>
                 </div>
-                <button onClick={() => setShowAssignParticipantsModal(false)}>✕</button>
+                <button 
+                  onClick={() => setShowAssignParticipantsModal(false)} 
+                  className="text-white hover:text-gray-200 text-xl"
+                  aria-label="Fermer"
+                >
+                  ✕
+                </button>
               </div>
               <div className="p-6">
+                {/* Participants actuels */}
                 <h4 className="font-semibold mb-3">✅ Actuels ({groupParticipants.length})</h4>
-                {groupParticipants.map(p => (
-                  <div key={p.id} className="flex justify-between items-center p-3 bg-green-50 rounded-lg mb-2">
-                    <div>
-                      <p className="font-medium">{p.full_name}</p>
-                      <p className="text-xs text-gray-500">{p.email}</p>
-                    </div>
-                    <button onClick={() => removeParticipantFromGroup(p.id)} className="px-2 py-1 bg-red-500 text-white rounded-lg text-xs">Retirer</button>
+                {loadingParticipants ? (
+                  <div className="flex justify-center py-4">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
                   </div>
-                ))}
+                ) : groupParticipants.length === 0 ? (
+                  <p className="text-gray-500 text-center py-2 text-sm">Aucun participant assigné</p>
+                ) : (
+                  <div className="space-y-2">
+                    {groupParticipants.map(p => (
+                      <div key={p.id} className="flex justify-between items-center p-3 bg-green-50 rounded-lg border border-green-200">
+                        <div>
+                          <p className="font-medium">{p.full_name}</p>
+                          <p className="text-xs text-gray-500">{p.email}</p>
+                        </div>
+                        <button 
+                          onClick={() => removeParticipantFromGroup(p.id)} 
+                          className="px-2 py-1 bg-red-500 text-white rounded-lg text-xs hover:bg-red-600 transition"
+                          aria-label={`Retirer ${p.full_name}`}
+                        >
+                          Retirer
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Participants disponibles AVEC leur formation */}
                 <h4 className="font-semibold mt-4 mb-3">📋 Disponibles ({availableParticipants.length})</h4>
-                {availableParticipants.map(p => (
-                  <div key={p.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg mb-2">
-                    <div>
-                      <p className="font-medium">{p.full_name}</p>
-                      <p className="text-xs text-gray-500">{p.email}</p>
-                    </div>
-                    <button onClick={() => assignParticipantToGroup(selectedGroup.id, selectedGroup.formation_id, p.id)} className="px-2 py-1 bg-purple-500 text-white rounded-lg text-xs">Assigner</button>
+                {loadingAvailableParticipants ? (
+                  <div className="flex justify-center py-4">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
                   </div>
-                ))}
+                ) : availableParticipants.length === 0 ? (
+                  <p className="text-gray-500 text-center py-2 text-sm">Aucun participant disponible</p>
+                ) : (
+                  <div className="space-y-2">
+                    {availableParticipants.map(p => (
+                      <div key={p.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium">{p.full_name}</p>
+                          <p className="text-xs text-gray-500">{p.email}</p>
+                          <p className="text-xs text-blue-600 truncate mt-0.5">
+                            📚 {p.formation_actuelle || 'Aucune formation'}
+                          </p>
+                        </div>
+                        <button 
+                          onClick={() => assignParticipantToGroup(selectedGroup.id, selectedGroup.formation_id, p.id)} 
+                          className="ml-2 px-3 py-1 bg-purple-500 text-white rounded-lg text-xs hover:bg-purple-600 transition whitespace-nowrap"
+                          aria-label={`Assigner ${p.full_name}`}
+                        >
+                          Assigner
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
         )}
       </AnimatePresence>
 
-      {/* MODAL CODE */}
+      {/* ============ MODAL CODE ============ */}
       <AnimatePresence>
         {showCodeModal && selectedFormationForCode && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowCodeModal(false)}>
+          <div 
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" 
+            onClick={() => setShowCodeModal(false)}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="code-modal-title"
+          >
             <div className="bg-white rounded-2xl max-w-md w-full" onClick={e => e.stopPropagation()}>
-              <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white p-5 rounded-t-2xl flex justify-between">
+              <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white p-5 rounded-t-2xl flex justify-between items-center">
                 <div>
-                  <h3 className="text-xl font-bold">🎲 Code</h3>
+                  <h3 id="code-modal-title" className="text-xl font-bold">🎲 Code d'accès</h3>
                   <p className="text-yellow-100 text-sm">{selectedFormationForCode.title}</p>
                 </div>
-                <button onClick={() => setShowCodeModal(false)}>✕</button>
+                <button 
+                  onClick={() => setShowCodeModal(false)} 
+                  className="text-white hover:text-gray-200 text-xl"
+                  aria-label="Fermer"
+                >
+                  ✕
+                </button>
               </div>
               <div className="p-6 text-center">
                 <p className="text-gray-600 mb-3">Code pour le formateur :</p>
                 <div className="bg-gray-100 rounded-xl p-4 mb-4">
                   <p className="text-4xl font-bold tracking-wider">{generatedCode}</p>
                 </div>
-                <button onClick={() => { navigator.clipboard.writeText(generatedCode); toast.success("Copié"); }} className="bg-blue-500 text-white px-4 py-2 rounded-lg w-full">
+                <button 
+                  onClick={() => { 
+                    navigator.clipboard.writeText(generatedCode); 
+                    toast.success("📋 Code copié !"); 
+                  }} 
+                  className="bg-blue-500 text-white px-4 py-2 rounded-lg w-full hover:bg-blue-600 transition"
+                >
                   📋 Copier
                 </button>
               </div>
