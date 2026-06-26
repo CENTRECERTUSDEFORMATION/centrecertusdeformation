@@ -14,19 +14,20 @@ import emailjs from '@emailjs/browser';
 import { toast } from 'react-toastify';
 import { Helmet } from 'react-helmet-async';
 
-import couverture from '../assets/couverture.WebP';
-import img1 from '../assets/Image 1.WebP';
-import img2 from '../assets/Image 2.WebP';
-import img3 from '../assets/Image 3.WebP';
-import img4 from '../assets/Image 4.WebP';
-import img5 from '../assets/Image 5.WebP';
-import img6 from '../assets/Image 6.WebP';
-import img7 from '../assets/Image 7.WebP';
-import img8 from '../assets/Image 8.WebP';
-import img9 from '../assets/Image 9.WebP';
-import img10 from '../assets/Image 10.WebP';
-import img11 from '../assets/Image 11.WebP';
-import img12 from '../assets/Image 12.WebP';
+// ✅ CORRIGÉ : extensions en minuscules .webp
+import couverture from '../assets/couverture.webp';
+import img1 from '../assets/Image 1.webp';
+import img2 from '../assets/Image 2.webp';
+import img3 from '../assets/Image 3.webp';
+import img4 from '../assets/Image 4.webp';
+import img5 from '../assets/Image 5.webp';
+import img6 from '../assets/Image 6.webp';
+import img7 from '../assets/Image 7.webp';
+import img8 from '../assets/Image 8.webp';
+import img9 from '../assets/Image 9.webp';
+import img10 from '../assets/Image 10.webp';
+import img11 from '../assets/Image 11.webp';
+import img12 from '../assets/Image 12.webp';
 
 import Footer from '../components/Footer';
 
@@ -81,7 +82,7 @@ const services = [
   { icon: "🤝", title: "Accompagnement", desc: "Suivi personnalisé" },
 ];
 
-// ========== 7 THÈMES (CORRIGÉ) ==========
+// ========== 7 THÈMES ==========
 const servicesDetail = [
   { icon: "💻", title: "Digital & Web", desc: "Développement web, marketing digital", theme: "digital" },
   { icon: "📊", title: "Data & IA", desc: "Science des données, intelligence artificielle", theme: "data" },
