@@ -96,12 +96,14 @@ export default function FormationDetail() {
     setSelectedImage(idx);
   }, []);
 
+  // ============ FONCTION POUR OBTENIR L'URL DE L'IMAGE SUPABASE ============
   const getImageUrl = (path) => {
     if (!path) return null;
     try {
       const { data } = supabase.storage.from("uploads").getPublicUrl(path);
       return data.publicUrl;
     } catch (error) {
+      console.error("Erreur chargement image:", error);
       return null;
     }
   };
@@ -209,7 +211,6 @@ export default function FormationDetail() {
         });
         toast.success("✅ Partagé avec succès !");
       } else {
-        // Fallback vers Facebook si Web Share n'est pas disponible
         await handleFacebookShare();
       }
     } catch (error) {
@@ -233,7 +234,6 @@ export default function FormationDetail() {
       const shareUrl = window.location.href;
       const facebookShareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}&display=popup&hashtag=#CertusFormation`;
       
-      // Version 1 : Tentative d'ouverture en popup avec fallback
       const width = 600;
       const height = 500;
       const left = (window.innerWidth - width) / 2;
@@ -245,13 +245,10 @@ export default function FormationDetail() {
         `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes`
       );
 
-      // Si la popup est bloquée, on redirige directement
       if (!popup || popup.closed || typeof popup.closed === 'undefined') {
-        // Pour mobile, on utilise window.location
         if (window.innerWidth <= 768) {
           window.location.href = facebookShareUrl;
         } else {
-          // Pour desktop, on tente une redirection dans un nouvel onglet
           window.open(facebookShareUrl, '_blank');
         }
       }
@@ -260,7 +257,6 @@ export default function FormationDetail() {
 
     } catch (error) {
       console.error("❌ Erreur partage:", error);
-      // Fallback ultime : redirection directe
       try {
         window.location.href = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`;
       } catch (e) {
@@ -310,7 +306,6 @@ export default function FormationDetail() {
       await navigator.clipboard.writeText(message);
       toast.success("📋 Lien et informations copiés !");
     } catch (error) {
-      // Fallback pour les navigateurs plus anciens
       const textArea = document.createElement('textarea');
       textArea.value = `${formation?.title} - Centre Certus\n${window.location.href}`;
       document.body.appendChild(textArea);
@@ -327,6 +322,15 @@ export default function FormationDetail() {
 
   const themeConfig = formation ? getThemeConfig(formation.theme) : THEME_CONFIG.digital;
   const langueConfig = formation ? getLangueConfig(formation.langue) : LANGUE_CONFIG.fr;
+
+  // ============ CALCUL DE L'IMAGE DE LA FORMATION POUR OG ============
+  const formationImage = formation?.images && formation.images.length > 0 
+    ? getImageUrl(formation.images[0]) 
+    : null; // Pas de fallback, on utilise UNIQUEMENT l'image de la formation
+
+  // Debug : Vérifier l'image dans la console
+  console.log("🖼️ Image OG pour Facebook:", formationImage);
+  console.log("📁 Images de la formation:", formation?.images);
 
   if (loading) {
     return (
@@ -347,35 +351,48 @@ export default function FormationDetail() {
     );
   }
 
-  // ✅ Récupérer l'image de la formation pour les balises OG
-  const formationImage = formation.images && formation.images.length > 0 
-    ? getImageUrl(formation.images[0]) 
-    : "https://centrecertusdeformation.tn/logo-certus.webp";
-
   return (
     <>
       <Helmet>
         <html lang={formation.langue || "fr"} dir={langueConfig.direction} />
+        
+        {/* Titre et description */}
         <title>{formation.title} | Centre Certus Monastir</title>
-        <meta name="description" content={formation.description} />
+        <meta name="description" content={formation.description || formation.fullDescription?.substring(0, 160)} />
+        
+        {/* Mots-clés */}
         <meta name="keywords" content={`${formation.title}, formation ${formation.theme}, Certus Monastir, centre formation Tunisie`} />
+        
+        {/* URL Canonique - SPÉCIFIQUE à la formation */}
         <link rel="canonical" href={`https://centrecertusdeformation.tn/formations/${formation.id}`} />
         
-        {/* ✅ Open Graph pour Facebook - Image de la formation depuis Supabase */}
+        {/* Open Graph - ESSENTIEL pour Facebook */}
         <meta property="og:type" content="website" />
         <meta property="og:url" content={`https://centrecertusdeformation.tn/formations/${formation.id}`} />
-        <meta property="og:title" content={`${formation.title} | Centre Certus`} />
-        <meta property="og:description" content={formation.description || `Formation ${formation.title} au Centre Certus de Monastir`} />
-        <meta property="og:image" content={formationImage} />
-        <meta property="og:image:width" content="1200" />
-        <meta property="og:image:height" content="630" />
+        <meta property="og:title" content={`${formation.title} | Centre Certus Monastir`} />
+        <meta property="og:description" content={formation.description || `Formation ${formation.title} au Centre Certus de Monastir.`} />
         <meta property="og:site_name" content="Centre Certus de Formation" />
+        
+        {/* Image UNIQUEMENT depuis Supabase */}
+        {formationImage && (
+          <>
+            <meta property="og:image" content={formationImage} />
+            <meta property="og:image:secure_url" content={formationImage} />
+            <meta property="og:image:type" content={formationImage.endsWith('.webp') ? 'image/webp' : 'image/jpeg'} />
+            <meta property="og:image:width" content="1200" />
+            <meta property="og:image:height" content="630" />
+            <meta property="og:image:alt" content={`${formation.title} - Formation Centre Certus`} />
+          </>
+        )}
         
         {/* Twitter Card */}
         <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:site" content="@CertusFormation" />
         <meta name="twitter:title" content={`${formation.title} | Centre Certus`} />
         <meta name="twitter:description" content={formation.description || `Formation ${formation.title} au Centre Certus de Monastir`} />
-        <meta name="twitter:image" content={formationImage} />
+        {formationImage && (
+          <meta name="twitter:image" content={formationImage} />
+        )}
         
         {/* JSON-LD pour SEO */}
         <script type="application/ld+json">
@@ -577,12 +594,12 @@ export default function FormationDetail() {
             </div>
           </div>
 
-          {/* ============ BOUTONS DE PARTAGE AMÉLIORÉS ============ */}
+          {/* ============ BOUTONS DE PARTAGE ============ */}
           <div className="mb-8">
             <div className="flex flex-wrap items-center justify-center gap-3">
               <span className="text-sm font-medium text-gray-600 mr-2">📤 Partager :</span>
               
-              {/* Bouton de partage natif (prioritaire sur mobile) */}
+              {/* Bouton de partage natif */}
               {navigator.share && (
                 <button
                   onClick={handleNativeShare}
@@ -596,7 +613,7 @@ export default function FormationDetail() {
                 </button>
               )}
               
-              {/* Facebook - toujours visible */}
+              {/* Facebook */}
               <button
                 onClick={handleFacebookShare}
                 className="flex items-center gap-2 bg-[#1877f2] hover:bg-[#0d65d9] text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg"
