@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import { supabaseSelect, supabaseInsert } from "../supabaseFetch";
@@ -48,6 +48,9 @@ export default function FormationDetail() {
     name: "", email: "", telephone: "", city: "", country: "", formation: "",
     hebergement: "non", hebergementType: "", visaAssistance: "non", source: "", message: ""
   });
+
+  // Ref pour éviter les doubles clics
+  const shareInProgress = useRef(false);
 
   useEffect(() => {
     emailjs.init(EMAILJS_CONFIG.PUBLIC_KEY);
@@ -192,6 +195,62 @@ export default function FormationDetail() {
     }
   }, [formation, navigate]);
 
+  // ============ PARTAGE FACEBOOK SIMPLIFIÉ ============
+  const handleFacebookShare = useCallback(async () => {
+    if (shareInProgress.current) return;
+    shareInProgress.current = true;
+
+    try {
+      const shareUrl = window.location.href;
+      
+      // Utiliser l'API de partage native de Facebook
+      const facebookShareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`;
+
+      // Ouvrir dans une fenêtre popup
+      const width = 600;
+      const height = 500;
+      const left = (window.innerWidth - width) / 2;
+      const top = (window.innerHeight - height) / 2;
+      
+      const shareWindow = window.open(
+        facebookShareUrl,
+        '_blank',
+        `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes`
+      );
+
+      if (!shareWindow || shareWindow.closed || typeof shareWindow.closed === 'undefined') {
+        window.location.href = facebookShareUrl;
+      }
+
+      toast.success("📘 Fenêtre Facebook ouverte !");
+
+    } catch (error) {
+      console.error("❌ Erreur partage:", error);
+      toast.error("❌ Erreur lors du partage. Veuillez réessayer.");
+    } finally {
+      setTimeout(() => {
+        shareInProgress.current = false;
+      }, 2000);
+    }
+  }, []);
+
+  // ============ COPIER LE LIEN ============
+  const copyLink = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toast.success("📋 Lien copié dans le presse-papiers !");
+    } catch (error) {
+      // Fallback
+      const textArea = document.createElement('textarea');
+      textArea.value = window.location.href;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      toast.success("📋 Lien copié !");
+    }
+  }, []);
+
   const themeConfig = formation ? getThemeConfig(formation.theme) : THEME_CONFIG.digital;
   const langueConfig = formation ? getLangueConfig(formation.langue) : LANGUE_CONFIG.fr;
 
@@ -223,7 +282,19 @@ export default function FormationDetail() {
         <meta name="keywords" content={`${formation.title}, formation ${formation.theme}, Certus Monastir, centre formation Tunisie`} />
         <link rel="canonical" href={`https://centrecertusdeformation.tn/formations/${formation.id}`} />
         
-        {/* JSON-LD pour SEO */}
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content={`https://centrecertusdeformation.tn/formations/${formation.id}`} />
+        <meta property="og:title" content={`${formation.title} | Centre Certus`} />
+        <meta property="og:description" content={formation.description || `Formation ${formation.title} au Centre Certus de Monastir`} />
+        <meta property="og:image" content={formation.images?.length > 0 ? getImageUrl(formation.images[0]) : "https://centrecertusdeformation.tn/logo-certus.png"} />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={`${formation.title} | Centre Certus`} />
+        <meta name="twitter:description" content={formation.description || `Formation ${formation.title} au Centre Certus de Monastir`} />
+        <meta name="twitter:image" content={formation.images?.length > 0 ? getImageUrl(formation.images[0]) : "https://centrecertusdeformation.tn/logo-certus.png"} />
+        
         <script type="application/ld+json">
           {JSON.stringify({
             "@context": "https://schema.org",
@@ -310,6 +381,7 @@ export default function FormationDetail() {
               <div className="relative h-96 rounded-xl overflow-hidden shadow-xl mb-4 bg-gray-100">
                 <img 
                   src={getImageUrl(formation.images[selectedImage])} 
+                  crossOrigin="anonymous"
                   alt={`${formation.title} - Image principale de la formation`}
                   width="800"
                   height="400"
@@ -324,6 +396,7 @@ export default function FormationDetail() {
                     <img 
                       key={idx} 
                       src={getImageUrl(img)} 
+                      crossOrigin="anonymous"
                       alt={`Aperçu ${idx + 1} de la formation ${formation.title}`}
                       width="80"
                       height="80"
@@ -418,6 +491,37 @@ export default function FormationDetail() {
             <div className="bg-gray-50 rounded-xl p-4 text-center">
               <h3 className="font-semibold text-gray-700">🎓 Certification</h3>
               <p className="text-gray-700">Certificat reconnu à la fin de la formation</p>
+            </div>
+          </div>
+
+          {/* ============ BOUTONS DE PARTAGE (SIMPLIFIÉS) ============ */}
+          <div className="mb-8">
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <span className="text-sm font-medium text-gray-600 mr-2">📤 Partager :</span>
+              
+              {/* Facebook */}
+              <button
+                onClick={handleFacebookShare}
+                className="flex items-center gap-2 bg-[#1877f2] hover:bg-[#0d65d9] text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg"
+                aria-label="Partager sur Facebook"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                </svg>
+                Facebook
+              </button>
+
+              {/* Copier le lien */}
+              <button
+                onClick={copyLink}
+                className="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg"
+                aria-label="Copier le lien"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
+                </svg>
+                Copier le lien
+              </button>
             </div>
           </div>
 
