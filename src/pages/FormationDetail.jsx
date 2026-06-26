@@ -195,7 +195,7 @@ export default function FormationDetail() {
     }
   }, [formation, navigate]);
 
-  // ============ PARTAGE FACEBOOK SIMPLIFIÉ ============
+  // ============ PARTAGE FACEBOOK ============
   const handleFacebookShare = useCallback(async () => {
     if (shareInProgress.current) return;
     shareInProgress.current = true;
@@ -269,7 +269,7 @@ export default function FormationDetail() {
     );
   }
 
-  // Récupérer l'image de la formation pour les balises OG
+  // ✅ Récupérer l'image de la formation pour les balises OG
   const formationImage = formation.images && formation.images.length > 0 
     ? getImageUrl(formation.images[0]) 
     : "https://centrecertusdeformation.tn/logo-certus.webp";
@@ -283,7 +283,7 @@ export default function FormationDetail() {
         <meta name="keywords" content={`${formation.title}, formation ${formation.theme}, Certus Monastir, centre formation Tunisie`} />
         <link rel="canonical" href={`https://centrecertusdeformation.tn/formations/${formation.id}`} />
         
-        {/* Open Graph pour Facebook - Image de la formation */}
+        {/* ✅ Open Graph pour Facebook - Image de la formation depuis Supabase */}
         <meta property="og:type" content="website" />
         <meta property="og:url" content={`https://centrecertusdeformation.tn/formations/${formation.id}`} />
         <meta property="og:title" content={`${formation.title} | Centre Certus`} />
