@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+// frontend/src/pages/ModifierActualite.jsx
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../context/AuthContext";
@@ -11,7 +12,9 @@ const TEXT_COLORS = [
   { name: "Vert", hex: "#76c21f", class: "text-green-600" },
   { name: "Orange", hex: "#f59e0b", class: "text-orange-500" },
   { name: "Rouge", hex: "#dc2626", class: "text-red-600" },
-  { name: "Noir", hex: "#374151", class: "text-gray-800" }
+  { name: "Noir", hex: "#374151", class: "text-gray-800" },
+  { name: "Violet", hex: "#7c3aed", class: "text-purple-600" },
+  { name: "Rose", hex: "#ec4899", class: "text-pink-500" }
 ];
 
 const BACKGROUND_COLORS = [
@@ -19,16 +22,20 @@ const BACKGROUND_COLORS = [
   { name: "Bleu clair", hex: "#dbeafe", class: "bg-blue-50" },
   { name: "Vert clair", hex: "#d1fae5", class: "bg-green-50" },
   { name: "Orange clair", hex: "#fef3c7", class: "bg-orange-50" },
-  { name: "Rouge clair (Alerte)", hex: "#fee2e2", class: "bg-red-50" }
+  { name: "Rouge clair (Alerte)", hex: "#fee2e2", class: "bg-red-50" },
+  { name: "Gris clair", hex: "#f3f4f6", class: "bg-gray-50" },
+  { name: "Jaune clair", hex: "#fef9c3", class: "bg-yellow-50" }
 ];
 
 export default function ModifierActualite() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, isAdmin, loading: authLoading } = useAuth();
+  const textareaRef = useRef(null);
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   
   const [titre, setTitre] = useState("");
   const [contenu, setContenu] = useState("");
@@ -66,11 +73,13 @@ export default function ModifierActualite() {
     }
   };
 
-  // Fonctions d'édition de texte enrichi
-  const insertHTML = (beforeTag, afterTag) => {
-    const textarea = document.getElementById('contenu-textarea');
+  // ============ FONCTIONS DE MISE EN FORME ============
+
+  // Insérer une balise autour du texte sélectionné
+  const wrapText = (openTag, closeTag) => {
+    const textarea = textareaRef.current;
     if (!textarea) return;
-    
+
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     const selectedText = contenu.substring(start, end);
@@ -78,34 +87,209 @@ export default function ModifierActualite() {
     if (selectedText) {
       const beforeText = contenu.substring(0, start);
       const afterText = contenu.substring(end);
-      const newText = `${beforeText}${beforeTag}${selectedText}${afterTag}${afterText}`;
+      const newText = `${beforeText}${openTag}${selectedText}${closeTag}${afterText}`;
       setContenu(newText);
       
+      // Restaurer la sélection après la mise à jour
       setTimeout(() => {
         textarea.focus();
-        textarea.setSelectionRange(start + beforeTag.length, end + beforeTag.length);
+        const newStart = start + openTag.length;
+        const newEnd = end + openTag.length;
+        textarea.setSelectionRange(newStart, newEnd);
       }, 10);
     } else {
-      toast.info("Sélectionnez d'abord le texte à formater");
+      toast.info("Sélectionnez d'abord le texte à mettre en forme");
     }
   };
 
-  const applyBold = () => insertHTML('<strong>', '</strong>');
-  const applyItalic = () => insertHTML('<em>', '</em>');
-  const applyUnderline = () => insertHTML('<u>', '</u>');
-  const applyList = () => insertHTML('\n• ', '');
-  const applyNumberedList = () => insertHTML('\n1. ', '');
-  const applyTitle = () => insertHTML('<h3 class="text-lg font-bold mt-2">', '</h3>');
-  const applySubtitle = () => insertHTML('<h4 class="text-md font-semibold mt-1">', '</h4>');
-  const applyLink = () => {
-    const url = prompt("Entrez l'URL du lien:", "https://");
-    if (url) {
-      insertHTML(`<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 underline">`, '</a>');
+  // Appliquer le gras
+  const applyBold = () => wrapText('<strong>', '</strong>');
+
+  // Appliquer l'italique
+  const applyItalic = () => wrapText('<em>', '</em>');
+
+  // Appliquer le souligné
+  const applyUnderline = () => wrapText('<u>', '</u>');
+
+  // Appliquer le barré
+  const applyStrike = () => wrapText('<del>', '</del>');
+
+  // Appliquer un titre
+  const applyTitle = () => wrapText('<h2 class="text-2xl font-bold mt-4 mb-2">', '</h2>');
+
+  // Appliquer un sous-titre
+  const applySubtitle = () => wrapText('<h3 class="text-xl font-semibold mt-3 mb-1">', '</h3>');
+
+  // Créer une liste à puces
+  const applyList = () => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = contenu.substring(start, end);
+    
+    if (selectedText) {
+      const lines = selectedText.split('\n').filter(line => line.trim() !== '');
+      const beforeText = contenu.substring(0, start);
+      const afterText = contenu.substring(end);
+      
+      if (lines.length > 0) {
+        const listItems = lines.map(line => `  <li>${line.trim()}</li>`).join('\n');
+        const newText = `${beforeText}\n<ul class="list-disc pl-6 my-2">\n${listItems}\n</ul>\n${afterText}`;
+        setContenu(newText);
+        
+        setTimeout(() => {
+          textarea.focus();
+          const newPos = start + 38 + (listItems.length > 0 ? listItems.length : 0);
+          textarea.setSelectionRange(newPos, newPos);
+        }, 10);
+      }
+    } else {
+      toast.info("Sélectionnez d'abord le texte à mettre en liste");
     }
   };
-  
+
+  // Créer une liste numérotée
+  const applyNumberedList = () => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = contenu.substring(start, end);
+    
+    if (selectedText) {
+      const lines = selectedText.split('\n').filter(line => line.trim() !== '');
+      const beforeText = contenu.substring(0, start);
+      const afterText = contenu.substring(end);
+      
+      if (lines.length > 0) {
+        const listItems = lines.map((line, i) => `  <li>${line.trim()}</li>`).join('\n');
+        const newText = `${beforeText}\n<ol class="list-decimal pl-6 my-2">\n${listItems}\n</ol>\n${afterText}`;
+        setContenu(newText);
+        
+        setTimeout(() => {
+          textarea.focus();
+          const newPos = start + 39 + (listItems.length > 0 ? listItems.length : 0);
+          textarea.setSelectionRange(newPos, newPos);
+        }, 10);
+      }
+    } else {
+      toast.info("Sélectionnez d'abord le texte à mettre en liste");
+    }
+  };
+
+  // Ajouter un lien
+  const applyLink = () => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = contenu.substring(start, end);
+    
+    if (selectedText) {
+      const url = prompt("Entrez l'URL du lien:", "https://");
+      if (url) {
+        wrapText(`<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 underline hover:text-blue-800">`, '</a>');
+      }
+    } else {
+      toast.info("Sélectionnez d'abord le texte à transformer en lien");
+    }
+  };
+
+  // Ajouter un bouton
+  const applyButton = () => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = contenu.substring(start, end);
+    const textToUse = selectedText || "Cliquez ici";
+    
+    const url = prompt("Entrez l'URL du bouton:", "https://");
+    if (url !== null) {
+      const btnHtml = `<a href="${url}" target="_blank" rel="noopener noreferrer" class="inline-block bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white px-6 py-2 rounded-lg font-semibold hover:shadow-lg transition my-2">${textToUse}</a>`;
+      
+      const beforeText = contenu.substring(0, start);
+      const afterText = contenu.substring(end);
+      setContenu(`${beforeText}${btnHtml}${afterText}`);
+      
+      setTimeout(() => {
+        textarea.focus();
+        const newPos = start + btnHtml.length;
+        textarea.setSelectionRange(newPos, newPos);
+      }, 10);
+    }
+  };
+
+  // Ajouter une image dans le contenu
+  const applyImage = () => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const beforeText = contenu.substring(0, start);
+    const afterText = contenu.substring(start);
+    const imgHtml = `<img src="url-de-l-image" alt="Description" class="max-w-full h-auto rounded-lg my-2" />`;
+    setContenu(`${beforeText}${imgHtml}${afterText}`);
+    
+    setTimeout(() => {
+      textarea.focus();
+      const newStart = start + 10;
+      const newEnd = newStart + 14;
+      textarea.setSelectionRange(newStart, newEnd);
+    }, 10);
+  };
+
+  // Ajouter une citation
+  const applyQuote = () => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = contenu.substring(start, end);
+    
+    if (selectedText) {
+      wrapText('<blockquote class="border-l-4 border-blue-500 pl-4 my-2 italic text-gray-700">', '</blockquote>');
+    } else {
+      const beforeText = contenu.substring(0, start);
+      const afterText = contenu.substring(start);
+      const newText = `${beforeText}<blockquote class="border-l-4 border-blue-500 pl-4 my-2 italic text-gray-700">Votre citation ici</blockquote>${afterText}`;
+      setContenu(newText);
+      
+      setTimeout(() => {
+        textarea.focus();
+        const newStart = start + 72;
+        const newEnd = newStart + 18;
+        textarea.setSelectionRange(newStart, newEnd);
+      }, 10);
+    }
+  };
+
+  // Ajouter un emoji (sélecteur simple)
+  const insertEmoji = (emoji) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const beforeText = contenu.substring(0, start);
+    const afterText = contenu.substring(start);
+    setContenu(`${beforeText}${emoji}${afterText}`);
+    
+    setTimeout(() => {
+      textarea.focus();
+      textarea.selectionStart = start + emoji.length;
+      textarea.selectionEnd = start + emoji.length;
+    }, 10);
+  };
+
+  // Colorer le texte sélectionné
   const applyColorToSelection = (colorHex) => {
-    const textarea = document.getElementById('contenu-textarea');
+    const textarea = textareaRef.current;
     if (!textarea) return;
     
     const start = textarea.selectionStart;
@@ -115,19 +299,56 @@ export default function ModifierActualite() {
     if (selectedText) {
       const beforeText = contenu.substring(0, start);
       const afterText = contenu.substring(end);
-      const newText = `${beforeText}<span style="color: ${colorHex}; font-weight: bold;">${selectedText}</span>${afterText}`;
+      const newText = `${beforeText}<span style="color: ${colorHex}; font-weight: 500;">${selectedText}</span>${afterText}`;
       setContenu(newText);
       
       setTimeout(() => {
         textarea.focus();
-        textarea.setSelectionRange(start + 40, end + 40);
+        const newStart = start + 46;
+        const newEnd = end + 46;
+        textarea.setSelectionRange(newStart, newEnd);
       }, 10);
     } else {
       toast.info("Sélectionnez d'abord le texte à colorer");
     }
   };
 
-  // Charger l'actualité existante
+  // ============ GESTION DU RETOUR À LA LIGNE ============
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      // Si Shift+Enter, insérer un <br> pour un retour à la ligne simple
+      if (e.shiftKey) {
+        e.preventDefault();
+        const textarea = e.target;
+        const start = textarea.selectionStart;
+        const beforeText = contenu.substring(0, start);
+        const afterText = contenu.substring(start);
+        setContenu(`${beforeText}<br>${afterText}`);
+        
+        setTimeout(() => {
+          textarea.selectionStart = start + 4;
+          textarea.selectionEnd = start + 4;
+        }, 10);
+      } else {
+        // Enter simple : insérer un nouveau paragraphe
+        e.preventDefault();
+        const textarea = e.target;
+        const start = textarea.selectionStart;
+        const beforeText = contenu.substring(0, start);
+        const afterText = contenu.substring(start);
+        setContenu(`${beforeText}</p><p>${afterText}`);
+        
+        setTimeout(() => {
+          textarea.selectionStart = start + 7;
+          textarea.selectionEnd = start + 7;
+        }, 10);
+      }
+    }
+  };
+
+  // ============ CHARGEMENT DE L'ACTUALITÉ ============
+
   useEffect(() => {
     const fetchActualite = async () => {
       if (!id) return;
@@ -160,6 +381,8 @@ export default function ModifierActualite() {
     fetchActualite();
   }, [id, navigate]);
 
+  // ============ GESTION DES IMAGES ============
+
   const handleNewImages = (e) => {
     const files = Array.from(e.target.files);
     setNewImages(files);
@@ -177,6 +400,8 @@ export default function ModifierActualite() {
     setNewImages(newImages.filter((_, i) => i !== index));
     setNewPreviews(newPreviews.filter((_, i) => i !== index));
   };
+
+  // ============ SOUMISSION ============
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -237,6 +462,8 @@ export default function ModifierActualite() {
       setSubmitting(false);
     }
   };
+
+  // ============ RENDU ============
 
   if (authLoading || loading) {
     return (
@@ -334,104 +561,182 @@ export default function ModifierActualite() {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Contenu</label>
           
-          {/* Barre d'outils */}
-          <div className="flex flex-wrap gap-1 mb-2 p-2 bg-gray-100 rounded-t-lg border border-gray-300">
+          {/* Barre d'outils - Ligne 1 */}
+          <div className="flex flex-wrap gap-1 mb-1 p-2 bg-gray-100 rounded-t-lg border border-gray-300">
             <button
               type="button"
               onClick={applyBold}
-              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 font-bold"
-              title="Gras"
+              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 font-bold text-sm border border-gray-300"
+              title="Gras (Ctrl+B)"
             >
-              <span className="font-bold">Gras</span>
+              <span className="font-bold">B</span>
             </button>
             <button
               type="button"
               onClick={applyItalic}
-              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 italic"
-              title="Italique"
+              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 italic text-sm border border-gray-300"
+              title="Italique (Ctrl+I)"
             >
-              <span className="italic">Italique</span>
+              <span className="italic">I</span>
             </button>
             <button
               type="button"
               onClick={applyUnderline}
-              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 underline"
-              title="Souligné"
+              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 underline text-sm border border-gray-300"
+              title="Souligné (Ctrl+U)"
             >
-              <span className="underline">Souligné</span>
+              <span className="underline">U</span>
             </button>
-            <div className="w-px h-6 bg-gray-400 mx-1"></div>
+            <button
+              type="button"
+              onClick={applyStrike}
+              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300 line-through"
+              title="Barré"
+            >
+              <span className="line-through">S</span>
+            </button>
+            
+            <div className="w-px h-6 bg-gray-300 mx-1"></div>
+            
             <button
               type="button"
               onClick={applyTitle}
-              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm"
-              title="Titre"
+              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300 font-semibold"
+              title="Titre H2"
             >
-              Titre
+              H2
             </button>
             <button
               type="button"
               onClick={applySubtitle}
-              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm"
-              title="Sous-titre"
+              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300 font-medium"
+              title="Sous-titre H3"
             >
-              Sous-titre
+              H3
             </button>
-            <div className="w-px h-6 bg-gray-400 mx-1"></div>
+            
+            <div className="w-px h-6 bg-gray-300 mx-1"></div>
+            
             <button
               type="button"
               onClick={applyList}
-              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm"
+              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300"
               title="Liste à puces"
             >
-              • Puces
+              • Liste
             </button>
             <button
               type="button"
               onClick={applyNumberedList}
-              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm"
+              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300"
               title="Liste numérotée"
             >
-              1. Numéros
+              1. Liste
             </button>
-            <div className="w-px h-6 bg-gray-400 mx-1"></div>
+            
+            <div className="w-px h-6 bg-gray-300 mx-1"></div>
+            
             <button
               type="button"
               onClick={applyLink}
-              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm"
-              title="Insérer un lien"
+              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300 text-blue-600"
+              title="Lien hypertexte"
             >
               🔗 Lien
+            </button>
+            <button
+              type="button"
+              onClick={applyButton}
+              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300 text-green-600"
+              title="Bouton"
+            >
+              ⬛ Bouton
+            </button>
+            <button
+              type="button"
+              onClick={applyImage}
+              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300"
+              title="Image dans le contenu"
+            >
+              🖼️ Image
+            </button>
+            <button
+              type="button"
+              onClick={applyQuote}
+              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300"
+              title="Citation"
+            >
+              “ Citation
             </button>
           </div>
           
           {/* Barre de couleurs */}
-          <div className="flex flex-wrap gap-2 mb-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
-            <span className="text-xs font-medium text-gray-600 self-center">Colorer le texte sélectionné:</span>
+          <div className="flex flex-wrap gap-1 mb-2 p-1.5 bg-gray-50 rounded-b-lg border border-gray-300 border-t-0">
+            <span className="text-xs font-medium text-gray-600 self-center mr-1">🎨 Colorer:</span>
             {TEXT_COLORS.map((color) => (
               <button
                 key={color.hex}
                 type="button"
                 onClick={() => applyColorToSelection(color.hex)}
-                className="w-6 h-6 rounded-full transition-transform hover:scale-110 shadow-sm"
+                className="w-6 h-6 rounded-full transition-transform hover:scale-110 shadow-sm border border-gray-300"
                 style={{ backgroundColor: color.hex }}
                 title={`Colorer en ${color.name}`}
               />
             ))}
+            
+            <div className="w-px h-6 bg-gray-300 mx-1"></div>
+            
+            <span className="text-xs font-medium text-gray-600 self-center mr-1">😊 Emojis:</span>
+            <button type="button" onClick={() => insertEmoji('✅')} className="text-lg hover:scale-110 transition">✅</button>
+            <button type="button" onClick={() => insertEmoji('⚠️')} className="text-lg hover:scale-110 transition">⚠️</button>
+            <button type="button" onClick={() => insertEmoji('📌')} className="text-lg hover:scale-110 transition">📌</button>
+            <button type="button" onClick={() => insertEmoji('🎯')} className="text-lg hover:scale-110 transition">🎯</button>
+            <button type="button" onClick={() => insertEmoji('🔥')} className="text-lg hover:scale-110 transition">🔥</button>
+            <button type="button" onClick={() => insertEmoji('💡')} className="text-lg hover:scale-110 transition">💡</button>
+            <button type="button" onClick={() => insertEmoji('📢')} className="text-lg hover:scale-110 transition">📢</button>
           </div>
           
           <textarea
+            ref={textareaRef}
             id="contenu-textarea"
-            className="w-full border border-gray-300 p-4 rounded-b-lg font-mono text-sm"
+            className="w-full border border-gray-300 p-4 rounded-b-lg font-mono text-sm min-h-[300px] focus:ring-2 focus:ring-[#1a56db] focus:border-transparent"
             rows="14"
             value={contenu}
             onChange={(e) => setContenu(e.target.value)}
-            style={{ color: textColor }}
+            onKeyDown={handleKeyDown}
+            style={{ color: textColor, backgroundColor: backgroundColor }}
             placeholder="Saisissez le contenu de votre actualité ici... Utilisez les boutons ci-dessus pour formater le texte."
           />
-          <p className="text-xs text-gray-500 mt-2">
-            💡 Astuces: Sélectionnez du texte puis utilisez les boutons (Gras, Italique, Couleur...)
-          </p>
+          
+          <div className="flex justify-between items-center mt-1">
+            <p className="text-xs text-gray-500">
+              💡 Astuces : 
+              <span className="ml-2">• Sélectionnez du texte et cliquez sur un bouton</span>
+              <span className="ml-2">• <kbd className="px-1 bg-gray-200 rounded">Entrée</kbd> = nouveau paragraphe</span>
+              <span className="ml-2">• <kbd className="px-1 bg-gray-200 rounded">Shift</kbd> + <kbd className="px-1 bg-gray-200 rounded">Entrée</kbd> = retour à la ligne</span>
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowPreview(!showPreview)}
+              className="text-sm text-blue-600 hover:underline"
+            >
+              {showPreview ? "Masquer l'aperçu" : "👁️ Aperçu du contenu"}
+            </button>
+          </div>
+          
+          {/* Aperçu en direct */}
+          {showPreview && (
+            <div className="mt-3 p-4 border border-gray-300 rounded-lg bg-gray-50">
+              <h3 className="text-sm font-medium text-gray-700 mb-2">📄 Aperçu :</h3>
+              <div 
+                className="prose prose-sm max-w-none"
+                style={{ color: textColor }}
+                dangerouslySetInnerHTML={{ 
+                  __html: contenu || "<span class='text-gray-400 italic'>Le contenu s'affichera ici...</span>" 
+                }} 
+              />
+            </div>
+          )}
         </div>
 
         {/* Images existantes */}
@@ -450,7 +755,8 @@ export default function ModifierActualite() {
                   <button
                     type="button"
                     onClick={() => removeExistingImage(idx)}
-                    className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 text-sm opacity-0 group-hover:opacity-100 transition"
+                    className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 text-sm opacity-0 group-hover:opacity-100 transition hover:bg-red-700"
+                    title="Supprimer cette image"
                   >
                     ×
                   </button>
@@ -490,7 +796,8 @@ export default function ModifierActualite() {
                   <button
                     type="button"
                     onClick={() => removeNewImage(idx)}
-                    className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 text-sm opacity-0 group-hover:opacity-100 transition"
+                    className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 text-sm opacity-0 group-hover:opacity-100 transition hover:bg-red-700"
+                    title="Supprimer cette image"
                   >
                     ×
                   </button>
@@ -501,18 +808,18 @@ export default function ModifierActualite() {
         )}
 
         {/* Boutons */}
-        <div className="flex gap-3 pt-4">
+        <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-200">
           <button
             type="submit"
             disabled={submitting}
-            className="bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white px-6 py-2 rounded-xl font-semibold hover:shadow-lg transition disabled:opacity-50"
+            className="bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white px-6 py-2.5 rounded-xl font-semibold hover:shadow-lg transition disabled:opacity-50"
           >
-            {submitting ? "Enregistrement..." : "💾 Enregistrer les modifications"}
+            {submitting ? "⏳ Enregistrement..." : "💾 Enregistrer les modifications"}
           </button>
           <button
             type="button"
             onClick={() => navigate("/actualite")}
-            className="bg-gray-200 text-gray-700 px-6 py-2 rounded-xl font-semibold hover:bg-gray-300 transition"
+            className="bg-gray-200 text-gray-700 px-6 py-2.5 rounded-xl font-semibold hover:bg-gray-300 transition"
           >
             Annuler
           </button>
