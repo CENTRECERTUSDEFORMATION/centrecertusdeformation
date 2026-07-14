@@ -1,3 +1,4 @@
+// frontend/src/pages/FormationDetail.jsx
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
@@ -328,10 +329,6 @@ export default function FormationDetail() {
     ? getImageUrl(formation.images[0]) 
     : null; // Pas de fallback, on utilise UNIQUEMENT l'image de la formation
 
-  // Debug : Vérifier l'image dans la console
-  console.log("🖼️ Image OG pour Facebook:", formationImage);
-  console.log("📁 Images de la formation:", formation?.images);
-
   if (loading) {
     return (
       <main role="main" className="flex justify-center items-center h-64 mt-20">
@@ -374,7 +371,7 @@ export default function FormationDetail() {
         <meta property="og:site_name" content="Centre Certus de Formation" />
         
         {/* Image UNIQUEMENT depuis Supabase */}
-        {formationImage && (
+        {formationImage ? (
           <>
             <meta property="og:image" content={formationImage} />
             <meta property="og:image:secure_url" content={formationImage} />
@@ -383,6 +380,9 @@ export default function FormationDetail() {
             <meta property="og:image:height" content="630" />
             <meta property="og:image:alt" content={`${formation.title} - Formation Centre Certus`} />
           </>
+        ) : (
+          // Fallback si pas d'image
+          <meta property="og:image" content="https://centrecertusdeformation.tn/logo-certus.webp" />
         )}
         
         {/* Twitter Card */}
@@ -390,8 +390,10 @@ export default function FormationDetail() {
         <meta name="twitter:site" content="@CertusFormation" />
         <meta name="twitter:title" content={`${formation.title} | Centre Certus`} />
         <meta name="twitter:description" content={formation.description || `Formation ${formation.title} au Centre Certus de Monastir`} />
-        {formationImage && (
+        {formationImage ? (
           <meta name="twitter:image" content={formationImage} />
+        ) : (
+          <meta name="twitter:image" content="https://centrecertusdeformation.tn/logo-certus.webp" />
         )}
         
         {/* JSON-LD pour SEO */}

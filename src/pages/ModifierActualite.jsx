@@ -6,13 +6,11 @@ import { useAuth } from "../context/AuthContext";
 import { toast } from "react-toastify";
 import { motion } from "framer-motion";
 
-// Couleurs pour l'éditeur
 const TEXT_COLORS = [
   { name: "Bleu", hex: "#1a56db", class: "text-blue-600" },
   { name: "Vert", hex: "#76c21f", class: "text-green-600" },
   { name: "Orange", hex: "#f59e0b", class: "text-orange-500" },
   { name: "Rouge", hex: "#dc2626", class: "text-red-600" },
-  { name: "Noir", hex: "#374151", class: "text-gray-800" },
   { name: "Violet", hex: "#7c3aed", class: "text-purple-600" },
   { name: "Rose", hex: "#ec4899", class: "text-pink-500" }
 ];
@@ -30,12 +28,14 @@ const BACKGROUND_COLORS = [
 export default function ModifierActualite() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user, isAdmin, loading: authLoading } = useAuth();
+  const { isAdmin, loading: authLoading } = useAuth();
   const textareaRef = useRef(null);
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [direction, setDirection] = useState("ltr");
+  const [activeTab, setActiveTab] = useState("accueil");
   
   const [titre, setTitre] = useState("");
   const [contenu, setContenu] = useState("");
@@ -47,7 +47,6 @@ export default function ModifierActualite() {
   const [newPreviews, setNewPreviews] = useState([]);
   const [imagesToDelete, setImagesToDelete] = useState([]);
 
-  // Vérification admin après chargement de l'auth
   useEffect(() => {
     if (!authLoading && !isAdmin) {
       toast.error("Accès refusé. Vous devez être administrateur.");
@@ -75,7 +74,6 @@ export default function ModifierActualite() {
 
   // ============ FONCTIONS DE MISE EN FORME ============
 
-  // Insérer une balise autour du texte sélectionné
   const wrapText = (openTag, closeTag) => {
     const textarea = textareaRef.current;
     if (!textarea) return;
@@ -90,7 +88,6 @@ export default function ModifierActualite() {
       const newText = `${beforeText}${openTag}${selectedText}${closeTag}${afterText}`;
       setContenu(newText);
       
-      // Restaurer la sélection après la mise à jour
       setTimeout(() => {
         textarea.focus();
         const newStart = start + openTag.length;
@@ -102,26 +99,29 @@ export default function ModifierActualite() {
     }
   };
 
-  // Appliquer le gras
+  // ============ ONGLET ACCUEIL - STYLE DE TEXTE ============
+
   const applyBold = () => wrapText('<strong>', '</strong>');
-
-  // Appliquer l'italique
   const applyItalic = () => wrapText('<em>', '</em>');
-
-  // Appliquer le souligné
   const applyUnderline = () => wrapText('<u>', '</u>');
-
-  // Appliquer le barré
   const applyStrike = () => wrapText('<del>', '</del>');
+  const applySubscript = () => wrapText('<sub>', '</sub>');
+  const applySuperscript = () => wrapText('<sup>', '</sup>');
 
-  // Appliquer un titre
-  const applyTitle = () => wrapText('<h2 class="text-2xl font-bold mt-4 mb-2">', '</h2>');
+  // ============ ONGLET STRUCTURE - TITRES ET LISTES ============
 
-  // Appliquer un sous-titre
-  const applySubtitle = () => wrapText('<h3 class="text-xl font-semibold mt-3 mb-1">', '</h3>');
+  const applyTitle = (level) => {
+    const tags = {
+      1: ['<h1>', '</h1>'],
+      2: ['<h2>', '</h2>'],
+      3: ['<h3>', '</h3>'],
+      4: ['<h4>', '</h4>']
+    };
+    const [open, close] = tags[level] || tags[2];
+    wrapText(open, close);
+  };
 
-  // Créer une liste à puces
-  const applyList = () => {
+  const applyList = (type) => {
     const textarea = textareaRef.current;
     if (!textarea) return;
 
@@ -135,13 +135,14 @@ export default function ModifierActualite() {
       const afterText = contenu.substring(end);
       
       if (lines.length > 0) {
+        const tag = type === 'ul' ? 'ul' : 'ol';
         const listItems = lines.map(line => `  <li>${line.trim()}</li>`).join('\n');
-        const newText = `${beforeText}\n<ul class="list-disc pl-6 my-2">\n${listItems}\n</ul>\n${afterText}`;
+        const newText = `${beforeText}\n<${tag}>\n${listItems}\n</${tag}>\n${afterText}`;
         setContenu(newText);
         
         setTimeout(() => {
           textarea.focus();
-          const newPos = start + 38 + (listItems.length > 0 ? listItems.length : 0);
+          const newPos = start + 7 + (listItems.length > 0 ? listItems.length : 0);
           textarea.setSelectionRange(newPos, newPos);
         }, 10);
       }
@@ -150,37 +151,8 @@ export default function ModifierActualite() {
     }
   };
 
-  // Créer une liste numérotée
-  const applyNumberedList = () => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
+  // ============ ONGLET INSERTION - LIENS ET MÉDIAS ============
 
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selectedText = contenu.substring(start, end);
-    
-    if (selectedText) {
-      const lines = selectedText.split('\n').filter(line => line.trim() !== '');
-      const beforeText = contenu.substring(0, start);
-      const afterText = contenu.substring(end);
-      
-      if (lines.length > 0) {
-        const listItems = lines.map((line, i) => `  <li>${line.trim()}</li>`).join('\n');
-        const newText = `${beforeText}\n<ol class="list-decimal pl-6 my-2">\n${listItems}\n</ol>\n${afterText}`;
-        setContenu(newText);
-        
-        setTimeout(() => {
-          textarea.focus();
-          const newPos = start + 39 + (listItems.length > 0 ? listItems.length : 0);
-          textarea.setSelectionRange(newPos, newPos);
-        }, 10);
-      }
-    } else {
-      toast.info("Sélectionnez d'abord le texte à mettre en liste");
-    }
-  };
-
-  // Ajouter un lien
   const applyLink = () => {
     const textarea = textareaRef.current;
     if (!textarea) return;
@@ -192,59 +164,76 @@ export default function ModifierActualite() {
     if (selectedText) {
       const url = prompt("Entrez l'URL du lien:", "https://");
       if (url) {
-        wrapText(`<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 underline hover:text-blue-800">`, '</a>');
+        const beforeText = contenu.substring(0, start);
+        const afterText = contenu.substring(end);
+        const newText = `${beforeText}<a href="${url}" target="_blank" rel="noopener noreferrer">${selectedText}</a>${afterText}`;
+        setContenu(newText);
+        
+        setTimeout(() => {
+          textarea.focus();
+          const newStart = start + 9 + url.length;
+          const newEnd = end + 9 + url.length;
+          textarea.setSelectionRange(newStart, newEnd);
+        }, 10);
       }
     } else {
       toast.info("Sélectionnez d'abord le texte à transformer en lien");
     }
   };
 
-  // Ajouter un bouton
-  const applyButton = () => {
+  const applyImage = () => {
     const textarea = textareaRef.current;
     if (!textarea) return;
 
     const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selectedText = contenu.substring(start, end);
-    const textToUse = selectedText || "Cliquez ici";
-    
-    const url = prompt("Entrez l'URL du bouton:", "https://");
-    if (url !== null) {
-      const btnHtml = `<a href="${url}" target="_blank" rel="noopener noreferrer" class="inline-block bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white px-6 py-2 rounded-lg font-semibold hover:shadow-lg transition my-2">${textToUse}</a>`;
-      
+    const url = prompt("Entrez l'URL de l'image:", "https://");
+    if (url) {
       const beforeText = contenu.substring(0, start);
-      const afterText = contenu.substring(end);
-      setContenu(`${beforeText}${btnHtml}${afterText}`);
+      const afterText = contenu.substring(start);
+      const newText = `${beforeText}<img src="${url}" alt="Image" style="max-width: 100%; border-radius: 8px;" />${afterText}`;
+      setContenu(newText);
       
       setTimeout(() => {
         textarea.focus();
-        const newPos = start + btnHtml.length;
-        textarea.setSelectionRange(newPos, newPos);
+        const newStart = start + 10 + url.length;
+        textarea.setSelectionRange(newStart, newStart);
       }, 10);
     }
   };
 
-  // Ajouter une image dans le contenu
-  const applyImage = () => {
+  const applyTable = () => {
     const textarea = textareaRef.current;
     if (!textarea) return;
 
     const start = textarea.selectionStart;
     const beforeText = contenu.substring(0, start);
     const afterText = contenu.substring(start);
-    const imgHtml = `<img src="url-de-l-image" alt="Description" class="max-w-full h-auto rounded-lg my-2" />`;
-    setContenu(`${beforeText}${imgHtml}${afterText}`);
+    const tableHtml = `
+<table style="width: 100%; border-collapse: collapse; margin: 10px 0;">
+  <tr>
+    <th style="border: 1px solid #ddd; padding: 8px; background: #f2f2f2;">Colonne 1</th>
+    <th style="border: 1px solid #ddd; padding: 8px; background: #f2f2f2;">Colonne 2</th>
+  </tr>
+  <tr>
+    <td style="border: 1px solid #ddd; padding: 8px;">Donnée 1</td>
+    <td style="border: 1px solid #ddd; padding: 8px;">Donnée 2</td>
+  </tr>
+</table>`;
+    setContenu(`${beforeText}${tableHtml}${afterText}`);
     
     setTimeout(() => {
       textarea.focus();
-      const newStart = start + 10;
-      const newEnd = newStart + 14;
-      textarea.setSelectionRange(newStart, newEnd);
+      textarea.selectionStart = start + tableHtml.length;
+      textarea.selectionEnd = start + tableHtml.length;
     }, 10);
   };
 
-  // Ajouter une citation
+  const applyHorizontalRule = () => {
+    wrapText('\n<hr style="border: 1px solid #ddd; margin: 20px 0;" />\n', '');
+  };
+
+  // ============ ONGLET FORMAT - CITATIONS ET STYLES ============
+
   const applyQuote = () => {
     const textarea = textareaRef.current;
     if (!textarea) return;
@@ -254,41 +243,28 @@ export default function ModifierActualite() {
     const selectedText = contenu.substring(start, end);
     
     if (selectedText) {
-      wrapText('<blockquote class="border-l-4 border-blue-500 pl-4 my-2 italic text-gray-700">', '</blockquote>');
+      wrapText('<blockquote style="border-left: 4px solid #1a56db; padding-left: 16px; margin: 16px 0; color: #4b5563;">', '</blockquote>');
     } else {
       const beforeText = contenu.substring(0, start);
       const afterText = contenu.substring(start);
-      const newText = `${beforeText}<blockquote class="border-l-4 border-blue-500 pl-4 my-2 italic text-gray-700">Votre citation ici</blockquote>${afterText}`;
+      const newText = `${beforeText}<blockquote style="border-left: 4px solid #1a56db; padding-left: 16px; margin: 16px 0; color: #4b5563;">Votre citation ici</blockquote>${afterText}`;
       setContenu(newText);
       
       setTimeout(() => {
         textarea.focus();
-        const newStart = start + 72;
+        const newStart = start + 106;
         const newEnd = newStart + 18;
         textarea.setSelectionRange(newStart, newEnd);
       }, 10);
     }
   };
 
-  // Ajouter un emoji (sélecteur simple)
-  const insertEmoji = (emoji) => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
+  const applyCode = () => wrapText('<code style="background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-family: monospace;">', '</code>');
+  const applyPreformatted = () => wrapText('<pre style="background: #1f2937; color: #f3f4f6; padding: 16px; border-radius: 8px; overflow-x: auto;">', '</pre>');
 
-    const start = textarea.selectionStart;
-    const beforeText = contenu.substring(0, start);
-    const afterText = contenu.substring(start);
-    setContenu(`${beforeText}${emoji}${afterText}`);
-    
-    setTimeout(() => {
-      textarea.focus();
-      textarea.selectionStart = start + emoji.length;
-      textarea.selectionEnd = start + emoji.length;
-    }, 10);
-  };
+  // ============ ONGLET COULEUR ============
 
-  // Colorer le texte sélectionné
-  const applyColorToSelection = (colorHex) => {
+  const applyTextColor = (colorHex) => {
     const textarea = textareaRef.current;
     if (!textarea) return;
     
@@ -313,11 +289,52 @@ export default function ModifierActualite() {
     }
   };
 
+  const applyHighlight = (colorHex) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = contenu.substring(start, end);
+    
+    if (selectedText) {
+      const beforeText = contenu.substring(0, start);
+      const afterText = contenu.substring(end);
+      const newText = `${beforeText}<span style="background-color: ${colorHex}; padding: 0 4px; border-radius: 3px;">${selectedText}</span>${afterText}`;
+      setContenu(newText);
+      
+      setTimeout(() => {
+        textarea.focus();
+        const newStart = start + 60;
+        const newEnd = end + 60;
+        textarea.setSelectionRange(newStart, newEnd);
+      }, 10);
+    } else {
+      toast.info("Sélectionnez d'abord le texte à surligner");
+    }
+  };
+
+  // ============ ALIGNEMENT ============
+
+  const applyAlignment = (align) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = contenu.substring(start, end);
+    
+    if (selectedText) {
+      wrapText(`<div style="text-align: ${align};">`, '</div>');
+    } else {
+      toast.info("Sélectionnez d'abord le texte à aligner");
+    }
+  };
+
   // ============ GESTION DU RETOUR À LA LIGNE ============
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
-      // Si Shift+Enter, insérer un <br> pour un retour à la ligne simple
       if (e.shiftKey) {
         e.preventDefault();
         const textarea = e.target;
@@ -331,7 +348,6 @@ export default function ModifierActualite() {
           textarea.selectionEnd = start + 4;
         }, 10);
       } else {
-        // Enter simple : insérer un nouveau paragraphe
         e.preventDefault();
         const textarea = e.target;
         const start = textarea.selectionStart;
@@ -344,6 +360,13 @@ export default function ModifierActualite() {
           textarea.selectionEnd = start + 7;
         }, 10);
       }
+    }
+  };
+
+  const toggleDirection = () => {
+    setDirection(prev => prev === "ltr" ? "rtl" : "ltr");
+    if (textareaRef.current) {
+      textareaRef.current.style.direction = direction === "ltr" ? "rtl" : "ltr";
     }
   };
 
@@ -361,7 +384,12 @@ export default function ModifierActualite() {
           .eq("id", id)
           .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error("Erreur chargement:", error);
+          toast.error("Erreur lors du chargement de l'actualité");
+          navigate("/actualite");
+          return;
+        }
 
         setTitre(data.titre || "");
         setContenu(data.contenu || "");
@@ -414,12 +442,14 @@ export default function ModifierActualite() {
     setSubmitting(true);
 
     try {
-      // 1. Supprimer les images retirées du storage
       for (const imagePath of imagesToDelete) {
-        await supabase.storage.from("uploads").remove([imagePath]);
+        try {
+          await supabase.storage.from("uploads").remove([imagePath]);
+        } catch (err) {
+          console.error("Erreur suppression image:", err);
+        }
       }
 
-      // 2. Uploader les nouvelles images
       const uploadedPaths = [...existingImages];
       for (const image of newImages) {
         const cleanName = cleanFileName(image.name);
@@ -436,27 +466,32 @@ export default function ModifierActualite() {
         uploadedPaths.push(fileName);
       }
 
-      // 3. Mettre à jour l'actualité
+      const updateData = {
+        titre: titre.trim(),
+        contenu: contenu,
+        text_color: textColor,
+        background_color: backgroundColor,
+        is_alert: isAlert,
+        images: uploadedPaths,
+        updated_at: new Date().toISOString()
+      };
+
       const { error: updateError } = await supabase
         .from("actualites")
-        .update({
-          titre: titre.trim(),
-          contenu: contenu,
-          text_color: textColor,
-          background_color: backgroundColor,
-          is_alert: isAlert,
-          images: uploadedPaths,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq("id", id);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error("❌ Erreur update:", updateError);
+        toast.error(`Erreur de mise à jour: ${updateError.message}`);
+        throw updateError;
+      }
 
       toast.success("✅ Actualité modifiée avec succès !");
       navigate("/actualite");
 
     } catch (error) {
-      console.error("Erreur submission:", error);
+      console.error("❌ Erreur submission:", error);
       toast.error("❌ Erreur lors de la modification");
     } finally {
       setSubmitting(false);
@@ -488,7 +523,7 @@ export default function ModifierActualite() {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="max-w-5xl mx-auto p-6 mt-20"
+      className="max-w-6xl mx-auto p-6 mt-20"
     >
       <div className="bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white rounded-2xl p-6 mb-8">
         <h1 className="text-2xl font-bold">✏️ Modifier l'actualité</h1>
@@ -514,7 +549,6 @@ export default function ModifierActualite() {
         {/* Options de mise en forme */}
         <div className="bg-gray-50 rounded-xl p-4 space-y-4">
           <div className="flex flex-wrap gap-4 items-center">
-            {/* Couleur du texte global */}
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">Couleur texte:</span>
               {TEXT_COLORS.map((color) => (
@@ -529,7 +563,6 @@ export default function ModifierActualite() {
               ))}
             </div>
             
-            {/* Couleur de fond */}
             <div className="flex items-center gap-2 border-l border-gray-300 pl-4">
               <span className="text-sm font-medium">Fond:</span>
               {BACKGROUND_COLORS.map((color) => (
@@ -544,7 +577,6 @@ export default function ModifierActualite() {
               ))}
             </div>
             
-            {/* Alerte */}
             <label className="flex items-center gap-2 border-l border-gray-300 pl-4 cursor-pointer">
               <input
                 type="checkbox"
@@ -557,145 +589,146 @@ export default function ModifierActualite() {
           </div>
         </div>
 
-        {/* Contenu avec barre d'outils complète */}
+        {/* Contenu avec onglets */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Contenu</label>
           
-          {/* Barre d'outils - Ligne 1 */}
-          <div className="flex flex-wrap gap-1 mb-1 p-2 bg-gray-100 rounded-t-lg border border-gray-300">
+          {/* Onglets */}
+          <div className="flex flex-wrap border-b border-gray-300 bg-gray-50 rounded-t-lg">
             <button
               type="button"
-              onClick={applyBold}
-              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 font-bold text-sm border border-gray-300"
-              title="Gras (Ctrl+B)"
+              onClick={() => setActiveTab("accueil")}
+              className={`px-4 py-2 text-sm font-medium transition ${activeTab === "accueil" ? "bg-white border-b-2 border-blue-600 text-blue-600" : "text-gray-600 hover:text-blue-600"}`}
             >
-              <span className="font-bold">B</span>
+              🏠 Accueil
             </button>
             <button
               type="button"
-              onClick={applyItalic}
-              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 italic text-sm border border-gray-300"
-              title="Italique (Ctrl+I)"
+              onClick={() => setActiveTab("structure")}
+              className={`px-4 py-2 text-sm font-medium transition ${activeTab === "structure" ? "bg-white border-b-2 border-blue-600 text-blue-600" : "text-gray-600 hover:text-blue-600"}`}
             >
-              <span className="italic">I</span>
+              📐 Structure
             </button>
             <button
               type="button"
-              onClick={applyUnderline}
-              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 underline text-sm border border-gray-300"
-              title="Souligné (Ctrl+U)"
+              onClick={() => setActiveTab("insertion")}
+              className={`px-4 py-2 text-sm font-medium transition ${activeTab === "insertion" ? "bg-white border-b-2 border-blue-600 text-blue-600" : "text-gray-600 hover:text-blue-600"}`}
             >
-              <span className="underline">U</span>
+              📎 Insertion
             </button>
             <button
               type="button"
-              onClick={applyStrike}
-              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300 line-through"
-              title="Barré"
+              onClick={() => setActiveTab("format")}
+              className={`px-4 py-2 text-sm font-medium transition ${activeTab === "format" ? "bg-white border-b-2 border-blue-600 text-blue-600" : "text-gray-600 hover:text-blue-600"}`}
             >
-              <span className="line-through">S</span>
-            </button>
-            
-            <div className="w-px h-6 bg-gray-300 mx-1"></div>
-            
-            <button
-              type="button"
-              onClick={applyTitle}
-              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300 font-semibold"
-              title="Titre H2"
-            >
-              H2
+              🎨 Format
             </button>
             <button
               type="button"
-              onClick={applySubtitle}
-              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300 font-medium"
-              title="Sous-titre H3"
+              onClick={() => setActiveTab("couleur")}
+              className={`px-4 py-2 text-sm font-medium transition ${activeTab === "couleur" ? "bg-white border-b-2 border-blue-600 text-blue-600" : "text-gray-600 hover:text-blue-600"}`}
             >
-              H3
-            </button>
-            
-            <div className="w-px h-6 bg-gray-300 mx-1"></div>
-            
-            <button
-              type="button"
-              onClick={applyList}
-              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300"
-              title="Liste à puces"
-            >
-              • Liste
-            </button>
-            <button
-              type="button"
-              onClick={applyNumberedList}
-              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300"
-              title="Liste numérotée"
-            >
-              1. Liste
-            </button>
-            
-            <div className="w-px h-6 bg-gray-300 mx-1"></div>
-            
-            <button
-              type="button"
-              onClick={applyLink}
-              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300 text-blue-600"
-              title="Lien hypertexte"
-            >
-              🔗 Lien
-            </button>
-            <button
-              type="button"
-              onClick={applyButton}
-              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300 text-green-600"
-              title="Bouton"
-            >
-              ⬛ Bouton
-            </button>
-            <button
-              type="button"
-              onClick={applyImage}
-              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300"
-              title="Image dans le contenu"
-            >
-              🖼️ Image
-            </button>
-            <button
-              type="button"
-              onClick={applyQuote}
-              className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300"
-              title="Citation"
-            >
-              “ Citation
+              🌈 Couleur
             </button>
           </div>
-          
-          {/* Barre de couleurs */}
-          <div className="flex flex-wrap gap-1 mb-2 p-1.5 bg-gray-50 rounded-b-lg border border-gray-300 border-t-0">
-            <span className="text-xs font-medium text-gray-600 self-center mr-1">🎨 Colorer:</span>
-            {TEXT_COLORS.map((color) => (
-              <button
-                key={color.hex}
-                type="button"
-                onClick={() => applyColorToSelection(color.hex)}
-                className="w-6 h-6 rounded-full transition-transform hover:scale-110 shadow-sm border border-gray-300"
-                style={{ backgroundColor: color.hex }}
-                title={`Colorer en ${color.name}`}
-              />
-            ))}
-            
-            <div className="w-px h-6 bg-gray-300 mx-1"></div>
-            
-            <span className="text-xs font-medium text-gray-600 self-center mr-1">😊 Emojis:</span>
-            <button type="button" onClick={() => insertEmoji('✅')} className="text-lg hover:scale-110 transition">✅</button>
-            <button type="button" onClick={() => insertEmoji('⚠️')} className="text-lg hover:scale-110 transition">⚠️</button>
-            <button type="button" onClick={() => insertEmoji('📌')} className="text-lg hover:scale-110 transition">📌</button>
-            <button type="button" onClick={() => insertEmoji('🎯')} className="text-lg hover:scale-110 transition">🎯</button>
-            <button type="button" onClick={() => insertEmoji('🔥')} className="text-lg hover:scale-110 transition">🔥</button>
-            <button type="button" onClick={() => insertEmoji('💡')} className="text-lg hover:scale-110 transition">💡</button>
-            <button type="button" onClick={() => insertEmoji('📢')} className="text-lg hover:scale-110 transition">📢</button>
+
+          {/* Contenu des onglets */}
+          <div className="border-x border-gray-300 p-2 bg-gray-50">
+
+            {/* Onglet Accueil - Style de texte */}
+            {activeTab === "accueil" && (
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="text-xs text-gray-500 mr-1 font-medium">Style:</span>
+                <button type="button" onClick={applyBold} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 font-bold text-sm border border-gray-300" title="Gras">B</button>
+                <button type="button" onClick={applyItalic} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 italic text-sm border border-gray-300" title="Italique">I</button>
+                <button type="button" onClick={applyUnderline} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 underline text-sm border border-gray-300" title="Souligné">U</button>
+                <button type="button" onClick={applyStrike} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 line-through text-sm border border-gray-300" title="Barré">S</button>
+                <button type="button" onClick={applySubscript} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300" title="Indice">X₂</button>
+                <button type="button" onClick={applySuperscript} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300" title="Exposant">X²</button>
+              </div>
+            )}
+
+            {/* Onglet Structure - Titres et listes */}
+            {activeTab === "structure" && (
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="text-xs text-gray-500 mr-1 font-medium">Titres:</span>
+                <button type="button" onClick={() => applyTitle(1)} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300 font-bold">H1</button>
+                <button type="button" onClick={() => applyTitle(2)} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300 font-bold">H2</button>
+                <button type="button" onClick={() => applyTitle(3)} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300 font-semibold">H3</button>
+                <button type="button" onClick={() => applyTitle(4)} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300 font-medium">H4</button>
+                <span className="text-xs text-gray-500 mx-1">|</span>
+                <button type="button" onClick={() => applyList('ul')} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300">• Liste</button>
+                <button type="button" onClick={() => applyList('ol')} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300">1. Liste</button>
+              </div>
+            )}
+
+            {/* Onglet Insertion - Liens et médias */}
+            {activeTab === "insertion" && (
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="text-xs text-gray-500 mr-1 font-medium">Médias:</span>
+                <button type="button" onClick={applyLink} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300 text-blue-600">🔗 Lien</button>
+                <button type="button" onClick={applyImage} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300 text-green-600">🖼️ Image</button>
+                <button type="button" onClick={applyTable} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300">📊 Tableau</button>
+                <button type="button" onClick={applyHorizontalRule} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300">➖ Ligne</button>
+              </div>
+            )}
+
+            {/* Onglet Format - Citations et styles */}
+            {activeTab === "format" && (
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="text-xs text-gray-500 mr-1 font-medium">Format:</span>
+                <button type="button" onClick={applyQuote} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300">“ Citation</button>
+                <button type="button" onClick={applyCode} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300">{`<> Code`}</button>
+                <button type="button" onClick={applyPreformatted} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300">📄 Préformaté</button>
+                <span className="text-xs text-gray-500 mx-1">|</span>
+                <span className="text-xs text-gray-500 mr-1">Alignement:</span>
+                <button type="button" onClick={() => applyAlignment('left')} className="px-2 py-1 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300" title="Gauche">⬅️</button>
+                <button type="button" onClick={() => applyAlignment('center')} className="px-2 py-1 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300" title="Centrer">⬛</button>
+                <button type="button" onClick={() => applyAlignment('right')} className="px-2 py-1 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300" title="Droite">➡️</button>
+                <button type="button" onClick={() => applyAlignment('justify')} className="px-2 py-1 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300" title="Justifier">↔️</button>
+              </div>
+            )}
+
+            {/* Onglet Couleur */}
+            {activeTab === "couleur" && (
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="text-xs text-gray-500 mr-1 font-medium">🎨 Texte:</span>
+                <button type="button" onClick={() => applyTextColor('#1a56db')} className="w-8 h-8 rounded-full border border-gray-300 hover:scale-110 transition" style={{ backgroundColor: '#1a56db' }} title="Bleu"></button>
+                <button type="button" onClick={() => applyTextColor('#76c21f')} className="w-8 h-8 rounded-full border border-gray-300 hover:scale-110 transition" style={{ backgroundColor: '#76c21f' }} title="Vert"></button>
+                <button type="button" onClick={() => applyTextColor('#f59e0b')} className="w-8 h-8 rounded-full border border-gray-300 hover:scale-110 transition" style={{ backgroundColor: '#f59e0b' }} title="Orange"></button>
+                <button type="button" onClick={() => applyTextColor('#dc2626')} className="w-8 h-8 rounded-full border border-gray-300 hover:scale-110 transition" style={{ backgroundColor: '#dc2626' }} title="Rouge"></button>
+                <button type="button" onClick={() => applyTextColor('#7c3aed')} className="w-8 h-8 rounded-full border border-gray-300 hover:scale-110 transition" style={{ backgroundColor: '#7c3aed' }} title="Violet"></button>
+                <button type="button" onClick={() => applyTextColor('#ec4899')} className="w-8 h-8 rounded-full border border-gray-300 hover:scale-110 transition" style={{ backgroundColor: '#ec4899' }} title="Rose"></button>
+                <span className="text-xs text-gray-500 mx-1">|</span>
+                <span className="text-xs text-gray-500 mr-1">🟡 Surligner:</span>
+                <button type="button" onClick={() => applyHighlight('#fef08a')} className="w-8 h-8 rounded-full border border-gray-300 hover:scale-110 transition" style={{ backgroundColor: '#fef08a' }} title="Jaune"></button>
+                <button type="button" onClick={() => applyHighlight('#fca5a5')} className="w-8 h-8 rounded-full border border-gray-300 hover:scale-110 transition" style={{ backgroundColor: '#fca5a5' }} title="Rouge"></button>
+                <button type="button" onClick={() => applyHighlight('#93c5fd')} className="w-8 h-8 rounded-full border border-gray-300 hover:scale-110 transition" style={{ backgroundColor: '#93c5fd' }} title="Bleu"></button>
+              </div>
+            )}
+
           </div>
-          
+
+          {/* Barre d'outils - Direction et info */}
+          <div className="flex flex-wrap items-center gap-2 p-2 bg-gray-100 rounded-b-lg border border-gray-300 border-t-0">
+            <button
+              type="button"
+              onClick={toggleDirection}
+              className="px-3 py-1 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300"
+              title="Changer la direction du texte"
+            >
+              {direction === "ltr" ? "🌐 Arabe (RTL)" : "🌐 Français (LTR)"}
+            </button>
+            <span className="text-xs text-gray-400">|</span>
+            <span className="text-xs text-gray-500">
+              <kbd className="px-1 bg-gray-200 rounded">Entrée</kbd> = paragraphe | 
+              <kbd className="px-1 bg-gray-200 rounded ml-1">Shift</kbd> + <kbd className="px-1 bg-gray-200 rounded">Entrée</kbd> = retour à la ligne
+            </span>
+            <span className="text-xs text-gray-400 ml-auto">
+              {contenu.length} caractères
+            </span>
+          </div>
+
           <textarea
             ref={textareaRef}
             id="contenu-textarea"
@@ -705,15 +738,13 @@ export default function ModifierActualite() {
             onChange={(e) => setContenu(e.target.value)}
             onKeyDown={handleKeyDown}
             style={{ color: textColor, backgroundColor: backgroundColor }}
-            placeholder="Saisissez le contenu de votre actualité ici... Utilisez les boutons ci-dessus pour formater le texte."
+            dir={direction}
+            placeholder="Saisissez le contenu de votre actualité ici... Utilisez les onglets ci-dessus pour formater le texte."
           />
           
           <div className="flex justify-between items-center mt-1">
             <p className="text-xs text-gray-500">
-              💡 Astuces : 
-              <span className="ml-2">• Sélectionnez du texte et cliquez sur un bouton</span>
-              <span className="ml-2">• <kbd className="px-1 bg-gray-200 rounded">Entrée</kbd> = nouveau paragraphe</span>
-              <span className="ml-2">• <kbd className="px-1 bg-gray-200 rounded">Shift</kbd> + <kbd className="px-1 bg-gray-200 rounded">Entrée</kbd> = retour à la ligne</span>
+              💡 Astuces : Sélectionnez du texte puis utilisez les onglets pour le mettre en forme
             </p>
             <button
               type="button"
@@ -724,13 +755,13 @@ export default function ModifierActualite() {
             </button>
           </div>
           
-          {/* Aperçu en direct */}
           {showPreview && (
             <div className="mt-3 p-4 border border-gray-300 rounded-lg bg-gray-50">
               <h3 className="text-sm font-medium text-gray-700 mb-2">📄 Aperçu :</h3>
               <div 
                 className="prose prose-sm max-w-none"
                 style={{ color: textColor }}
+                dir={direction}
                 dangerouslySetInnerHTML={{ 
                   __html: contenu || "<span class='text-gray-400 italic'>Le contenu s'affichera ici...</span>" 
                 }} 

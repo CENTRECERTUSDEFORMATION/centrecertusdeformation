@@ -5,7 +5,6 @@ import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { motion, AnimatePresence } from "framer-motion";
-import parse from 'html-react-parser';
 import { Helmet } from "react-helmet-async";
 
 // Couleurs pour le texte sélectionné
@@ -13,7 +12,9 @@ const TEXT_COLORS = [
   { name: "Bleu", hex: "#1a56db" },
   { name: "Vert", hex: "#76c21f" },
   { name: "Orange", hex: "#f59e0b" },
-  { name: "Rouge", hex: "#dc2626" }
+  { name: "Rouge", hex: "#dc2626" },
+  { name: "Violet", hex: "#7c3aed" },
+  { name: "Rose", hex: "#ec4899" }
 ];
 
 // Couleurs de fond pour l'actualité
@@ -22,7 +23,8 @@ const BACKGROUND_COLORS = [
   { name: "Bleu clair", hex: "#dbeafe", class: "bg-blue-50" },
   { name: "Vert clair", hex: "#d1fae5", class: "bg-green-50" },
   { name: "Orange clair", hex: "#fef3c7", class: "bg-orange-50" },
-  { name: "Rouge clair (Alerte)", hex: "#fee2e2", class: "bg-red-50" }
+  { name: "Rouge clair (Alerte)", hex: "#fee2e2", class: "bg-red-50" },
+  { name: "Gris clair", hex: "#f3f4f6", class: "bg-gray-50" }
 ];
 
 export default function Actualite() {
@@ -35,7 +37,6 @@ export default function Actualite() {
   const [filteredActualites, setFilteredActualites] = useState([]);
   const [selectedImage, setSelectedImage] = useState(null);
 
-  // Navigation optimisée
   const handleNavigateToAdd = useCallback(() => {
     navigate("/ajouter-actualite");
   }, [navigate]);
@@ -47,7 +48,6 @@ export default function Actualite() {
   useEffect(() => {
     const fetchActualites = async () => {
       setLoading(true);
-
       try {
         const { data, error } = await supabase
           .from("actualites")
@@ -115,9 +115,7 @@ export default function Actualite() {
     }
   }, [isAdmin]);
 
-  // Fonction pour appliquer la couleur à une partie du texte sélectionné
   const applyColorToSelection = useCallback(async (id, colorHex) => {
-    // Récupérer le texte sélectionné
     const selection = window.getSelection();
     const selectedText = selection?.toString()?.trim();
     
@@ -127,7 +125,6 @@ export default function Actualite() {
     }
 
     try {
-      // Récupérer l'actualité actuelle
       const { data: actualite, error: fetchError } = await supabase
         .from("actualites")
         .select("contenu")
@@ -137,12 +134,9 @@ export default function Actualite() {
       if (fetchError) throw fetchError;
 
       let contenu = actualite.contenu || "";
-      
-      // Remplacer le texte sélectionné par du texte coloré (avec span)
       const styledText = `<span style="color: ${colorHex}; font-weight: bold;">${selectedText}</span>`;
       const newContenu = contenu.replace(selectedText, styledText);
 
-      // Mettre à jour la base
       const { error: updateError } = await supabase
         .from("actualites")
         .update({ contenu: newContenu })
@@ -150,7 +144,6 @@ export default function Actualite() {
 
       if (updateError) throw updateError;
 
-      // Mettre à jour l'état local
       setActualites(prev => prev.map(a => 
         a.id === id ? { ...a, contenu: newContenu } : a
       ));
@@ -158,14 +151,13 @@ export default function Actualite() {
         a.id === id ? { ...a, contenu: newContenu } : a
       ));
       
-      toast.success(`Couleur ${colorHex} appliquée au texte sélectionné !`);
+      toast.success(`Couleur appliquée au texte sélectionné !`);
     } catch (err) {
       console.error(err);
       toast.error("Erreur lors de l'application de la couleur");
     }
   }, []);
 
-  // Fonction pour appliquer un fond à l'actualité
   const applyBackgroundColor = useCallback(async (id, bgColorHex) => {
     try {
       const { error: updateError } = await supabase
@@ -189,7 +181,39 @@ export default function Actualite() {
     }
   }, []);
 
-  // Navigation dans la galerie
+  // Nettoyer le contenu HTML pour l'affichage
+  const cleanHtmlContent = (html) => {
+    if (!html) return "";
+    return html
+      // Remplacer les balises visibles par leur rendu réel
+      .replace(/&lt;p&gt;/g, '<p>')
+      .replace(/&lt;\/p&gt;/g, '</p>')
+      .replace(/&lt;strong&gt;/g, '<strong>')
+      .replace(/&lt;\/strong&gt;/g, '</strong>')
+      .replace(/&lt;em&gt;/g, '<em>')
+      .replace(/&lt;\/em&gt;/g, '</em>')
+      .replace(/&lt;u&gt;/g, '<u>')
+      .replace(/&lt;\/u&gt;/g, '</u>')
+      .replace(/&lt;ul&gt;/g, '<ul>')
+      .replace(/&lt;\/ul&gt;/g, '</ul>')
+      .replace(/&lt;li&gt;/g, '<li>')
+      .replace(/&lt;\/li&gt;/g, '</li>')
+      .replace(/&lt;ol&gt;/g, '<ol>')
+      .replace(/&lt;\/ol&gt;/g, '</ol>')
+      .replace(/&lt;h1&gt;/g, '<h1>')
+      .replace(/&lt;\/h1&gt;/g, '</h1>')
+      .replace(/&lt;h2&gt;/g, '<h2>')
+      .replace(/&lt;\/h2&gt;/g, '</h2>')
+      .replace(/&lt;h3&gt;/g, '<h3>')
+      .replace(/&lt;\/h3&gt;/g, '</h3>')
+      .replace(/&lt;h4&gt;/g, '<h4>')
+      .replace(/&lt;\/h4&gt;/g, '</h4>')
+      .replace(/&lt;blockquote&gt;/g, '<blockquote>')
+      .replace(/&lt;\/blockquote&gt;/g, '</blockquote>')
+      .replace(/&lt;br&gt;/g, '<br>')
+      .replace(/&lt;br \/&gt;/g, '<br>');
+  };
+
   const handlePrevImage = useCallback(() => {
     setSelectedImage(prev => ({
       ...prev,
@@ -212,7 +236,6 @@ export default function Actualite() {
 
   return (
     <>
-      {/* ✅ FORCER la canonique pour cette page */}
       <Helmet>
         <link rel="canonical" href="https://centrecertusdeformation.tn/actualite" />
         <title>Actualités | Centre Certus de Formation</title>
@@ -223,7 +246,6 @@ export default function Actualite() {
       </Helmet>
 
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-screen bg-gray-50 pt-20">
-        {/* Header */}
         <div className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
           <div className="max-w-7xl mx-auto px-6 py-4">
             <div className="flex justify-between items-center flex-wrap gap-4">
@@ -280,7 +302,6 @@ export default function Actualite() {
                     style={{ backgroundColor: a.background_color || "#ffffff" }}
                   >
                     <div className="p-6 md:p-8">
-                      {/* Métadonnées et boutons admin */}
                       <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
                         <div className="flex items-center gap-2 text-sm text-gray-500">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -293,10 +314,8 @@ export default function Actualite() {
                           }) : 'Date inconnue'}
                         </div>
                         
-                        {/* Boutons admin */}
                         {isAdmin && (
                           <div className="flex gap-3 items-center flex-wrap">
-                            {/* Couleurs de texte */}
                             <div className="flex items-center gap-1">
                               <span className="text-xs text-gray-400">🎨 Texte:</span>
                               {TEXT_COLORS.map((color) => (
@@ -306,12 +325,10 @@ export default function Actualite() {
                                   className="w-6 h-6 rounded-full transition-transform hover:scale-110 shadow-sm"
                                   style={{ backgroundColor: color.hex }}
                                   title={`Appliquer ${color.name} au texte sélectionné`}
-                                  aria-label={`Appliquer la couleur ${color.name}`}
                                 />
                               ))}
                             </div>
                             
-                            {/* Couleurs de fond */}
                             <div className="flex items-center gap-1 border-l border-gray-200 pl-3">
                               <span className="text-xs text-gray-400">🎨 Fond:</span>
                               {BACKGROUND_COLORS.map((color) => (
@@ -321,7 +338,6 @@ export default function Actualite() {
                                   className={`w-6 h-6 rounded-full transition-transform hover:scale-110 shadow-sm ${color.class}`}
                                   style={{ backgroundColor: color.hex }}
                                   title={`Fond ${color.name}`}
-                                  aria-label={`Appliquer le fond ${color.name}`}
                                 />
                               ))}
                             </div>
@@ -330,7 +346,6 @@ export default function Actualite() {
                               onClick={() => handleNavigateToEdit(a.id)}
                               className="text-gray-500 hover:text-yellow-600 text-sm px-2 py-1"
                               title="Modifier"
-                              aria-label="Modifier l'actualité"
                             >
                               ✏️ Modifier
                             </button>
@@ -338,7 +353,6 @@ export default function Actualite() {
                               onClick={() => handleDelete(a.id, a.images)}
                               className="text-gray-500 hover:text-red-600 text-sm px-2 py-1"
                               title="Supprimer"
-                              aria-label="Supprimer l'actualité"
                             >
                               🗑️ Supprimer
                             </button>
@@ -346,9 +360,7 @@ export default function Actualite() {
                         )}
                       </div>
                       
-                      {/* Layout: Image à droite, texte à gauche */}
                       <div className="flex flex-col md:flex-row gap-8">
-                        {/* Texte à gauche */}
                         <div className="flex-1">
                           <h2 className="text-2xl md:text-3xl font-bold mb-4 text-gray-800">
                             {a.titre}
@@ -356,12 +368,17 @@ export default function Actualite() {
                           
                           <div className="prose prose-lg max-w-none">
                             <div className="leading-relaxed text-gray-600">
-                              {a.contenu ? parse(a.contenu) : "Aucun contenu"}
+                              {a.contenu ? (
+                                <div dangerouslySetInnerHTML={{ 
+                                  __html: cleanHtmlContent(a.contenu)
+                                }} />
+                              ) : (
+                                "Aucun contenu"
+                              )}
                             </div>
                           </div>
                         </div>
                         
-                        {/* Image à droite */}
                         {a.images && a.images.length > 0 && (
                           <div className="md:w-2/5 lg:w-1/3">
                             <div className="rounded-xl overflow-hidden cursor-pointer shadow-md hover:shadow-xl transition-all">
@@ -375,7 +392,6 @@ export default function Actualite() {
                                 onClick={() => setSelectedImage({ images: a.images, index: 0 })}
                                 role="button"
                                 tabIndex="0"
-                                aria-label={`Voir l'image principale de ${a.titre}`}
                               />
                               {a.images.length > 1 && (
                                 <div className="flex justify-between items-center mt-2 px-2 pb-2">
@@ -384,7 +400,7 @@ export default function Actualite() {
                                       <img
                                         key={idx}
                                         src={getImageUrl(img)}
-                                        alt={`Miniature ${idx + 2} de ${a.titre}`}
+                                        alt={`Miniature ${idx + 2}`}
                                         loading="lazy"
                                         width="48"
                                         height="48"
@@ -392,7 +408,6 @@ export default function Actualite() {
                                         onClick={() => setSelectedImage({ images: a.images, index: idx + 1 })}
                                         role="button"
                                         tabIndex="0"
-                                        aria-label={`Voir l'image ${idx + 2}`}
                                       />
                                     ))}
                                   </div>

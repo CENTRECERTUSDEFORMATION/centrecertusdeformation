@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+// frontend/src/pages/Home.jsx
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Swiper, SwiperSlide } from 'swiper/react';
@@ -13,8 +14,9 @@ import 'yet-another-react-lightbox/plugins/captions.css';
 import emailjs from '@emailjs/browser';
 import { toast } from 'react-toastify';
 import { Helmet } from 'react-helmet-async';
+import Footer from '../components/Footer';
 
-// ✅ CORRIGÉ : extensions en minuscules .webp
+// ✅ Images
 import couverture from '../assets/couverture.webp';
 import img1 from '../assets/Image 1.webp';
 import img2 from '../assets/Image 2.webp';
@@ -28,8 +30,6 @@ import img9 from '../assets/Image 9.webp';
 import img10 from '../assets/Image 10.webp';
 import img11 from '../assets/Image 11.webp';
 import img12 from '../assets/Image 12.webp';
-
-import Footer from '../components/Footer';
 
 const images = [
   { src: img1, title: "Formation Digital" },
@@ -72,7 +72,7 @@ const testimonials = [
   { name: "Mohamed Ali Hammami", role: "Ingénieur", text: "Formation en Data IA très complète. Je recommande !", rating: 5, date: "2026-04-10" },
 ];
 
-// Services rapides
+// ========== SERVICES ==========
 const services = [
   { icon: "🎓", title: "Formations certifiantes", desc: "Diplômes reconnus par l'État" },
   { icon: "👨‍🏫", title: "Formateurs experts", desc: "Professionnels en activité" },
@@ -119,18 +119,21 @@ const stats = [
   { value: "10+", label: "Domaines d'expertise", icon: "🏆" },
 ];
 
+// ========== CONFIGURATION EMAILJS ==========
 const EMAILJS_CONFIG = {
   PUBLIC_KEY: "LNbKohuUxse3qtZjG",
   SERVICE_ID: "service_ixutrbl",
   TEMPLATE_ID: "template_5iq0uco"
 };
 
+// ========== COMPOSANT PRINCIPAL ==========
 const Home = () => {
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
   const [randomTestimonials, setRandomTestimonials] = useState([]);
   const [showDevisModal, setShowDevisModal] = useState(false);
   const [sendingDevis, setSendingDevis] = useState(false);
+  const [devisStep, setDevisStep] = useState(1);
   const [devisData, setDevisData] = useState({
     name: "",
     email: "",
@@ -138,8 +141,11 @@ const Home = () => {
     formation: "",
     message: ""
   });
+  const [devisErrors, setDevisErrors] = useState({});
+  const formRef = useRef(null);
   const navigate = useNavigate();
 
+  // ========== INITIALISATION ==========
   useEffect(() => {
     emailjs.init(EMAILJS_CONFIG.PUBLIC_KEY);
     const shuffled = [...testimonials].sort(() => 0.5 - Math.random());
@@ -150,51 +156,128 @@ const Home = () => {
   const positiveTestimonials = testimonials.filter(t => t.rating >= 4).length;
   const recommendationRate = Math.round((positiveTestimonials / totalTestimonials) * 100);
 
+  // ========== GESTION DU DEVIS ==========
+  const validateDevisField = (name, value) => {
+    const errors = { ...devisErrors };
+    
+    if (name === 'name' && !value.trim()) {
+      errors.name = 'Le nom est requis';
+    } else if (name === 'name' && value.trim().length < 2) {
+      errors.name = 'Le nom doit contenir au moins 2 caractères';
+    } else {
+      delete errors.name;
+    }
+
+    if (name === 'email' && !value.trim()) {
+      errors.email = 'L\'email est requis';
+    } else if (name === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+      errors.email = 'Email invalide';
+    } else {
+      delete errors.email;
+    }
+
+    if (name === 'message' && !value.trim()) {
+      errors.message = 'Le message est requis';
+    } else if (name === 'message' && value.trim().length < 10) {
+      errors.message = 'Le message doit contenir au moins 10 caractères';
+    } else {
+      delete errors.message;
+    }
+
+    setDevisErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleDevisChange = (e) => {
-    setDevisData({
-      ...devisData,
-      [e.target.name]: e.target.value
-    });
+    const { name, value } = e.target;
+    setDevisData(prev => ({ ...prev, [name]: value }));
+    validateDevisField(name, value);
+  };
+
+  const handleDevisBlur = (e) => {
+    const { name, value } = e.target;
+    validateDevisField(name, value);
+  };
+
+  const isDevisValid = () => {
+    return (
+      devisData.name.trim().length >= 2 &&
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(devisData.email) &&
+      devisData.message.trim().length >= 10
+    );
   };
 
   const sendDevis = async (e) => {
     e.preventDefault();
+    
+    // Validation finale
+    const isNameValid = validateDevisField('name', devisData.name);
+    const isEmailValid = validateDevisField('email', devisData.email);
+    const isMessageValid = validateDevisField('message', devisData.message);
+
+    if (!isNameValid || !isEmailValid || !isMessageValid) {
+      toast.error('Veuillez corriger les erreurs du formulaire');
+      return;
+    }
+
     setSendingDevis(true);
 
     try {
       const templateParams = {
         to_email: "contact.certus@gmail.com",
-        name: devisData.name,
-        email: devisData.email,
+        from_name: devisData.name,
+        from_email: devisData.email,
         telephone: devisData.telephone || "Non renseigné",
         formation: devisData.formation || "Non spécifiée",
         message: devisData.message,
-        title: devisData.formation || "Devis personnalisé",
-        date: new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+        title: `Demande de devis - ${devisData.formation || 'Formation Certus'}`,
+        date: new Date().toLocaleDateString('fr-FR', { 
+          day: 'numeric', 
+          month: 'long', 
+          year: 'numeric' 
+        }),
+        time: new Date().toLocaleTimeString('fr-FR', { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        })
       };
 
-      const response = await emailjs.send(EMAILJS_CONFIG.SERVICE_ID, EMAILJS_CONFIG.TEMPLATE_ID, templateParams);
+      console.log("📧 Envoi du devis:", templateParams);
+
+      const response = await emailjs.send(
+        EMAILJS_CONFIG.SERVICE_ID, 
+        EMAILJS_CONFIG.TEMPLATE_ID, 
+        templateParams
+      );
 
       if (response.status === 200) {
         toast.success("✅ Demande de devis envoyée avec succès !");
         setShowDevisModal(false);
         setDevisData({ name: "", email: "", telephone: "", formation: "", message: "" });
+        setDevisErrors({});
+        setDevisStep(1);
       } else {
         throw new Error("Erreur d'envoi");
       }
     } catch (error) {
-      console.error("Erreur envoi:", error);
+      console.error("❌ Erreur envoi:", error);
       toast.error("❌ Erreur lors de l'envoi. Veuillez réessayer.");
     } finally {
       setSendingDevis(false);
     }
   };
 
-  // Navigation vers les formations avec filtre par thème
+  // ========== NAVIGATION ==========
   const navigateToTheme = (themeId) => {
     navigate(`/formations?theme=${themeId}`);
   };
 
+  const navigateToContact = () => {
+    setShowDevisModal(false);
+    navigate('/contact');
+  };
+
+  // ========== RENDU ==========
   return (
     <>
       <Helmet>
@@ -496,44 +579,219 @@ const Home = () => {
           </div>
         </div>
 
-        {/* MODAL DEVIS */}
+        {/* ============================================================ */}
+        {/* MODAL DEVIS AMÉLIORÉE */}
+        {/* ============================================================ */}
         <AnimatePresence>
           {showDevisModal && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setShowDevisModal(false)}>
-              <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative max-w-lg w-full bg-white rounded-2xl shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
-                <div className="bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white px-6 py-4">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 overflow-y-auto"
+              onClick={() => setShowDevisModal(false)}
+            >
+              <motion.div 
+                initial={{ scale: 0.9, opacity: 0, y: 20 }} 
+                animate={{ scale: 1, opacity: 1, y: 0 }} 
+                exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                className="relative max-w-lg w-full bg-white rounded-2xl shadow-2xl overflow-hidden my-8"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* En-tête */}
+                <div className="bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white px-6 py-5">
                   <div className="flex justify-between items-center">
                     <div>
-                      <h2 className="text-xl font-bold">Demande de devis</h2>
-                      <p className="text-blue-100 text-sm">Nous vous répondrons sous 24h</p>
+                      <h2 className="text-xl font-bold flex items-center gap-2">
+                        <span>📩</span> Demande de devis
+                      </h2>
+                      <p className="text-blue-100 text-sm mt-0.5">Nous vous répondrons sous 24h</p>
                     </div>
-                    <button onClick={() => setShowDevisModal(false)} className="text-white/80 hover:text-white transition text-2xl">✕</button>
+                    <button 
+                      onClick={() => setShowDevisModal(false)} 
+                      className="text-white/80 hover:text-white transition text-2xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10"
+                      aria-label="Fermer"
+                    >
+                      ✕
+                    </button>
                   </div>
                 </div>
-                <form onSubmit={sendDevis} className="p-6 space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Nom complet *</label>
-                    <input type="text" name="name" required value={devisData.name} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a56db]" placeholder="Jean Dupont" />
+
+                {/* Contenu */}
+                <form onSubmit={sendDevis} className="p-6 space-y-4" ref={formRef}>
+                  {/* Étape 1: Informations personnelles */}
+                  <div className="space-y-4">
+                    {/* Nom */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Nom complet <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="name"
+                        value={devisData.name}
+                        onChange={handleDevisChange}
+                        onBlur={handleDevisBlur}
+                        className={`w-full border ${devisErrors.name ? 'border-red-500' : 'border-gray-300'} rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#1a56db] focus:border-transparent transition`}
+                        placeholder="Jean Dupont"
+                        required
+                        aria-invalid={!!devisErrors.name}
+                        aria-describedby={devisErrors.name ? "name-error" : undefined}
+                      />
+                      {devisErrors.name && (
+                        <p id="name-error" className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                          <span>⚠️</span> {devisErrors.name}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Email */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Email <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        name="email"
+                        value={devisData.email}
+                        onChange={handleDevisChange}
+                        onBlur={handleDevisBlur}
+                        className={`w-full border ${devisErrors.email ? 'border-red-500' : 'border-gray-300'} rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#1a56db] focus:border-transparent transition`}
+                        placeholder="jean.dupont@email.com"
+                        required
+                        aria-invalid={!!devisErrors.email}
+                        aria-describedby={devisErrors.email ? "email-error" : undefined}
+                      />
+                      {devisErrors.email && (
+                        <p id="email-error" className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                          <span>⚠️</span> {devisErrors.email}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Téléphone */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Téléphone <span className="text-gray-400">(optionnel)</span>
+                      </label>
+                      <input
+                        type="tel"
+                        name="telephone"
+                        value={devisData.telephone}
+                        onChange={handleDevisChange}
+                        className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#1a56db] focus:border-transparent transition"
+                        placeholder="06 12 34 56 78"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-                    <input type="email" name="email" required value={devisData.email} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a56db]" placeholder="jean.dupont@email.com" />
+
+                  {/* Séparateur */}
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-gray-200"></div>
+                    </div>
+                    <div className="relative flex justify-center text-xs">
+                      <span className="px-3 bg-white text-gray-400">Informations de la formation</span>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Téléphone</label>
-                    <input type="tel" name="telephone" value={devisData.telephone} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a56db]" placeholder="06 12 34 56 78" />
+
+                  {/* Étape 2: Formation et message */}
+                  <div className="space-y-4">
+                    {/* Formation */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Formation souhaitée <span className="text-gray-400">(optionnel)</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="formation"
+                        value={devisData.formation}
+                        onChange={handleDevisChange}
+                        className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#1a56db] focus:border-transparent transition"
+                        placeholder="Ex: Développement Web, Data Science, IA..."
+                        list="formations-list"
+                      />
+                      <datalist id="formations-list">
+                        <option value="Développement Web" />
+                        <option value="Data Science" />
+                        <option value="Intelligence Artificielle" />
+                        <option value="Design Graphique" />
+                        <option value="Marketing Digital" />
+                        <option value="Gestion des Ressources Humaines" />
+                        <option value="Comptabilité" />
+                        <option value="Langues" />
+                        <option value="Énergies Renouvelables" />
+                        <option value="Management" />
+                      </datalist>
+                    </div>
+
+                    {/* Message */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Votre projet <span className="text-red-500">*</span>
+                      </label>
+                      <textarea
+                        name="message"
+                        rows="4"
+                        value={devisData.message}
+                        onChange={handleDevisChange}
+                        onBlur={handleDevisBlur}
+                        className={`w-full border ${devisErrors.message ? 'border-red-500' : 'border-gray-300'} rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#1a56db] focus:border-transparent transition resize-none`}
+                        placeholder="Décrivez votre projet, vos objectifs et vos besoins..."
+                        required
+                        aria-invalid={!!devisErrors.message}
+                        aria-describedby={devisErrors.message ? "message-error" : undefined}
+                      />
+                      <div className="flex justify-between mt-1">
+                        <span className="text-xs text-gray-400">
+                          {devisData.message.length} caractères
+                        </span>
+                        {devisErrors.message && (
+                          <p id="message-error" className="text-xs text-red-500 flex items-center gap-1">
+                            <span>⚠️</span> {devisErrors.message}
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Formation souhaitée</label>
-                    <input type="text" name="formation" value={devisData.formation} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a56db]" placeholder="Ex: Développement Web" />
+
+                  {/* Informations complémentaires */}
+                  <div className="bg-blue-50 rounded-lg p-3 text-xs text-blue-600 flex items-start gap-2">
+                    <span className="mt-0.5">💡</span>
+                    <p>
+                      Un devis personnalisé sera établi en fonction de vos besoins.
+                      N'hésitez pas à nous donner un maximum de détails sur votre projet.
+                    </p>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Message *</label>
-                    <textarea name="message" required rows="4" value={devisData.message} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a56db] resize-none" placeholder="Décrivez votre projet..." />
+
+                  {/* Boutons */}
+                  <div className="flex flex-col gap-3 pt-2">
+                    <button
+                      type="submit"
+                      disabled={sendingDevis || !isDevisValid()}
+                      className="w-full bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:hover:scale-100 hover:scale-[1.02]"
+                    >
+                      {sendingDevis ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          Envoi en cours...
+                        </span>
+                      ) : (
+                        "📩 Envoyer la demande"
+                      )}
+                    </button>
+                    
+                    <button
+                      type="button"
+                      onClick={() => setShowDevisModal(false)}
+                      className="text-gray-500 text-sm hover:text-gray-700 transition"
+                    >
+                      Annuler
+                    </button>
                   </div>
-                  <button type="submit" disabled={sendingDevis} className="w-full bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50">
-                    {sendingDevis ? "Envoi en cours..." : "📩 Envoyer la demande"}
-                  </button>
                 </form>
               </motion.div>
             </motion.div>

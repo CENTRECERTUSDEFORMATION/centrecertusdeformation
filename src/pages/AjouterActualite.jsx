@@ -1,5 +1,5 @@
 // frontend/src/pages/AjouterActualite.jsx
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import { supabase } from "../supabaseClient";
 import { supabaseInsert } from "../supabaseFetch";
 import { useNavigate } from "react-router-dom";
@@ -15,6 +15,8 @@ export default function AjouterActualite() {
   const [previews, setPreviews] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [direction, setDirection] = useState("ltr");
+  const [activeTab, setActiveTab] = useState("accueil");
 
   const cleanFileName = (filename) => {
     return filename
@@ -27,7 +29,6 @@ export default function AjouterActualite() {
   const handleImages = (e) => {
     const files = Array.from(e.target.files);
     setImages(files);
-    
     const newPreviews = files.map(file => URL.createObjectURL(file));
     setPreviews(newPreviews);
   };
@@ -39,7 +40,6 @@ export default function AjouterActualite() {
 
   // ============ FONCTIONS DE MISE EN FORME ============
 
-  // Insérer une balise autour du texte sélectionné
   const wrapText = (openTag, closeTag) => {
     const textarea = textareaRef.current;
     if (!textarea) return;
@@ -54,7 +54,6 @@ export default function AjouterActualite() {
       const newText = `${beforeText}${openTag}${selectedText}${closeTag}${afterText}`;
       setContenu(newText);
       
-      // Restaurer la sélection après la mise à jour
       setTimeout(() => {
         textarea.focus();
         const newStart = start + openTag.length;
@@ -66,20 +65,29 @@ export default function AjouterActualite() {
     }
   };
 
-  // Appliquer le gras
+  // ============ ONGLET ACCUEIL - STYLE DE TEXTE ============
+
   const applyBold = () => wrapText('<strong>', '</strong>');
-
-  // Appliquer l'italique
   const applyItalic = () => wrapText('<em>', '</em>');
-
-  // Appliquer le souligné
   const applyUnderline = () => wrapText('<u>', '</u>');
+  const applyStrike = () => wrapText('<del>', '</del>');
+  const applySubscript = () => wrapText('<sub>', '</sub>');
+  const applySuperscript = () => wrapText('<sup>', '</sup>');
 
-  // Appliquer la couleur (rouge)
-  const applyColor = () => wrapText('<span style="color: red;">', '</span>');
+  // ============ ONGLET STRUCTURE - TITRES ET LISTES ============
 
-  // Créer une liste à puces
-  const applyList = () => {
+  const applyTitle = (level) => {
+    const tags = {
+      1: ['<h1>', '</h1>'],
+      2: ['<h2>', '</h2>'],
+      3: ['<h3>', '</h3>'],
+      4: ['<h4>', '</h4>']
+    };
+    const [open, close] = tags[level] || tags[2];
+    wrapText(open, close);
+  };
+
+  const applyList = (type) => {
     const textarea = textareaRef.current;
     if (!textarea) return;
 
@@ -93,8 +101,9 @@ export default function AjouterActualite() {
       const afterText = contenu.substring(end);
       
       if (lines.length > 0) {
+        const tag = type === 'ul' ? 'ul' : 'ol';
         const listItems = lines.map(line => `  <li>${line.trim()}</li>`).join('\n');
-        const newText = `${beforeText}\n<ul>\n${listItems}\n</ul>\n${afterText}`;
+        const newText = `${beforeText}\n<${tag}>\n${listItems}\n</${tag}>\n${afterText}`;
         setContenu(newText);
         
         setTimeout(() => {
@@ -108,64 +117,8 @@ export default function AjouterActualite() {
     }
   };
 
-  // Créer une liste numérotée
-  const applyNumberedList = () => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
+  // ============ ONGLET INSERTION - LIENS ET MÉDIAS ============
 
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selectedText = contenu.substring(start, end);
-    
-    if (selectedText) {
-      const lines = selectedText.split('\n').filter(line => line.trim() !== '');
-      const beforeText = contenu.substring(0, start);
-      const afterText = contenu.substring(end);
-      
-      if (lines.length > 0) {
-        const listItems = lines.map((line, i) => `  <li>${line.trim()}</li>`).join('\n');
-        const newText = `${beforeText}\n<ol>\n${listItems}\n</ol>\n${afterText}`;
-        setContenu(newText);
-        
-        setTimeout(() => {
-          textarea.focus();
-          const newPos = start + 7 + (listItems.length > 0 ? listItems.length : 0);
-          textarea.setSelectionRange(newPos, newPos);
-        }, 10);
-      }
-    } else {
-      toast.info("Sélectionnez d'abord le texte à mettre en liste");
-    }
-  };
-
-  // Ajouter un titre (h2)
-  const applyTitle = () => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selectedText = contenu.substring(start, end);
-    
-    if (selectedText) {
-      wrapText('<h2>', '</h2>');
-    } else {
-      // Insérer un titre vide
-      const beforeText = contenu.substring(0, start);
-      const afterText = contenu.substring(start);
-      const newText = `${beforeText}<h2>Mon titre</h2>${afterText}`;
-      setContenu(newText);
-      
-      setTimeout(() => {
-        textarea.focus();
-        const newStart = start + 4;
-        const newEnd = newStart + 9;
-        textarea.setSelectionRange(newStart, newEnd);
-      }, 10);
-    }
-  };
-
-  // Ajouter un lien
   const applyLink = () => {
     const textarea = textareaRef.current;
     if (!textarea) return;
@@ -175,42 +128,78 @@ export default function AjouterActualite() {
     const selectedText = contenu.substring(start, end);
     
     if (selectedText) {
-      const beforeText = contenu.substring(0, start);
-      const afterText = contenu.substring(end);
-      const newText = `${beforeText}<a href="https://" target="_blank" rel="noopener noreferrer">${selectedText}</a>${afterText}`;
-      setContenu(newText);
-      
-      setTimeout(() => {
-        textarea.focus();
-        const hrefStart = start + 9;
-        const hrefEnd = hrefStart + 8;
-        textarea.setSelectionRange(hrefStart, hrefEnd);
-      }, 10);
+      const url = prompt("Entrez l'URL du lien:", "https://");
+      if (url) {
+        const beforeText = contenu.substring(0, start);
+        const afterText = contenu.substring(end);
+        const newText = `${beforeText}<a href="${url}" target="_blank" rel="noopener noreferrer">${selectedText}</a>${afterText}`;
+        setContenu(newText);
+        
+        setTimeout(() => {
+          textarea.focus();
+          const newStart = start + 9 + url.length;
+          const newEnd = end + 9 + url.length;
+          textarea.setSelectionRange(newStart, newEnd);
+        }, 10);
+      }
     } else {
       toast.info("Sélectionnez d'abord le texte à transformer en lien");
     }
   };
 
-  // Ajouter une image dans le contenu (HTML)
   const applyImage = () => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const url = prompt("Entrez l'URL de l'image:", "https://");
+    if (url) {
+      const beforeText = contenu.substring(0, start);
+      const afterText = contenu.substring(start);
+      const newText = `${beforeText}<img src="${url}" alt="Image" style="max-width: 100%; border-radius: 8px;" />${afterText}`;
+      setContenu(newText);
+      
+      setTimeout(() => {
+        textarea.focus();
+        const newStart = start + 10 + url.length;
+        textarea.setSelectionRange(newStart, newStart);
+      }, 10);
+    }
+  };
+
+  const applyTable = () => {
     const textarea = textareaRef.current;
     if (!textarea) return;
 
     const start = textarea.selectionStart;
     const beforeText = contenu.substring(0, start);
     const afterText = contenu.substring(start);
-    const newText = `${beforeText}<img src="url-de-l-image" alt="Description" style="max-width: 100%;" />${afterText}`;
-    setContenu(newText);
+    const tableHtml = `
+<table style="width: 100%; border-collapse: collapse; margin: 10px 0;">
+  <tr>
+    <th style="border: 1px solid #ddd; padding: 8px; background: #f2f2f2;">Colonne 1</th>
+    <th style="border: 1px solid #ddd; padding: 8px; background: #f2f2f2;">Colonne 2</th>
+  </tr>
+  <tr>
+    <td style="border: 1px solid #ddd; padding: 8px;">Donnée 1</td>
+    <td style="border: 1px solid #ddd; padding: 8px;">Donnée 2</td>
+  </tr>
+</table>`;
+    setContenu(`${beforeText}${tableHtml}${afterText}`);
     
     setTimeout(() => {
       textarea.focus();
-      const newStart = start + 10;
-      const newEnd = newStart + 14;
-      textarea.setSelectionRange(newStart, newEnd);
+      textarea.selectionStart = start + tableHtml.length;
+      textarea.selectionEnd = start + tableHtml.length;
     }, 10);
   };
 
-  // Ajouter un bloc de citation
+  const applyHorizontalRule = () => {
+    wrapText('\n<hr style="border: 1px solid #ddd; margin: 20px 0;" />\n', '');
+  };
+
+  // ============ ONGLET FORMAT - CITATIONS ET STYLES ============
+
   const applyQuote = () => {
     const textarea = textareaRef.current;
     if (!textarea) return;
@@ -220,19 +209,91 @@ export default function AjouterActualite() {
     const selectedText = contenu.substring(start, end);
     
     if (selectedText) {
-      wrapText('<blockquote>', '</blockquote>');
+      wrapText('<blockquote style="border-left: 4px solid #1a56db; padding-left: 16px; margin: 16px 0; color: #4b5563;">', '</blockquote>');
     } else {
       const beforeText = contenu.substring(0, start);
       const afterText = contenu.substring(start);
-      const newText = `${beforeText}<blockquote>Votre citation ici</blockquote>${afterText}`;
+      const newText = `${beforeText}<blockquote style="border-left: 4px solid #1a56db; padding-left: 16px; margin: 16px 0; color: #4b5563;">Votre citation ici</blockquote>${afterText}`;
       setContenu(newText);
       
       setTimeout(() => {
         textarea.focus();
-        const newStart = start + 12;
+        const newStart = start + 106;
         const newEnd = newStart + 18;
         textarea.setSelectionRange(newStart, newEnd);
       }, 10);
+    }
+  };
+
+  const applyCode = () => wrapText('<code style="background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-family: monospace;">', '</code>');
+  const applyPreformatted = () => wrapText('<pre style="background: #1f2937; color: #f3f4f6; padding: 16px; border-radius: 8px; overflow-x: auto;">', '</pre>');
+
+  // ============ ONGLET COULEUR ============
+
+  const applyTextColor = (colorHex) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = contenu.substring(start, end);
+    
+    if (selectedText) {
+      const beforeText = contenu.substring(0, start);
+      const afterText = contenu.substring(end);
+      const newText = `${beforeText}<span style="color: ${colorHex}; font-weight: 500;">${selectedText}</span>${afterText}`;
+      setContenu(newText);
+      
+      setTimeout(() => {
+        textarea.focus();
+        const newStart = start + 46;
+        const newEnd = end + 46;
+        textarea.setSelectionRange(newStart, newEnd);
+      }, 10);
+    } else {
+      toast.info("Sélectionnez d'abord le texte à colorer");
+    }
+  };
+
+  const applyHighlight = (colorHex) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = contenu.substring(start, end);
+    
+    if (selectedText) {
+      const beforeText = contenu.substring(0, start);
+      const afterText = contenu.substring(end);
+      const newText = `${beforeText}<span style="background-color: ${colorHex}; padding: 0 4px; border-radius: 3px;">${selectedText}</span>${afterText}`;
+      setContenu(newText);
+      
+      setTimeout(() => {
+        textarea.focus();
+        const newStart = start + 60;
+        const newEnd = end + 60;
+        textarea.setSelectionRange(newStart, newEnd);
+      }, 10);
+    } else {
+      toast.info("Sélectionnez d'abord le texte à surligner");
+    }
+  };
+
+  // ============ ALIGNEMENT ============
+
+  const applyAlignment = (align) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = contenu.substring(start, end);
+    
+    if (selectedText) {
+      wrapText(`<div style="text-align: ${align};">`, '</div>');
+    } else {
+      toast.info("Sélectionnez d'abord le texte à aligner");
     }
   };
 
@@ -240,7 +301,6 @@ export default function AjouterActualite() {
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
-      // Si Shift+Enter, insérer un <br> pour un retour à la ligne simple
       if (e.shiftKey) {
         e.preventDefault();
         const textarea = e.target;
@@ -254,7 +314,6 @@ export default function AjouterActualite() {
           textarea.selectionEnd = start + 4;
         }, 10);
       } else {
-        // Enter simple : insérer un nouveau paragraphe
         e.preventDefault();
         const textarea = e.target;
         const start = textarea.selectionStart;
@@ -267,6 +326,13 @@ export default function AjouterActualite() {
           textarea.selectionEnd = start + 7;
         }, 10);
       }
+    }
+  };
+
+  const toggleDirection = () => {
+    setDirection(prev => prev === "ltr" ? "rtl" : "ltr");
+    if (textareaRef.current) {
+      textareaRef.current.style.direction = direction === "ltr" ? "rtl" : "ltr";
     }
   };
 
@@ -297,10 +363,8 @@ export default function AjouterActualite() {
         uploadedPaths.push(fileName);
       }
 
-      // Formater le contenu avec des paragraphes si nécessaire
       let formattedContenu = contenu || null;
       if (formattedContenu) {
-        // Si le contenu n'a pas de balises HTML de paragraphe, ajouter des <p>
         if (!formattedContenu.includes('<p>') && !formattedContenu.includes('<br>')) {
           formattedContenu = formattedContenu
             .split('\n')
@@ -314,7 +378,10 @@ export default function AjouterActualite() {
         titre,
         contenu: formattedContenu,
         images: uploadedPaths,
-        created_at: new Date().toISOString(),
+        text_color: "#374151",
+        background_color: "#ffffff",
+        is_alert: false,
+        created_at: new Date().toISOString()
       });
 
       toast.success(`Actualité ajoutée avec ${uploadedPaths.length} image(s) !`);
@@ -331,11 +398,10 @@ export default function AjouterActualite() {
   // ============ RENDU ============
 
   return (
-    <div className="p-6 mt-20 max-w-5xl mx-auto">
+    <div className="p-6 mt-20 max-w-6xl mx-auto">
       <h2 className="text-2xl font-bold mb-6">Ajouter une actualité</h2>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Titre */}
         <div>
           <label className="block text-sm font-medium mb-1">Titre *</label>
           <input
@@ -348,122 +414,161 @@ export default function AjouterActualite() {
           />
         </div>
 
-        {/* Contenu avec barre d'outils complète */}
+        {/* Barre d'outils avec onglets */}
         <div>
           <label className="block text-sm font-medium mb-2">Contenu</label>
           
-          {/* Barre d'outils */}
-          <div className="flex flex-wrap gap-1 mb-2 p-2 bg-gray-100 rounded-t-lg border border-gray-300">
+          {/* Onglets */}
+          <div className="flex flex-wrap border-b border-gray-300 bg-gray-50 rounded-t-lg">
             <button
               type="button"
-              onClick={applyBold}
-              className="px-3 py-1 bg-white rounded hover:bg-gray-200 font-bold text-sm border border-gray-300"
-              title="Gras (Ctrl+B)"
+              onClick={() => setActiveTab("accueil")}
+              className={`px-4 py-2 text-sm font-medium transition ${activeTab === "accueil" ? "bg-white border-b-2 border-blue-600 text-blue-600" : "text-gray-600 hover:text-blue-600"}`}
             >
-              <span className="font-bold">B</span>
+              🏠 Accueil
             </button>
             <button
               type="button"
-              onClick={applyItalic}
-              className="px-3 py-1 bg-white rounded hover:bg-gray-200 italic text-sm border border-gray-300"
-              title="Italique (Ctrl+I)"
+              onClick={() => setActiveTab("structure")}
+              className={`px-4 py-2 text-sm font-medium transition ${activeTab === "structure" ? "bg-white border-b-2 border-blue-600 text-blue-600" : "text-gray-600 hover:text-blue-600"}`}
             >
-              <span className="italic">I</span>
+              📐 Structure
             </button>
             <button
               type="button"
-              onClick={applyUnderline}
-              className="px-3 py-1 bg-white rounded hover:bg-gray-200 underline text-sm border border-gray-300"
-              title="Souligné (Ctrl+U)"
+              onClick={() => setActiveTab("insertion")}
+              className={`px-4 py-2 text-sm font-medium transition ${activeTab === "insertion" ? "bg-white border-b-2 border-blue-600 text-blue-600" : "text-gray-600 hover:text-blue-600"}`}
             >
-              <span className="underline">U</span>
-            </button>
-            
-            <div className="w-px h-6 bg-gray-300 mx-1"></div>
-            
-            <button
-              type="button"
-              onClick={applyTitle}
-              className="px-3 py-1 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300 font-semibold"
-              title="Titre H2"
-            >
-              H2
+              📎 Insertion
             </button>
             <button
               type="button"
-              onClick={applyList}
-              className="px-3 py-1 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300"
-              title="Liste à puces"
+              onClick={() => setActiveTab("format")}
+              className={`px-4 py-2 text-sm font-medium transition ${activeTab === "format" ? "bg-white border-b-2 border-blue-600 text-blue-600" : "text-gray-600 hover:text-blue-600"}`}
             >
-              • Liste
+              🎨 Format
             </button>
             <button
               type="button"
-              onClick={applyNumberedList}
-              className="px-3 py-1 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300"
-              title="Liste numérotée"
+              onClick={() => setActiveTab("couleur")}
+              className={`px-4 py-2 text-sm font-medium transition ${activeTab === "couleur" ? "bg-white border-b-2 border-blue-600 text-blue-600" : "text-gray-600 hover:text-blue-600"}`}
             >
-              1. Liste
-            </button>
-            
-            <div className="w-px h-6 bg-gray-300 mx-1"></div>
-            
-            <button
-              type="button"
-              onClick={applyLink}
-              className="px-3 py-1 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300 text-blue-600"
-              title="Lien hypertexte"
-            >
-              🔗 Lien
-            </button>
-            <button
-              type="button"
-              onClick={applyImage}
-              className="px-3 py-1 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300 text-green-600"
-              title="Image dans le contenu"
-            >
-              🖼️ Image
-            </button>
-            <button
-              type="button"
-              onClick={applyQuote}
-              className="px-3 py-1 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300 text-gray-600"
-              title="Citation"
-            >
-              “ Citation
-            </button>
-            <button
-              type="button"
-              onClick={applyColor}
-              className="px-3 py-1 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300 text-red-600"
-              title="Texte en rouge"
-            >
-              🔴 Rouge
+              🌈 Couleur
             </button>
           </div>
-          
+
+          {/* Contenu des onglets */}
+          <div className="border-x border-gray-300 p-2 bg-gray-50">
+
+            {/* Onglet Accueil - Style de texte */}
+            {activeTab === "accueil" && (
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="text-xs text-gray-500 mr-1 font-medium">Style:</span>
+                <button type="button" onClick={applyBold} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 font-bold text-sm border border-gray-300" title="Gras">B</button>
+                <button type="button" onClick={applyItalic} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 italic text-sm border border-gray-300" title="Italique">I</button>
+                <button type="button" onClick={applyUnderline} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 underline text-sm border border-gray-300" title="Souligné">U</button>
+                <button type="button" onClick={applyStrike} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 line-through text-sm border border-gray-300" title="Barré">S</button>
+                <button type="button" onClick={applySubscript} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300" title="Indice">X₂</button>
+                <button type="button" onClick={applySuperscript} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300" title="Exposant">X²</button>
+              </div>
+            )}
+
+            {/* Onglet Structure - Titres et listes */}
+            {activeTab === "structure" && (
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="text-xs text-gray-500 mr-1 font-medium">Titres:</span>
+                <button type="button" onClick={() => applyTitle(1)} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300 font-bold">H1</button>
+                <button type="button" onClick={() => applyTitle(2)} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300 font-bold">H2</button>
+                <button type="button" onClick={() => applyTitle(3)} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300 font-semibold">H3</button>
+                <button type="button" onClick={() => applyTitle(4)} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300 font-medium">H4</button>
+                <span className="text-xs text-gray-500 mx-1">|</span>
+                <button type="button" onClick={() => applyList('ul')} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300">• Liste</button>
+                <button type="button" onClick={() => applyList('ol')} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300">1. Liste</button>
+              </div>
+            )}
+
+            {/* Onglet Insertion - Liens et médias */}
+            {activeTab === "insertion" && (
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="text-xs text-gray-500 mr-1 font-medium">Médias:</span>
+                <button type="button" onClick={applyLink} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300 text-blue-600">🔗 Lien</button>
+                <button type="button" onClick={applyImage} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300 text-green-600">🖼️ Image</button>
+                <button type="button" onClick={applyTable} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300">📊 Tableau</button>
+                <button type="button" onClick={applyHorizontalRule} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300">➖ Ligne</button>
+              </div>
+            )}
+
+            {/* Onglet Format - Citations et styles */}
+            {activeTab === "format" && (
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="text-xs text-gray-500 mr-1 font-medium">Format:</span>
+                <button type="button" onClick={applyQuote} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300">“ Citation</button>
+                <button type="button" onClick={applyCode} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300">{`<> Code`}</button>
+                <button type="button" onClick={applyPreformatted} className="px-3 py-1.5 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300">📄 Préformaté</button>
+                <span className="text-xs text-gray-500 mx-1">|</span>
+                <span className="text-xs text-gray-500 mr-1">Alignement:</span>
+                <button type="button" onClick={() => applyAlignment('left')} className="px-2 py-1 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300" title="Gauche">⬅️</button>
+                <button type="button" onClick={() => applyAlignment('center')} className="px-2 py-1 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300" title="Centrer">⬛</button>
+                <button type="button" onClick={() => applyAlignment('right')} className="px-2 py-1 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300" title="Droite">➡️</button>
+                <button type="button" onClick={() => applyAlignment('justify')} className="px-2 py-1 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300" title="Justifier">↔️</button>
+              </div>
+            )}
+
+            {/* Onglet Couleur */}
+            {activeTab === "couleur" && (
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="text-xs text-gray-500 mr-1 font-medium">🎨 Texte:</span>
+                <button type="button" onClick={() => applyTextColor('#1a56db')} className="w-8 h-8 rounded-full border border-gray-300 hover:scale-110 transition" style={{ backgroundColor: '#1a56db' }} title="Bleu"></button>
+                <button type="button" onClick={() => applyTextColor('#76c21f')} className="w-8 h-8 rounded-full border border-gray-300 hover:scale-110 transition" style={{ backgroundColor: '#76c21f' }} title="Vert"></button>
+                <button type="button" onClick={() => applyTextColor('#f59e0b')} className="w-8 h-8 rounded-full border border-gray-300 hover:scale-110 transition" style={{ backgroundColor: '#f59e0b' }} title="Orange"></button>
+                <button type="button" onClick={() => applyTextColor('#dc2626')} className="w-8 h-8 rounded-full border border-gray-300 hover:scale-110 transition" style={{ backgroundColor: '#dc2626' }} title="Rouge"></button>
+                <button type="button" onClick={() => applyTextColor('#7c3aed')} className="w-8 h-8 rounded-full border border-gray-300 hover:scale-110 transition" style={{ backgroundColor: '#7c3aed' }} title="Violet"></button>
+                <button type="button" onClick={() => applyTextColor('#ec4899')} className="w-8 h-8 rounded-full border border-gray-300 hover:scale-110 transition" style={{ backgroundColor: '#ec4899' }} title="Rose"></button>
+                <span className="text-xs text-gray-500 mx-1">|</span>
+                <span className="text-xs text-gray-500 mr-1">🟡 Surligner:</span>
+                <button type="button" onClick={() => applyHighlight('#fef08a')} className="w-8 h-8 rounded-full border border-gray-300 hover:scale-110 transition" style={{ backgroundColor: '#fef08a' }} title="Jaune"></button>
+                <button type="button" onClick={() => applyHighlight('#fca5a5')} className="w-8 h-8 rounded-full border border-gray-300 hover:scale-110 transition" style={{ backgroundColor: '#fca5a5' }} title="Rouge"></button>
+                <button type="button" onClick={() => applyHighlight('#93c5fd')} className="w-8 h-8 rounded-full border border-gray-300 hover:scale-110 transition" style={{ backgroundColor: '#93c5fd' }} title="Bleu"></button>
+              </div>
+            )}
+
+          </div>
+
+          {/* Barre d'outils - Direction et info */}
+          <div className="flex flex-wrap items-center gap-2 p-2 bg-gray-100 rounded-b-lg border border-gray-300 border-t-0">
+            <button
+              type="button"
+              onClick={toggleDirection}
+              className="px-3 py-1 bg-white rounded hover:bg-gray-200 text-sm border border-gray-300"
+              title="Changer la direction du texte"
+            >
+              {direction === "ltr" ? "🌐 Arabe (RTL)" : "🌐 Français (LTR)"}
+            </button>
+            <span className="text-xs text-gray-400">|</span>
+            <span className="text-xs text-gray-500">
+              <kbd className="px-1 bg-gray-200 rounded">Entrée</kbd> = paragraphe | 
+              <kbd className="px-1 bg-gray-200 rounded ml-1">Shift</kbd> + <kbd className="px-1 bg-gray-200 rounded">Entrée</kbd> = retour à la ligne
+            </span>
+            <span className="text-xs text-gray-400 ml-auto">
+              {contenu.length} caractères
+            </span>
+          </div>
+
           <textarea
             ref={textareaRef}
             id="contenu-textarea"
-            placeholder="Description de l'actualité (HTML supporté)
-
-Astuces :
-- Sélectionnez du texte puis cliquez sur un bouton pour le mettre en forme
-- Appuyez sur Entrée pour créer un nouveau paragraphe
-- Appuyez sur Shift+Entrée pour un simple retour à la ligne (<br>)"
+            placeholder="Saisissez le contenu de votre actualité ici... Utilisez les onglets ci-dessus pour formater le texte."
             className="w-full border border-gray-300 p-4 rounded-b-lg font-mono text-sm min-h-[300px] focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             rows="12"
             value={contenu}
             onChange={(e) => setContenu(e.target.value)}
             onKeyDown={handleKeyDown}
+            dir={direction}
           />
           
           <div className="flex justify-between items-center mt-1">
             <p className="text-xs text-gray-500">
-              💡 Astuces : 
-              <span className="ml-2">• Sélectionnez du texte et cliquez sur un bouton</span>
-              <span className="ml-2">• <kbd className="px-1 bg-gray-200 rounded">Entrée</kbd> = nouveau paragraphe</span>
-              <span className="ml-2">• <kbd className="px-1 bg-gray-200 rounded">Shift</kbd> + <kbd className="px-1 bg-gray-200 rounded">Entrée</kbd> = retour à la ligne</span>
+              💡 Astuces : Sélectionnez du texte puis utilisez les onglets pour le mettre en forme
             </p>
             <button
               type="button"
@@ -474,12 +579,12 @@ Astuces :
             </button>
           </div>
           
-          {/* Aperçu en direct */}
           {showPreview && (
             <div className="mt-3 p-4 border border-gray-300 rounded-lg bg-gray-50">
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Aperçu :</h3>
+              <h3 className="text-sm font-medium text-gray-700 mb-2">📄 Aperçu :</h3>
               <div 
                 className="prose prose-sm max-w-none"
+                dir={direction}
                 dangerouslySetInnerHTML={{ 
                   __html: contenu || "<span class='text-gray-400 italic'>Le contenu s'affichera ici...</span>" 
                 }} 

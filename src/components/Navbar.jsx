@@ -11,6 +11,7 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [adminDropdownOpen, setAdminDropdownOpen] = useState(false);
+  const [formationsDropdownOpen, setFormationsDropdownOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, isAdmin, userType, isApproved, loading, logout } = useAuth();
@@ -30,16 +31,19 @@ export default function Navbar() {
   useEffect(() => {
     setMenuOpen(false);
     setAdminDropdownOpen(false);
+    setFormationsDropdownOpen(false);
   }, [location]);
 
   const toggleMenu = () => setMenuOpen((prev) => !prev);
   const toggleAdminDropdown = () => setAdminDropdownOpen((prev) => !prev);
+  const toggleFormationsDropdown = () => setFormationsDropdownOpen((prev) => !prev);
 
   const handleLogout = async () => {
     await logout();
     navigate("/");
     setMenuOpen(false);
     setAdminDropdownOpen(false);
+    setFormationsDropdownOpen(false);
   };
 
   const isActive = (path) => location.pathname === path || location.pathname.startsWith(path);
@@ -90,7 +94,141 @@ export default function Navbar() {
             {/* Pages publiques */}
             <Link to="/" className={`px-3 py-2 rounded-lg text-sm font-medium transition ${isActive("/") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>Accueil</Link>
             <Link to="/a-propos" className={`px-3 py-2 rounded-lg text-sm font-medium transition ${isActive("/a-propos") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>À propos</Link>
-            <Link to="/formations" className={`px-3 py-2 rounded-lg text-sm font-medium transition ${isActive("/formations") || location.pathname.startsWith("/formations/") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>Formations</Link>
+
+            {/* ============ DROPDOWN FORMATIONS (SEO) ============ */}
+            <div 
+              className="relative"
+              onMouseEnter={() => setFormationsDropdownOpen(true)}
+              onMouseLeave={() => setFormationsDropdownOpen(false)}
+            >
+              <button
+                className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                  isActive("/formations") || location.pathname.startsWith("/formations/") || location.pathname.startsWith("/formation-")
+                    ? "text-[#1a56db]"
+                    : "text-gray-600 hover:text-[#1a56db]"
+                }`}
+                onClick={toggleFormationsDropdown}
+              >
+                Formations
+                <ChevronDown className={`w-4 h-4 transition-transform ${formationsDropdownOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              <AnimatePresence>
+                {formationsDropdownOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="absolute left-0 mt-1 w-56 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50"
+                  >
+                    {/* Toutes les formations */}
+                    <Link
+                      to="/formations"
+                      onClick={() => setFormationsDropdownOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
+                    >
+                      📚 Toutes les formations
+                    </Link>
+                    
+                    <div className="border-t border-gray-100 my-1"></div>
+                    
+                    {/* 🌍 Formations en Langues */}
+                    <Link
+                      to="/formations/langues"
+                      onClick={() => setFormationsDropdownOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-[#1a56db] hover:bg-blue-50 transition"
+                    >
+                      🌍 Formations en Langues
+                    </Link>
+                    
+                    {/* ✅ Sous-menu langues - URLs SEO mises à jour */}
+                    <div className="border-t border-gray-100 my-1"></div>
+                    <Link
+                      to="/formation-allemand-monastir"
+                      onClick={() => setFormationsDropdownOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2 pl-8 text-sm text-gray-600 hover:bg-blue-50 hover:text-[#1a56db] transition"
+                    >
+                      🇩🇪 Allemand
+                    </Link>
+                    <Link
+                      to="/formation-anglais-monastir"
+                      onClick={() => setFormationsDropdownOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2 pl-8 text-sm text-gray-600 hover:bg-blue-50 hover:text-[#1a56db] transition"
+                    >
+                      🇬🇧 Anglais
+                    </Link>
+                    <Link
+                      to="/formation-espagnol-monastir"
+                      onClick={() => setFormationsDropdownOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2 pl-8 text-sm text-gray-600 hover:bg-blue-50 hover:text-[#1a56db] transition"
+                    >
+                      🇪🇸 Espagnol
+                    </Link>
+                    <Link
+                      to="/formation-francais-monastir"
+                      onClick={() => setFormationsDropdownOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2 pl-8 text-sm text-gray-600 hover:bg-blue-50 hover:text-[#1a56db] transition"
+                    >
+                      🇫🇷 Français
+                    </Link>
+                    <Link
+                      to="/formation-italien-monastir"
+                      onClick={() => setFormationsDropdownOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2 pl-8 text-sm text-gray-600 hover:bg-blue-50 hover:text-[#1a56db] transition"
+                    >
+                      🇮🇹 Italien
+                    </Link>
+                    
+                    <div className="border-t border-gray-100 my-1"></div>
+                    
+                    {/* Autres thèmes */}
+                    <Link
+                      to="/formations?theme=digital"
+                      onClick={() => setFormationsDropdownOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2 pl-8 text-sm text-gray-500 hover:bg-gray-50 transition"
+                    >
+                      💻 Digital & Web
+                    </Link>
+                    <Link
+                      to="/formations?theme=data"
+                      onClick={() => setFormationsDropdownOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2 pl-8 text-sm text-gray-500 hover:bg-gray-50 transition"
+                    >
+                      📊 Data & IA
+                    </Link>
+                    <Link
+                      to="/formations?theme=design"
+                      onClick={() => setFormationsDropdownOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2 pl-8 text-sm text-gray-500 hover:bg-gray-50 transition"
+                    >
+                      🎨 Design & Créativité
+                    </Link>
+                    <Link
+                      to="/formations?theme=management"
+                      onClick={() => setFormationsDropdownOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2 pl-8 text-sm text-gray-500 hover:bg-gray-50 transition"
+                    >
+                      📈 Management
+                    </Link>
+                    <Link
+                      to="/formations?theme=finance"
+                      onClick={() => setFormationsDropdownOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2 pl-8 text-sm text-gray-500 hover:bg-gray-50 transition"
+                    >
+                      💰 Finance
+                    </Link>
+                    <Link
+                      to="/formations?theme=energie"
+                      onClick={() => setFormationsDropdownOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2 pl-8 text-sm text-gray-500 hover:bg-gray-50 transition"
+                    >
+                      🌱 Énergies renouvelables
+                    </Link>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
             <Link to="/actualite" className={`px-3 py-2 rounded-lg text-sm font-medium transition ${isActive("/actualite") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>Actualité</Link>
             <Link to="/contact" className={`px-3 py-2 rounded-lg text-sm font-medium transition ${isActive("/contact") ? "text-[#1a56db]" : "text-gray-600 hover:text-[#1a56db]"}`}>Contact</Link>
 
@@ -199,7 +337,32 @@ export default function Navbar() {
             <div className="px-4 py-4 flex flex-col gap-1">
               <Link onClick={toggleMenu} to="/" className="px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-50">🏠 Accueil</Link>
               <Link onClick={toggleMenu} to="/a-propos" className="px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-50">ℹ️ À propos</Link>
-              <Link onClick={toggleMenu} to="/formations" className="px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-50">📚 Formations</Link>
+              
+              {/* Lien Formations Mobile */}
+              <Link onClick={toggleMenu} to="/formations" className="px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-50">📚 Toutes les formations</Link>
+              
+              {/* ✅ Langues - Mobile avec URLs SEO */}
+              <div className="pl-6 border-l-2 border-blue-200 ml-3">
+                <Link onClick={toggleMenu} to="/formations/langues" className="block px-3 py-1.5 rounded-lg text-sm font-medium text-[#1a56db] hover:bg-blue-50">
+                  🌍 Formations en Langues
+                </Link>
+                <Link onClick={toggleMenu} to="/formation-allemand-monastir" className="block px-3 py-1.5 rounded-lg text-sm text-gray-600 hover:bg-blue-50">
+                  🇩🇪 Allemand
+                </Link>
+                <Link onClick={toggleMenu} to="/formation-anglais-monastir" className="block px-3 py-1.5 rounded-lg text-sm text-gray-600 hover:bg-blue-50">
+                  🇬🇧 Anglais
+                </Link>
+                <Link onClick={toggleMenu} to="/formation-espagnol-monastir" className="block px-3 py-1.5 rounded-lg text-sm text-gray-600 hover:bg-blue-50">
+                  🇪🇸 Espagnol
+                </Link>
+                <Link onClick={toggleMenu} to="/formation-francais-monastir" className="block px-3 py-1.5 rounded-lg text-sm text-gray-600 hover:bg-blue-50">
+                  🇫🇷 Français
+                </Link>
+                <Link onClick={toggleMenu} to="/formation-italien-monastir" className="block px-3 py-1.5 rounded-lg text-sm text-gray-600 hover:bg-blue-50">
+                  🇮🇹 Italien
+                </Link>
+              </div>
+              
               <Link onClick={toggleMenu} to="/actualite" className="px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-50">📰 Actualité</Link>
               <Link onClick={toggleMenu} to="/contact" className="px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-50">📧 Contact</Link>
 
