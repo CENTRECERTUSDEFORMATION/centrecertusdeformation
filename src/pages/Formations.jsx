@@ -1,5 +1,5 @@
 // frontend/src/pages/Formations.jsx
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../supabaseClient";
@@ -17,18 +17,21 @@ import Footer from "../components/Footer";
 import ModalInscriptionDemande from "../components/ModalInscriptionDemande";
 import { normalizeString } from "../utils/stringUtils";
 
-// Configuration EmailJS
+// ============================================
+// CONFIGURATION
+// ============================================
 const EMAILJS_CONFIG = {
   PUBLIC_KEY: "LNbKohuUxse3qtZjG",
   SERVICE_ID: "service_ixutrbl",
   TEMPLATE_ID: "template_5iq0uco"
 };
 
-// Configuration Supabase directe
 const SUPABASE_URL = 'https://rdttnpdjeuteeuwvggai.supabase.co';
-const SUPABASE_KEY = 'sb_publishable__KLqCBiq6w5S-4jhoR2bYQ_HB8IVPpT';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJkdHRucGRqZXV0ZWV1d3ZnZ2FpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4OTI3ODMsImV4cCI6MjA4NjQ2ODc4M30.XG3YD4SOkjddvS76KaJS2dHHNdXcXSdVR765E-G_7g4';
 
-// Définition des 7 thèmes
+// ============================================
+// DONNÉES STATIQUES
+// ============================================
 const THEMES = [
   { id: "digital", name: "Digital & Web", icon: "💻", description: "Développement web, marketing digital, e-commerce" },
   { id: "data", name: "Data & IA", icon: "📊", description: "Science des données, intelligence artificielle, Python" },
@@ -39,7 +42,6 @@ const THEMES = [
   { id: "langues", name: "Langues & Communication", icon: "🗣️", description: "Anglais, Allemand, Français des affaires, TOEIC/IELTS" }
 ];
 
-// ============ FORMATIONS STATIQUES (Langues) - Version corrigée ============
 const STATIC_FORMATIONS = [
   {
     id: "allemand-static",
@@ -56,7 +58,11 @@ const STATIC_FORMATIONS = [
     isStatic: true,
     staticIcon: "🇩🇪",
     searchTitle: "Allemand",
-    shortDescription: "Apprenez l'allemand avec des formateurs natifs. Certifications Goethe et ÖSD reconnues internationalement."
+    shortDescription: "Apprenez l'allemand avec des formateurs natifs. Certifications Goethe et ÖSD reconnues internationalement.",
+    has_test: true,
+    test_free: true,
+    test_type: "langues",
+    slug: "allemand-goethe-osd-monastir"
   },
   {
     id: "anglais-static",
@@ -73,7 +79,11 @@ const STATIC_FORMATIONS = [
     isStatic: true,
     staticIcon: "🇬🇧",
     searchTitle: "Anglais",
-    shortDescription: "Maîtrisez l'anglais pour booster votre carrière. Cours A1 à C1, préparation TOEIC/IELTS."
+    shortDescription: "Maîtrisez l'anglais pour booster votre carrière. Cours A1 à C1, préparation TOEIC/IELTS.",
+    has_test: true,
+    test_free: true,
+    test_type: "langues",
+    slug: "anglais-toeic-ielts-monastir"
   },
   {
     id: "espagnol-static",
@@ -90,7 +100,11 @@ const STATIC_FORMATIONS = [
     isStatic: true,
     staticIcon: "🇪🇸",
     searchTitle: "Espagnol",
-    shortDescription: "Apprenez l'espagnol et ouvrez-vous au monde hispanophone. Cours A1 à B1, préparation DELE."
+    shortDescription: "Apprenez l'espagnol et ouvrez-vous au monde hispanophone. Cours A1 à B1, préparation DELE.",
+    has_test: true,
+    test_free: true,
+    test_type: "langues",
+    slug: "espagnol-dele-monastir"
   },
   {
     id: "francais-static",
@@ -107,7 +121,11 @@ const STATIC_FORMATIONS = [
     isStatic: true,
     staticIcon: "🇫🇷",
     searchTitle: "Francais",
-    shortDescription: "Envisagez de gagner en confiance en français ? Notre session Français B1 pour adultes démarre bientôt."
+    shortDescription: "Envisagez de gagner en confiance en français ? Notre session Français B1 pour adultes démarre bientôt.",
+    has_test: true,
+    test_free: true,
+    test_type: "langues",
+    slug: "francais-delf-dalf-monastir"
   },
   {
     id: "italien-static",
@@ -124,11 +142,14 @@ const STATIC_FORMATIONS = [
     isStatic: true,
     staticIcon: "🇮🇹",
     searchTitle: "Italien",
-    shortDescription: "Apprenez l'italien avec des formateurs natifs. Certifications CELI et PLIDA reconnues."
+    shortDescription: "Apprenez l'italien avec des formateurs natifs. Certifications CELI et PLIDA reconnues.",
+    has_test: true,
+    test_free: true,
+    test_type: "langues",
+    slug: "italien-celi-plida-monastir"
   }
 ];
 
-// ✅ IDs des formations dynamiques à exclure (langues)
 const EXCLUDED_LANGUE_IDS = [
   'f1111111-1111-1111-1111-111111111111',
   'f2222222-2222-2222-2222-222222222222',
@@ -137,14 +158,12 @@ const EXCLUDED_LANGUE_IDS = [
   'f5555555-5555-5555-5555-555555555555'
 ];
 
-// Liste complète des gouvernorats de Tunisie (24)
 const TUNISIAN_GOVERNORATES = [
   "Tunis", "Ariana", "Ben Arous", "Manouba", "Nabeul", "Zaghouan", "Bizerte", "Béja",
   "Jendouba", "Le Kef", "Siliana", "Sousse", "Monastir", "Mahdia", "Sfax", "Kairouan",
   "Kasserine", "Sidi Bouzid", "Gabès", "Médenine", "Tataouine", "Gafsa", "Tozeur", "Kébili"
 ];
 
-// Témoignages
 const testimonials = [
   { name: "Sahar Fredj", role: "Stagiaire", text: "Je suis venue de Monastir pour suivre la formation Pack Assistante de direction, qui comprend la comptabilité sur Sage. Une excellente expérience !", rating: 5, date: "2026-05-11" },
   { name: "Ines Fahem", role: "Stagiaire", text: "J'ai fait la formation Assistante de direction au centre certus à Monastir. Comptabilité sur SAGE, très professionnel !", rating: 5, date: "2026-05-11" },
@@ -170,7 +189,6 @@ const testimonials = [
   { name: "Mohamed Ali Hammami", role: "Ingénieur", text: "Formation en Data IA très complète. Je recommande !", rating: 5, date: "2026-04-10" },
 ];
 
-// Partenaires
 const partners = [
   { name: "GRAVIC Tunitec", logo: "/logo_references/gravictunitec_logo.jpg" },
   { name: "Thyna Petroleum Services", logo: "/logo_references/tps.jpg" },
@@ -190,12 +208,27 @@ const partners = [
   { name: "Modern Metal", logo: "/logo_references/modern-metal.jpg" },
 ];
 
+// ============================================
+// hasFreeTest - Vérifie si une formation propose un test gratuit
+// ============================================
+const hasFreeTest = (formation) => {
+  if (formation.has_test === true) {
+    return true;
+  }
+  if (formation.isStatic) {
+    return formation.test_free === true;
+  }
+  return false;
+};
+
+// ============================================
+// COMPOSANT PRINCIPAL
+// ============================================
 export default function Formations() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { isAdmin, user } = useAuth();
+  const { isAdmin } = useAuth();
 
-  const [dbFormations, setDbFormations] = useState([]);
   const [allFormations, setAllFormations] = useState([]);
   const [filteredFormations, setFilteredFormations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -206,37 +239,86 @@ export default function Formations() {
   const [randomTestimonials, setRandomTestimonials] = useState([]);
   const [showInscriptionDemandeModal, setShowInscriptionDemandeModal] = useState(false);
   const [selectedFormation, setSelectedFormation] = useState(null);
-  const [inscriptionLoading, setInscriptionLoading] = useState(false);
+  const [sendingDevis, setSendingDevis] = useState(false);
+  const [formationsDropdownOpen, setFormationsDropdownOpen] = useState(false);
+  
   const [devisData, setDevisData] = useState({
     name: "", email: "", telephone: "", city: "", country: "", formation: "",
     hebergement: "non", hebergementType: "", visaAssistance: "non", source: "", message: ""
   });
-  const [sendingDevis, setSendingDevis] = useState(false);
 
-  const handleNavigateToAdd = useCallback(() => {
-    navigate("/ajouter-formation");
-  }, [navigate]);
+  // ============================================
+  // MEMOIZED VALUES
+  // ============================================
+  const freeTestCount = useMemo(() => {
+    return allFormations.filter(f => f.has_test === true).length;
+  }, [allFormations]);
 
-  const handleNavigateToEdit = useCallback((id) => {
-    navigate(`/modifier-formation/${id}`);
-  }, [navigate]);
+  const activeFormationsCount = allFormations.length;
 
-  const handleNavigateToDetail = useCallback((id) => {
-    const staticFormation = STATIC_FORMATIONS.find(f => f.id === id);
+  // ============================================
+  // HELPERS
+  // ============================================
+  const getImageUrl = useCallback((path) => {
+    if (!path) return null;
+    return `${SUPABASE_URL}/storage/v1/object/public/uploads/${path}`;
+  }, []);
+
+  const getFormationIcon = useCallback((formation) => {
+    if (formation.staticIcon) return formation.staticIcon;
+    const icons = {
+      langues: '🗣️', digital: '💻', data: '📊',
+      design: '🎨', management: '📈', finance: '💰', energie: '🌱'
+    };
+    return icons[formation.theme] || '📚';
+  }, []);
+
+  // ✅ Fonction pour obtenir l'URL du test
+  const getTestUrl = useCallback((formation) => {
+    const slug = formation.slug || formation.id;
+    
+    // ✅ Vérifier si c'est une formation Excel Avancé
+    const excelSlugs = [
+      'excel-avance-monastir',
+      'excel-avance-formation-perfectionnement-et-automatisation-ce',
+      'excel-avance'
+    ];
+    
+    if (excelSlugs.includes(slug) || slug.includes('excel') || slug.includes('Excel')) {
+      return '/test/excel-avance';
+    }
+    
+    return `/test/${slug}`;
+  }, []);
+
+  // ============================================
+  // NAVIGATION
+  // ============================================
+  const handleNavigateToAdd = useCallback(() => navigate("/ajouter-formation"), [navigate]);
+  const handleNavigateToEdit = useCallback((id) => navigate(`/modifier-formation/${id}`), [navigate]);
+  
+  const handleNavigateToDetail = useCallback((formation) => {
+    const staticFormation = STATIC_FORMATIONS.find(f => f.id === formation.id);
     if (staticFormation) {
       navigate(staticFormation.staticPath);
     } else {
-      navigate(`/formations/${id}`);
+      const slug = formation.slug || formation.id;
+      navigate(`/formations/${slug}`);
     }
   }, [navigate]);
 
-  useEffect(() => {
-    emailjs.init(EMAILJS_CONFIG.PUBLIC_KEY);
-    const shuffled = [...testimonials].sort(() => 0.5 - Math.random());
-    setRandomTestimonials(shuffled);
+  const scrollToFormations = useCallback(() => {
+    document.getElementById('formations-list')?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
-  // Charger toutes les formations avec fetch direct
+  // ============================================
+  // FETCH DATA
+  // ============================================
+  useEffect(() => {
+    emailjs.init(EMAILJS_CONFIG.PUBLIC_KEY);
+    setRandomTestimonials([...testimonials].sort(() => 0.5 - Math.random()));
+  }, []);
+
   useEffect(() => {
     const fetchFormations = async () => {
       setLoading(true);
@@ -251,16 +333,11 @@ export default function Formations() {
           }
         );
         
-        if (!response.ok) {
-          throw new Error(`Erreur HTTP: ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
         
         const data = await response.json();
-        setDbFormations(data || []);
         
-        // ✅ Filtrer les doublons et les formations mal rendues
         const filteredData = data.filter(f => {
-          // Ignorer les formations "échecs" ou placeholders
           if (f.title && (f.title.includes("échecs") || f.title.includes("echecs") || f.title.includes("Certus De Formation"))) {
             return false;
           }
@@ -278,18 +355,20 @@ export default function Formations() {
           return true;
         });
         
-        const combined = [...filteredData, ...STATIC_FORMATIONS];
+        const enrichedData = filteredData.map(f => ({
+          ...f,
+          has_test: f.has_test || false
+        }));
+        
+        const combined = [...enrichedData, ...STATIC_FORMATIONS];
         setAllFormations(combined);
         setFilteredFormations(combined);
         
         const themeParam = searchParams.get('theme');
-        if (themeParam) {
-          setSelectedTheme(themeParam);
-        }
+        if (themeParam) setSelectedTheme(themeParam);
       } catch (error) {
         console.error("Erreur chargement formations:", error);
         toast.error("Erreur chargement formations");
-        setDbFormations([]);
         setAllFormations(STATIC_FORMATIONS);
         setFilteredFormations(STATIC_FORMATIONS);
       } finally {
@@ -299,46 +378,46 @@ export default function Formations() {
     fetchFormations();
   }, [searchParams]);
 
-  const searchInFormation = (formation, searchLower) => {
+  // ============================================
+  // FILTRES
+  // ============================================
+  const searchInFormation = useCallback((formation, searchLower) => {
     if (!searchLower) return true;
     
     const searchableFields = [
-      formation.title,
-      formation.fullTitle,
-      formation.shortDescription,
-      formation.description,
-      formation.theme ? THEMES.find(t => t.id === formation.theme)?.name : null,
-      formation.duration,
-      formation.price,
-      formation.langue
+      formation.title, formation.fullTitle, formation.shortDescription,
+      formation.description, formation.duration, formation.price, formation.langue,
+      formation.theme ? THEMES.find(t => t.id === formation.theme)?.name : null
     ];
     
     const themeInfo = THEMES.find(t => t.id === formation.theme);
     if (themeInfo) {
-      searchableFields.push(themeInfo.name);
-      searchableFields.push(themeInfo.description);
+      searchableFields.push(themeInfo.name, themeInfo.description);
     }
     
     return searchableFields.some(field => 
       field && String(field).toLowerCase().includes(searchLower)
     );
-  };
+  }, []);
 
   useEffect(() => {
     let filtered = [...allFormations];
     
-    if (searchTerm !== "") {
+    if (searchTerm) {
       const searchLower = searchTerm.toLowerCase();
       filtered = filtered.filter(formation => searchInFormation(formation, searchLower));
     }
     
     if (selectedTheme !== "all") {
-      filtered = filtered.filter((f) => f.theme === selectedTheme);
+      filtered = filtered.filter(f => f.theme === selectedTheme);
     }
     
     setFilteredFormations(filtered);
-  }, [searchTerm, selectedTheme, allFormations]);
+  }, [searchTerm, selectedTheme, allFormations, searchInFormation]);
 
+  // ============================================
+  // ADMIN ACTIONS
+  // ============================================
   const updateFormationTheme = useCallback(async (formationId, newTheme) => {
     if (!isAdmin) return;
     
@@ -364,10 +443,6 @@ export default function Formations() {
 
       if (!response.ok) throw new Error("Erreur mise à jour");
 
-      setDbFormations(prev => prev.map(f => 
-        f.id === formationId ? { ...f, theme: newTheme } : f
-      ));
-      
       setAllFormations(prev => prev.map(f => 
         f.id === formationId ? { ...f, theme: newTheme } : f
       ));
@@ -379,16 +454,10 @@ export default function Formations() {
     }
   }, [isAdmin]);
 
-  const getImageUrl = (path) => {
-    if (!path) return null;
-    return `${SUPABASE_URL}/storage/v1/object/public/uploads/${path}`;
-  };
-
-  const handleDelete = useCallback(async (id, imagesPaths) => {
+  const handleDelete = useCallback(async (id) => {
     if (!isAdmin) return;
     
-    const staticFormation = STATIC_FORMATIONS.find(f => f.id === id);
-    if (staticFormation) {
+    if (STATIC_FORMATIONS.some(f => f.id === id)) {
       toast.info("Cette formation est statique et ne peut pas être supprimée.");
       return;
     }
@@ -409,8 +478,7 @@ export default function Formations() {
 
       if (!response.ok) throw new Error("Erreur suppression");
       
-      setDbFormations((prev) => prev.filter((f) => f.id !== id));
-      setAllFormations((prev) => prev.filter((f) => f.id !== id));
+      setAllFormations(prev => prev.filter(f => f.id !== id));
       toast.success("Formation supprimée");
     } catch (error) {
       console.error(error);
@@ -418,29 +486,31 @@ export default function Formations() {
     }
   }, [isAdmin]);
 
+  // ============================================
+  // DEVIS
+  // ============================================
   const handleDevisChange = useCallback((e) => {
-    setDevisData({ ...devisData, [e.target.name]: e.target.value });
-  }, [devisData]);
+    setDevisData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  }, []);
 
   const sendDevis = useCallback(async (e) => {
     e.preventDefault();
     setSendingDevis(true);
     try {
       const templateParams = {
-        name: devisData.name,
-        email: devisData.email,
-        telephone: devisData.telephone,
+        ...devisData,
         city: devisData.city || "Non renseignée",
-        country: devisData.country,
-        formation: devisData.formation,
-        hebergement: devisData.hebergement,
         hebergementType: devisData.hebergementType || "Non renseigné",
-        visaAssistance: devisData.visaAssistance || "Non",
         source: devisData.source || "Non renseignée",
-        message: devisData.message,
         date: new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
       };
-      const response = await emailjs.send(EMAILJS_CONFIG.SERVICE_ID, EMAILJS_CONFIG.TEMPLATE_ID, templateParams);
+      
+      const response = await emailjs.send(
+        EMAILJS_CONFIG.SERVICE_ID, 
+        EMAILJS_CONFIG.TEMPLATE_ID, 
+        templateParams
+      );
+      
       if (response.status === 200) {
         toast.success("Demande de devis envoyée avec succès !");
         setShowDevisModal(false);
@@ -457,25 +527,28 @@ export default function Formations() {
     }
   }, [devisData]);
 
+  // ============================================
+  // INSCRIPTION
+  // ============================================
   const handleInscriptionEnLigne = useCallback(async (formation) => {
     if (formation.isStatic) {
       navigate("/inscription");
       return;
     }
     
-    setInscriptionLoading(true);
     try {
       const { data: { user: currentUser } } = await supabase.auth.getUser();
       
       if (!currentUser) {
-        const redirectUrl = `/confirm-inscription?formation=${formation.id}`;
-        navigate(`/inscription?redirect=${encodeURIComponent(redirectUrl)}`);
+        navigate(`/inscription?redirect=/confirm-inscription?formation=${formation.id}`);
         return;
       }
 
-      const existing = await supabaseSelect("inscriptions", `user_id=eq.${currentUser.id}&formation_id=eq.${formation.id}`);
+      const existing = await supabaseSelect("inscriptions", 
+        `user_id=eq.${currentUser.id}&formation_id=eq.${formation.id}`
+      );
 
-      if (existing && existing.length > 0) {
+      if (existing?.length > 0) {
         const statut = existing[0].statut;
         if (statut === "en_attente") {
           toast.info("⏳ Votre inscription est déjà en attente de validation");
@@ -497,94 +570,51 @@ export default function Formations() {
     } catch (err) {
       console.error(err);
       toast.error("❌ Erreur lors de l'inscription");
-    } finally {
-      setInscriptionLoading(false);
     }
   }, [navigate]);
 
-  const handleInscriptionDemande = useCallback((formation) => {
-    setSelectedFormation(formation);
-    setShowInscriptionDemandeModal(true);
-  }, []);
-
-  const scrollToFormations = useCallback(() => {
-    const element = document.getElementById('formations-list');
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, []);
-
-  const activeFormationsCount = allFormations.length;
-  const satisfactionRate = "4.9";
-  const totalTestimonials = testimonials.length;
-  const positiveTestimonials = testimonials.filter(t => t.rating >= 4).length;
-  const recommendationRate = Math.round((positiveTestimonials / totalTestimonials) * 100);
-
-  const getOGImage = () => {
-    if (allFormations.length > 0 && allFormations[0]?.images?.[0]) {
-      return getImageUrl(allFormations[0].images[0]);
-    }
-    return "https://centrecertusdeformation.tn/logo-certus.webp";
-  };
-
-  const getPageTitle = () => {
-    if (selectedTheme !== "all") {
-      const theme = THEMES.find(t => t.id === selectedTheme);
-      return `Formation ${theme?.name} à Monastir | Centre Certus de Formation`;
-    }
-    return "Toutes nos formations certifiantes à Monastir | Centre Certus";
-  };
-
-  const getPageDescription = () => {
-    if (selectedTheme !== "all") {
-      const theme = THEMES.find(t => t.id === selectedTheme);
-      return `Découvrez nos formations en ${theme?.name} à Monastir. Programmes certifiants, formateurs experts. Cours en présentiel ou à distance. Inscription ouverte.`;
-    }
-    return "Centre Certus de Formation à Monastir : formations certifiantes en Digital, Data, Design, Management, Finance, Énergies renouvelables et Langues. +5000 apprenants formés.";
-  };
-
-  if (loading) return (
-    <div className="flex justify-center items-center h-96 pt-20">
-      <div className="w-12 h-12 border-3 border-[#76c21f] border-t-transparent rounded-full animate-spin" />
-    </div>
+  // ============================================
+  // RENDER HELPERS
+  // ============================================
+  const getThemeCount = useCallback((themeId) => 
+    allFormations.filter(f => f.theme === themeId).length,
+    [allFormations]
   );
 
-  const getThemeCount = (themeId) => {
-    return allFormations.filter(f => f.theme === themeId).length;
-  };
+  const toggleFormationsDropdown = () => setFormationsDropdownOpen(prev => !prev);
 
-  // Fonction pour obtenir l'icône de formation
-  const getFormationIcon = (formation) => {
-    if (formation.staticIcon) return formation.staticIcon;
-    if (formation.theme === 'langues') return '🗣️';
-    if (formation.theme === 'digital') return '💻';
-    if (formation.theme === 'data') return '📊';
-    if (formation.theme === 'design') return '🎨';
-    if (formation.theme === 'management') return '📈';
-    if (formation.theme === 'finance') return '💰';
-    if (formation.theme === 'energie') return '🌱';
-    return '📚';
-  };
+  // ============================================
+  // LOADING
+  // ============================================
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-96 pt-20">
+        <div className="w-12 h-12 border-3 border-[#76c21f] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
+  // ============================================
+  // RENDER
+  // ============================================
   return (
     <>
       <Helmet>
         <html lang="fr" />
-        <title>{getPageTitle()}</title>
-        <meta name="description" content={getPageDescription()} />
-        <meta name="keywords" content="formation Monastir, centre de formation, formation professionnelle, Certus, formation digitale, formation data, formation langues" />
+        <title>{`Toutes nos formations certifiantes à Monastir | ${freeTestCount} tests gratuits | Centre Certus`}</title>
+        <meta name="description" content={`Centre Certus de Formation à Monastir : ${freeTestCount} formations avec test de niveau gratuit. Formations certifiantes en Digital, Data, Design, Management, Finance, Énergies renouvelables et Langues. +5000 apprenants formés.`} />
+        <meta name="keywords" content="formation Monastir, centre de formation, formation professionnelle, Certus, formation digitale, formation data, formation langues, test gratuit, test de niveau" />
         <link rel="canonical" href={`https://centrecertusdeformation.tn/formations${selectedTheme !== "all" ? `?theme=${selectedTheme}` : ""}`} />
-        <meta property="og:title" content={getPageTitle()} />
-        <meta property="og:description" content={getPageDescription()} />
+        <meta property="og:title" content={`Formations ${selectedTheme !== "all" ? THEMES.find(t => t.id === selectedTheme)?.name : "certifiantes"} à Monastir | Centre Certus`} />
+        <meta property="og:description" content={`${freeTestCount} formations avec test de niveau gratuit au Centre Certus de Monastir.`} />
         <meta property="og:type" content="website" />
         <meta property="og:url" content={`https://centrecertusdeformation.tn/formations`} />
-        <meta property="og:image" content={getOGImage()} />
+        <meta property="og:image" content={allFormations[0]?.images?.[0] ? getImageUrl(allFormations[0].images[0]) : "https://centrecertusdeformation.tn/logo-certus.webp"} />
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content={getPageTitle()} />
-        <meta name="twitter:description" content={getPageDescription()} />
-        <meta name="twitter:image" content={getOGImage()} />
+        <meta name="twitter:title" content="Formations Certus à Monastir" />
+        <meta name="twitter:description" content={`${freeTestCount} formations avec test de niveau gratuit.`} />
       </Helmet>
 
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 pt-20">
@@ -615,7 +645,11 @@ export default function Formations() {
               </div>
               <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
                 <span className="text-2xl">⭐</span>
-                <div><div className="font-bold">{satisfactionRate}/5</div><div className="text-xs text-blue-200">Satisfaction</div></div>
+                <div><div className="font-bold">4.9/5</div><div className="text-xs text-blue-200">Satisfaction</div></div>
+              </div>
+              <div className="flex items-center gap-2 bg-green-500/30 backdrop-blur-sm rounded-full px-4 py-2 border border-green-400/30">
+                <span className="text-2xl">🧪</span>
+                <div><div className="font-bold">{freeTestCount}</div><div className="text-xs text-blue-200">Tests gratuits</div></div>
               </div>
             </motion.div>
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="flex flex-wrap gap-4 relative z-30">
@@ -641,7 +675,9 @@ export default function Formations() {
               <div className="flex-1">
                 <h2 className="text-xl font-bold text-gray-800 mb-2">Accessible depuis toute la Tunisie</h2>
                 <div className="flex flex-wrap gap-2 mt-3">
-                  {TUNISIAN_GOVERNORATES.map((city, i) => (<span key={i} className="bg-gray-100 px-3 py-1 rounded-full text-xs shadow-sm">{city}</span>))}
+                  {TUNISIAN_GOVERNORATES.map((city, i) => (
+                    <span key={i} className="bg-gray-100 px-3 py-1 rounded-full text-xs shadow-sm">{city}</span>
+                  ))}
                 </div>
                 <p className="text-gray-500 text-xs mt-2">Formation à distance possible pour les apprenants internationaux</p>
               </div>
@@ -658,14 +694,11 @@ export default function Formations() {
           <div className="max-w-7xl mx-auto px-6 py-3">
             <div className="flex flex-wrap gap-2 justify-center">
               <button onClick={() => setSelectedTheme("all")} className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${selectedTheme === "all" ? "bg-[#1a56db] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>Toutes ({allFormations.length})</button>
-              {THEMES.map((theme) => {
-                const count = getThemeCount(theme.id);
-                return (
-                  <button key={theme.id} onClick={() => setSelectedTheme(theme.id)} className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${selectedTheme === theme.id ? "bg-[#1a56db] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
-                    {theme.icon} {theme.name} ({count})
-                  </button>
-                );
-              })}
+              {THEMES.map((theme) => (
+                <button key={theme.id} onClick={() => setSelectedTheme(theme.id)} className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${selectedTheme === theme.id ? "bg-[#1a56db] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                  {theme.icon} {theme.name} ({getThemeCount(theme.id)})
+                </button>
+              ))}
             </div>
           </div>
         </div>
@@ -696,7 +729,7 @@ export default function Formations() {
           </div>
         </div>
 
-        {/* LISTE DES FORMATIONS - Version optimisée */}
+        {/* LISTE DES FORMATIONS */}
         <div id="formations-list" className="max-w-7xl mx-auto px-6 py-12">
           {filteredFormations.length === 0 ? (
             <div className="text-center py-20 bg-white rounded-2xl shadow-sm">
@@ -712,30 +745,18 @@ export default function Formations() {
               {filteredFormations.map((formation, index) => {
                 const isStatic = formation.isStatic || false;
                 const themeInfo = THEMES.find(t => t.id === formation.theme);
-                
-                // Obtenir l'icône de formation
+                const hasTest = formation.has_test === true;
                 const formationIcon = getFormationIcon(formation);
-                
-                // Titre affiché (court pour les cartes)
                 const displayTitle = formation.fullTitle || formation.title || "Formation";
-                
-                // Description courte
                 const displayDescription = formation.shortDescription || formation.description || "Formation certifiante proposée par le Centre Certus";
+                const slug = formation.slug || formation.id;
+                const detailPath = isStatic ? formation.staticPath : `/formations/${slug}`;
+                const testUrl = getTestUrl(formation);
                 
-                const getDirectStaticImage = () => {
-                  if (!isStatic) return null;
-                  const found = dbFormations.find(f => {
-                    const normalizedTitle = normalizeString(f.title || '');
-                    const normalizedSearch = normalizeString(formation.searchTitle || '');
-                    return normalizedTitle.includes(normalizedSearch);
-                  });
-                  if (found?.images?.length > 0) {
-                    return getImageUrl(found.images[0]);
-                  }
-                  return null;
+                const openTestWindow = (e) => {
+                  e.stopPropagation();
+                  window.open(testUrl, '_blank', 'width=1024,height=768,scrollbars=yes,resizable=yes');
                 };
-                
-                const staticImage = getDirectStaticImage();
                 
                 return (
                   <motion.div
@@ -750,24 +771,8 @@ export default function Formations() {
                     className="group bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 flex flex-col"
                   >
                     {/* Image */}
-                    <div 
-                      className="relative h-40 overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 cursor-pointer" 
-                      onClick={() => handleNavigateToDetail(formation.id)}
-                    >
-                      {isStatic ? (
-                        staticImage ? (
-                          <img 
-                            src={staticImage} 
-                            alt={displayTitle}
-                            className="w-full h-full object-contain hover:scale-105 transition duration-300"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50">
-                            <span className="text-5xl">{formationIcon}</span>
-                          </div>
-                        )
-                      ) : formation.images && formation.images.length > 0 ? (
+                    <Link to={detailPath} className="relative h-40 overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 cursor-pointer block">
+                      {formation.images?.[0] ? (
                         <motion.img 
                           animate={{ scale: hoveredCard === formation.id ? 1.05 : 1 }} 
                           transition={{ duration: 0.3 }} 
@@ -785,73 +790,75 @@ export default function Formations() {
                         </div>
                       )}
                       
-                      {/* Badges en haut */}
+                      {/* Badges */}
                       <div className="absolute top-3 right-3 flex flex-col gap-1 items-end">
-                        {formation.is_online === true && (
+                        {hasTest && (
+                          <span className="bg-gradient-to-r from-green-500 to-green-600 text-white text-xs px-3 py-1 rounded-full shadow-md animate-pulse">
+                            🧪 Test gratuit
+                          </span>
+                        )}
+                        {formation.is_online && (
                           <span className="bg-gradient-to-r from-blue-500 to-blue-600 text-white text-xs px-3 py-1 rounded-full shadow-md">
                             En ligne
                           </span>
                         )}
-                        {formation.onDemand === true && (
+                        {formation.onDemand && (
                           <span className="bg-gradient-to-r from-orange-500 to-orange-600 text-white text-xs px-3 py-1 rounded-full shadow-md">
                             Présentiel
                           </span>
                         )}
                       </div>
                       
-                      {/* Thème en bas de l'image */}
+                      {/* Thème */}
                       <div className="absolute bottom-3 left-3">
                         <span className="text-xs bg-black/60 text-white px-2 py-0.5 rounded-full backdrop-blur-sm">
                           {themeInfo?.icon || '📚'} {themeInfo?.name || "Formation"}
                         </span>
                       </div>
                       
-                      {/* Overlay au survol */}
+                      {/* Overlay */}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center pb-4">
                         <span className="text-white text-sm font-medium bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full">
                           Voir les détails →
                         </span>
                       </div>
-                    </div>
+                    </Link>
                     
                     {/* Contenu */}
                     <div className="p-4 flex-1 flex flex-col">
-                      {/* Titre */}
-                      <h3 
-                        className="font-bold text-base mb-1 line-clamp-2 text-gray-800 cursor-pointer hover:text-[#1a56db] transition" 
-                        onClick={() => handleNavigateToDetail(formation.id)}
-                      >
+                      <Link to={detailPath} className="font-bold text-base mb-1 line-clamp-2 text-gray-800 hover:text-[#1a56db] transition">
                         {displayTitle}
-                      </h3>
+                      </Link>
                       
-                      {/* Description courte */}
                       <p className="text-gray-500 text-xs line-clamp-2 mb-3 flex-1">
                         {displayDescription}
                       </p>
                       
-                      {/* Durée et prix */}
                       <div className="flex justify-between items-center text-xs text-gray-500 mt-auto pt-2 border-t border-gray-100">
                         {formation.duration && (
-                          <span className="flex items-center gap-1">
-                            <span>⏱️</span> {formation.duration}
-                          </span>
+                          <span className="flex items-center gap-1">⏱️ {formation.duration}</span>
                         )}
                         {formation.price && (
-                          <span className="flex items-center gap-1">
-                            <span>💰</span> {formation.price}
-                          </span>
+                          <span className="flex items-center gap-1">💰 {formation.price}</span>
                         )}
                       </div>
+
+                      {/* ✅ Bouton Test - UNIQUEMENT si hasTest est true */}
+                      {hasTest && (
+                        <button
+                          onClick={openTestWindow}
+                          className="mt-3 w-full bg-gradient-to-r from-green-500 to-green-600 text-white text-xs font-semibold py-1.5 rounded-lg hover:from-green-600 hover:to-green-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <span>🧪</span> Faire le test gratuit
+                          <span className="text-[10px] opacity-80">(5-10 min)</span>
+                        </button>
+                      )}
 
                       {isAdmin && !isStatic && (
                         <div className="space-y-2 mt-3 pt-3 border-t border-gray-100">
                           <div className="flex gap-2">
-                            <button onClick={() => handleNavigateToEdit(formation.id)} className="flex-1 text-sm bg-yellow-500 text-white px-2 py-1 rounded-lg hover:bg-yellow-600 transition" aria-label={`Modifier ${displayTitle}`}>
-                              Modifier
-                            </button>
-                            <button onClick={() => handleDelete(formation.id, formation.images)} className="flex-1 text-sm bg-red-500 text-white px-2 py-1 rounded-lg hover:bg-red-600 transition" aria-label={`Supprimer ${displayTitle}`}>
-                              Supprimer
-                            </button>
+                            <button onClick={() => handleNavigateToEdit(formation.id)} className="flex-1 text-sm bg-yellow-500 text-white px-2 py-1 rounded-lg hover:bg-yellow-600 transition">Modifier</button>
+                            <button onClick={() => handleDelete(formation.id)} className="flex-1 text-sm bg-red-500 text-white px-2 py-1 rounded-lg hover:bg-red-600 transition">Supprimer</button>
                           </div>
                           <div className="flex flex-wrap gap-1">
                             <span className="text-xs text-gray-500 mr-1">Classer :</span>
@@ -861,7 +868,6 @@ export default function Formations() {
                                 onClick={() => updateFormationTheme(formation.id, theme.id)}
                                 className={`text-xs px-2 py-0.5 rounded-full transition ${formation.theme === theme.id ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
                                 title={`Déplacer vers ${theme.name}`}
-                                aria-label={`Déplacer vers ${theme.name}`}
                               >
                                 {theme.icon}
                               </button>
@@ -882,6 +888,22 @@ export default function Formations() {
             </div>
           )}
           
+          {/* SECTION TESTS GRATUITS */}
+          {freeTestCount > 0 && (
+            <div className="mt-12 bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl p-8 border border-green-200">
+              <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="text-5xl">🧪</div>
+                  <div>
+                    <h3 className="text-xl font-bold text-green-800">Tests de niveau gratuits</h3>
+                    <p className="text-green-700">Évaluez gratuitement votre niveau dans {freeTestCount} formations avant de vous inscrire.</p>
+                  </div>
+                </div>
+                <span className="bg-green-600 text-white px-4 py-2 rounded-full text-sm font-semibold">{freeTestCount} tests disponibles</span>
+              </div>
+            </div>
+          )}
+          
           {/* TEMOIGNAGES */}
           <div className="mt-20 py-12 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl">
             <div className="max-w-6xl mx-auto px-4">
@@ -891,8 +913,8 @@ export default function Formations() {
                 <div className="w-20 h-1 bg-blue-500 mx-auto rounded-full" />
                 <div className="inline-flex items-center gap-2 bg-white rounded-full px-6 py-3 mt-6 shadow-md">
                   <span className="text-yellow-400 text-xl">★</span>
-                  <span className="font-bold text-gray-800">Recommandé par {recommendationRate}%</span>
-                  <span className="text-gray-500">({totalTestimonials} avis)</span>
+                  <span className="font-bold text-gray-800">Recommandé par {Math.round((testimonials.filter(t => t.rating >= 4).length / testimonials.length) * 100)}%</span>
+                  <span className="text-gray-500">({testimonials.length} avis)</span>
                 </div>
               </div>
               <Swiper 
@@ -958,23 +980,18 @@ export default function Formations() {
                       <div className="h-24 w-24 flex items-center justify-center bg-white rounded-xl shadow-md p-3 hover:shadow-lg transition-shadow duration-300">
                         <img
                           src={partner.logo}
-                          alt={`Logo ${partner.name} - Partenaire Certus`}
+                          alt={`Logo ${partner.name}`}
                           className="max-w-full max-h-full object-contain"
                           loading="lazy"
                           width="80"
                           height="80"
                           onError={(e) => {
                             e.target.style.display = 'none';
-                            const parent = e.target.parentElement;
-                            if (parent) {
-                              parent.innerHTML = '<div class="text-3xl">🏢</div>';
-                            }
+                            e.target.parentElement.innerHTML = '<div class="text-3xl">🏢</div>';
                           }}
                         />
                       </div>
-                      <p className="text-xs text-gray-600 mt-3 text-center font-medium line-clamp-2 max-w-[100px]">
-                        {partner.name}
-                      </p>
+                      <p className="text-xs text-gray-600 mt-3 text-center font-medium line-clamp-2 max-w-[100px]">{partner.name}</p>
                     </div>
                   </SwiperSlide>
                 ))}
@@ -985,19 +1002,11 @@ export default function Formations() {
           {/* CTA FINAL */}
           <div className="mt-16 py-16 bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl">
             <div className="max-w-4xl mx-auto px-4 text-center">
-              <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
-                Prêt à booster votre carrière ?
-              </h2>
-              <p className="text-blue-100 mb-8">
-                Rejoignez CERTUS dès aujourd'hui et transformez votre avenir professionnel
-              </p>
+              <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Prêt à booster votre carrière ?</h2>
+              <p className="text-blue-100 mb-8">Rejoignez CERTUS dès aujourd'hui et transformez votre avenir professionnel</p>
               <div className="flex flex-wrap gap-4 justify-center">
-                <button onClick={() => setShowDevisModal(true)} className="px-8 py-3 bg-white text-blue-600 rounded-full font-semibold hover:bg-gray-100 transition-all duration-300 shadow-lg">
-                  Demander un devis
-                </button>
-                <button onClick={scrollToFormations} className="px-8 py-3 border-2 border-white text-white rounded-full font-semibold hover:bg-white/10 transition-all duration-300">
-                  Voir les formations
-                </button>
+                <button onClick={() => setShowDevisModal(true)} className="px-8 py-3 bg-white text-blue-600 rounded-full font-semibold hover:bg-gray-100 transition-all duration-300 shadow-lg">Demander un devis</button>
+                <button onClick={scrollToFormations} className="px-8 py-3 border-2 border-white text-white rounded-full font-semibold hover:bg-white/10 transition-all duration-300">Voir les formations</button>
               </div>
             </div>
           </div>
@@ -1014,36 +1023,21 @@ export default function Formations() {
                       <h2 className="text-xl font-bold">Demande de devis</h2>
                       <p className="text-blue-100 text-sm">Nous vous répondrons sous 24h</p>
                     </div>
-                    <button onClick={() => setShowDevisModal(false)} className="text-white/80 hover:text-white transition text-2xl" aria-label="Fermer la modal de devis">
-                      ✕
-                    </button>
+                    <button onClick={() => setShowDevisModal(false)} className="text-white/80 hover:text-white transition text-2xl">✕</button>
                   </div>
                 </div>
                 <form onSubmit={sendDevis} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="devis-name">Nom complet *</label>
-                      <input id="devis-name" type="text" name="name" required value={devisData.name} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2" placeholder="Jean Dupont" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="devis-email">Email *</label>
-                      <input id="devis-email" type="email" name="email" required value={devisData.email} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2" placeholder="jean.dupont@email.com" />
-                    </div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Nom complet *</label><input type="text" name="name" required value={devisData.name} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2" placeholder="Jean Dupont" /></div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Email *</label><input type="email" name="email" required value={devisData.email} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2" placeholder="jean.dupont@email.com" /></div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="devis-telephone">Téléphone *</label>
-                      <input id="devis-telephone" type="tel" name="telephone" required value={devisData.telephone} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2" placeholder="06 12 34 56 78" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="devis-city">Ville</label>
-                      <input id="devis-city" type="text" name="city" value={devisData.city} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2" placeholder="Monastir / Tunis / ..." />
-                    </div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Téléphone *</label><input type="tel" name="telephone" required value={devisData.telephone} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2" placeholder="06 12 34 56 78" /></div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Ville</label><input type="text" name="city" value={devisData.city} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2" placeholder="Monastir / Tunis / ..." /></div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="devis-country">Pays d'origine *</label>
-                      <select id="devis-country" name="country" required value={devisData.country} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2">
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Pays d'origine *</label>
+                      <select name="country" required value={devisData.country} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2">
                         <option value="">Sélectionnez</option>
                         <option value="Tunisie">🇹🇳 Tunisie</option>
                         <option value="France">🇫🇷 France</option>
@@ -1053,9 +1047,8 @@ export default function Formations() {
                         <option value="Autre">🌍 Autre pays</option>
                       </select>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="devis-formation">Formation souhaitée *</label>
-                      <select id="devis-formation" name="formation" required value={devisData.formation} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2">
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Formation souhaitée *</label>
+                      <select name="formation" required value={devisData.formation} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2">
                         <option value="">Sélectionnez</option>
                         {allFormations.map((f) => (<option key={f.id} value={f.title}>{getFormationIcon(f)} {f.fullTitle || f.title}</option>))}
                         <option value="Autre">Autre formation</option>
@@ -1065,18 +1058,16 @@ export default function Formations() {
                   <div className="border-t border-gray-200 pt-4">
                     <h3 className="font-semibold text-gray-800 mb-3">Hébergement</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="devis-hebergement">Hébergement nécessaire ?</label>
-                        <select id="devis-hebergement" name="hebergement" value={devisData.hebergement} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2">
+                      <div><label className="block text-sm font-medium text-gray-700 mb-1">Hébergement nécessaire ?</label>
+                        <select name="hebergement" value={devisData.hebergement} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2">
                           <option value="non">Non</option>
                           <option value="oui">Oui, besoin d'un logement</option>
                           <option value="international">Oui (package international)</option>
                         </select>
                       </div>
                       {devisData.hebergement !== "non" && (
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="devis-hebergement-type">Type d'hébergement</label>
-                          <select id="devis-hebergement-type" name="hebergementType" value={devisData.hebergementType} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2">
+                        <div><label className="block text-sm font-medium text-gray-700 mb-1">Type d'hébergement</label>
+                          <select name="hebergementType" value={devisData.hebergementType} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2">
                             <option value="">Sélectionnez</option>
                             <option value="residence">Résidence étudiante</option>
                             <option value="hotel">Hôtel partenaire</option>
@@ -1086,9 +1077,8 @@ export default function Formations() {
                       )}
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="devis-source">Comment avez-vous connu CERTUS ?</label>
-                    <select id="devis-source" name="source" value={devisData.source} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2">
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Comment avez-vous connu CERTUS ?</label>
+                    <select name="source" value={devisData.source} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2">
                       <option value="">Sélectionnez</option>
                       <option value="google">Google</option>
                       <option value="facebook">Facebook / Instagram</option>
@@ -1097,9 +1087,8 @@ export default function Formations() {
                       <option value="autre">Autre</option>
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="devis-message">Message / Projet</label>
-                    <textarea id="devis-message" name="message" rows="4" value={devisData.message} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2 resize-none" placeholder="Décrivez votre projet..." />
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Message / Projet</label>
+                    <textarea name="message" rows="4" value={devisData.message} onChange={handleDevisChange} className="w-full border border-gray-300 rounded-lg px-4 py-2 resize-none" placeholder="Décrivez votre projet..." />
                   </div>
                   <button type="submit" disabled={sendingDevis} className="w-full bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50">
                     {sendingDevis ? "Envoi en cours..." : "Envoyer la demande"}
@@ -1111,7 +1100,6 @@ export default function Formations() {
           )}
         </AnimatePresence>
 
-        {/* MODAL INSCRIPTION À LA DEMANDE */}
         <ModalInscriptionDemande
           isOpen={showInscriptionDemandeModal}
           onClose={() => setShowInscriptionDemandeModal(false)}

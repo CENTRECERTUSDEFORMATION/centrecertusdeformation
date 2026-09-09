@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "react-toastify";
 import { Helmet } from "react-helmet-async";
+import { supabase } from "../supabaseClient";
 
 export default function Connexion() {
   const { login, user, isAdmin, isApproved, loading } = useAuth();
@@ -40,6 +41,18 @@ export default function Connexion() {
   // Redirection après connexion réussie
   useEffect(() => {
     if (!loading && user) {
+      // ✅ Vérifier si un résultat de test est en attente
+      const pendingTest = sessionStorage.getItem('test_result');
+      
+      if (pendingTest) {
+        // Rediriger vers l'espace participant pour voir les résultats
+        toast.success("🧪 Vos résultats de test sont disponibles !");
+        setTimeout(() => {
+          navigate('/espace-participant');
+        }, 500);
+        return;
+      }
+      
       // Si une URL de redirection existe, on l'utilise
       if (redirectUrl) {
         navigate(redirectUrl);
@@ -185,6 +198,12 @@ export default function Connexion() {
                 <span>🔗</span> Vous allez être redirigé après connexion
               </div>
             )}
+            {/* ✅ Affichage du statut test en attente */}
+            {sessionStorage.getItem('test_result') && (
+              <div className="mt-2 inline-flex items-center gap-1 bg-purple-50 text-purple-600 text-xs px-3 py-1 rounded-full animate-pulse">
+                <span>🧪</span> Vous avez un test en attente !
+              </div>
+            )}
           </motion.div>
 
           {/* Carte de connexion */}
@@ -287,7 +306,7 @@ export default function Connexion() {
                     Connexion...
                   </span>
                 ) : (
-                  "Se connecter"
+                  sessionStorage.getItem('test_result') ? "🧪 Se connecter pour voir mes résultats" : "Se connecter"
                 )}
               </button>
             </form>

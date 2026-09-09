@@ -1,6 +1,6 @@
 // frontend/src/pages/FormationDetail.jsx
-import React, { useEffect, useState, useCallback, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import { supabaseSelect, supabaseInsert } from "../supabaseFetch";
 import { motion } from "framer-motion";
@@ -9,14 +9,18 @@ import { toast } from "react-toastify";
 import emailjs from "@emailjs/browser";
 import ModalInscriptionDemande from "../components/ModalInscriptionDemande";
 
-// Configuration EmailJS
+// ============================================
+// CONFIGURATION
+// ============================================
 const EMAILJS_CONFIG = {
   PUBLIC_KEY: "LNbKohuUxse3qtZjG",
   SERVICE_ID: "service_ixutrbl",
   TEMPLATE_ID: "template_5iq0uco"
 };
 
-// Configuration des 7 thèmes avec couleurs
+// ============================================
+// CONFIGURATION DES THÈMES
+// ============================================
 const THEME_CONFIG = {
   digital: { name: "Digital & Web", icon: "💻", color: "bg-blue-100 text-blue-700" },
   data: { name: "Data & IA", icon: "📊", color: "bg-purple-100 text-purple-700" },
@@ -27,16 +31,24 @@ const THEME_CONFIG = {
   langues: { name: "Langues & Communication", icon: "🗣️", color: "bg-indigo-100 text-indigo-700" }
 };
 
-// Configuration des langues
 const LANGUE_CONFIG = {
   fr: { name: "Français", flag: "🇫🇷", direction: "ltr" },
   en: { name: "English", flag: "🇬🇧", direction: "ltr" },
   ar: { name: "العربية", flag: "🇹🇳", direction: "rtl" }
 };
 
+// ============================================
+// HELPERS
+// ============================================
+const isUUID = (str) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
+// ============================================
+// COMPOSANT PRINCIPAL
+// ============================================
 export default function FormationDetail() {
-  const { id } = useParams();
+  const { slug } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [formation, setFormation] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -50,55 +62,12 @@ export default function FormationDetail() {
     hebergement: "non", hebergementType: "", visaAssistance: "non", source: "", message: ""
   });
 
-  // Ref pour éviter les doubles clics
   const shareInProgress = useRef(false);
 
-  useEffect(() => {
-    emailjs.init(EMAILJS_CONFIG.PUBLIC_KEY);
-  }, []);
-
-  useEffect(() => {
-    const fetchFormation = async () => {
-      try {
-        const data = await supabaseSelect("formations", { id: id });
-        setFormation(data?.[0] || null);
-      } catch (err) {
-        console.error("Erreur fetch:", err);
-        setFormation(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchFormation();
-  }, [id]);
-
-  // Fonctions mémorisées
-  const handleNavigateBack = useCallback(() => {
-    navigate("/formations");
-  }, [navigate]);
-
-  const handleDevisChange = useCallback((e) => {
-    setDevisData({ ...devisData, [e.target.name]: e.target.value });
-  }, [devisData]);
-
-  const handleCloseDevisModal = useCallback(() => {
-    setShowDevisModal(false);
-  }, []);
-
-  const handleCloseInscriptionModal = useCallback(() => {
-    setShowInscriptionDemandeModal(false);
-  }, []);
-
-  const handleInscriptionDemande = useCallback(() => {
-    setShowInscriptionDemandeModal(true);
-  }, []);
-
-  const handleImageSelect = useCallback((idx) => {
-    setSelectedImage(idx);
-  }, []);
-
-  // ============ FONCTION POUR OBTENIR L'URL DE L'IMAGE SUPABASE ============
-  const getImageUrl = (path) => {
+  // ============================================
+  // getImageUrl
+  // ============================================
+  const getImageUrl = useCallback((path) => {
     if (!path) return null;
     try {
       const { data } = supabase.storage.from("uploads").getPublicUrl(path);
@@ -107,40 +76,112 @@ export default function FormationDetail() {
       console.error("Erreur chargement image:", error);
       return null;
     }
-  };
+  }, []);
 
-  const getThemeConfig = (themeId) => {
-    return THEME_CONFIG[themeId] || THEME_CONFIG.digital;
-  };
+  // ============================================
+  // MEMOIZED VALUES
+  // ============================================
+  const themeConfig = useMemo(() => 
+    THEME_CONFIG[formation?.theme] || THEME_CONFIG.digital,
+    [formation?.theme]
+  );
 
-  const getLangueConfig = (langueCode) => {
-    return LANGUE_CONFIG[langueCode] || LANGUE_CONFIG.fr;
-  };
+  const langueConfig = useMemo(() => 
+    LANGUE_CONFIG[formation?.langue] || LANGUE_CONFIG.fr,
+    [formation?.langue]
+  );
+
+  const formationImage = useMemo(() => 
+    formation?.images?.[0] ? getImageUrl(formation.images[0]) : null,
+    [formation?.images, getImageUrl]
+  );
+
+  const canonicalUrl = useMemo(() => 
+    formation?.slug 
+      ? `https://centrecertusdeformation.tn/formations/${formation.slug}`
+      : `https://centrecertusdeformation.tn/formations/${formation?.id}`,
+    [formation?.slug, formation?.id]
+  );
+
+  // ============================================
+  // INIT EMAILJS
+  // ============================================
+  useEffect(() => {
+    emailjs.init(EMAILJS_CONFIG.PUBLIC_KEY);
+  }, []);
+
+  // ============================================
+  // CHARGEMENT DE LA FORMATION
+  // ============================================
+  useEffect(() => {
+    const fetchFormation = async () => {
+      setLoading(true);
+      try {
+        let query = supabase.from('formations').select('*');
+        
+        if (isUUID(slug)) {
+          query = query.eq('id', slug);
+        } else {
+          query = query.eq('slug', slug);
+        }
+        
+        const { data, error } = await query.single();
+        
+        if (error) {
+          if (error.code === 'PGRST116') {
+            navigate('/404');
+            return;
+          }
+          throw error;
+        }
+        
+        setFormation(data);
+      } catch (error) {
+        console.error("Erreur chargement formation:", error);
+        toast.error("❌ Erreur lors du chargement de la formation");
+        navigate('/404');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    if (slug) fetchFormation();
+  }, [slug, navigate]);
+
+  // ============================================
+  // NAVIGATION
+  // ============================================
+  const handleNavigateBack = useCallback(() => navigate("/formations"), [navigate]);
+
+  // ============================================
+  // FONCTION POUR OUVRIR LE TEST DANS UNE NOUVELLE FENÊTRE
+  // ============================================
+  const openTestWindow = useCallback(() => {
+    const testUrl = `/test/${formation.slug || formation.id}`;
+    window.open(testUrl, '_blank', 'width=1024,height=768,scrollbars=yes,resizable=yes');
+  }, [formation]);
+
+  // ============================================
+  // DEVIS
+  // ============================================
+  const handleDevisChange = useCallback((e) => {
+    setDevisData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  }, []);
 
   const sendDevis = useCallback(async (e) => {
     e.preventDefault();
     setSendingDevis(true);
     try {
       const templateParams = {
-        name: devisData.name,
-        email: devisData.email,
-        telephone: devisData.telephone,
-        city: devisData.city || "Non renseignée",
-        country: devisData.country,
+        ...devisData,
         formation: formation?.title || devisData.formation,
-        hebergement: devisData.hebergement,
+        city: devisData.city || "Non renseignée",
         hebergementType: devisData.hebergementType || "Non renseigné",
-        visaAssistance: devisData.visaAssistance || "Non",
         source: devisData.source || "Non renseignée",
-        message: devisData.message,
         date: new Date().toLocaleDateString('fr-FR')
       };
       
-      await emailjs.send(
-        EMAILJS_CONFIG.SERVICE_ID,
-        EMAILJS_CONFIG.TEMPLATE_ID,
-        templateParams
-      );
+      await emailjs.send(EMAILJS_CONFIG.SERVICE_ID, EMAILJS_CONFIG.TEMPLATE_ID, templateParams);
       
       toast.success("✅ Demande de devis envoyée avec succès !");
       setShowDevisModal(false);
@@ -156,14 +197,16 @@ export default function FormationDetail() {
     }
   }, [devisData, formation]);
 
+  // ============================================
+  // INSCRIPTION
+  // ============================================
   const handleInscriptionEnLigne = useCallback(async () => {
     setInscriptionLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
-        const redirectUrl = `/confirm-inscription?formation=${formation.id}`;
-        navigate(`/inscription?redirect=${encodeURIComponent(redirectUrl)}`);
+        navigate(`/inscription?redirect=/confirm-inscription?formation=${formation.id}`);
         return;
       }
 
@@ -171,7 +214,7 @@ export default function FormationDetail() {
         filter: `user_id=eq.${user.id}&formation_id=eq.${formation.id}`
       });
 
-      if (existing && existing.length > 0) {
+      if (existing?.length > 0) {
         const statut = existing[0].statut;
         if (statut === "en_attente") {
           toast.info("⏳ Votre inscription est déjà en attente de validation");
@@ -198,21 +241,30 @@ export default function FormationDetail() {
     }
   }, [formation, navigate]);
 
-  // ============ PARTAGE NATIF (Mobile/Desktop) ============
-  const handleNativeShare = useCallback(async () => {
+  // ============================================
+  // PARTAGE
+  // ============================================
+  const share = useCallback(async (platform) => {
     if (shareInProgress.current) return;
     shareInProgress.current = true;
 
     try {
-      if (navigator.share) {
-        await navigator.share({
-          title: `${formation?.title || 'Formation'} | Centre Certus`,
-          text: `Découvrez la formation "${formation?.title}" au Centre Certus de Monastir`,
-          url: window.location.href,
-        });
+      const url = window.location.href;
+      const title = `${formation?.title} | Centre Certus`;
+      const text = `Découvrez la formation "${formation?.title}" au Centre Certus de Monastir`;
+
+      if (platform === 'native' && navigator.share) {
+        await navigator.share({ title, text, url });
         toast.success("✅ Partagé avec succès !");
-      } else {
-        await handleFacebookShare();
+      } else if (platform === 'facebook') {
+        const fbUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}&display=popup&hashtag=#CertusFormation`;
+        window.open(fbUrl, 'facebook-share', 'width=600,height=500,scrollbars=yes,resizable=yes');
+        toast.success("📘 Fenêtre de partage ouverte !");
+      } else if (platform === 'email') {
+        window.location.href = `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(text + '\n\n' + url)}`;
+      } else if (platform === 'copy') {
+        await navigator.clipboard.writeText(`${text}\n${url}`);
+        toast.success("📋 Lien copié !");
       }
     } catch (error) {
       if (error.name !== 'AbortError') {
@@ -220,174 +272,61 @@ export default function FormationDetail() {
         toast.error("❌ Erreur lors du partage");
       }
     } finally {
-      setTimeout(() => {
-        shareInProgress.current = false;
-      }, 2000);
+      setTimeout(() => { shareInProgress.current = false; }, 1500);
     }
   }, [formation]);
 
-  // ============ PARTAGE FACEBOOK AMÉLIORÉ ============
-  const handleFacebookShare = useCallback(async () => {
-    if (shareInProgress.current) return;
-    shareInProgress.current = true;
-
-    try {
-      const shareUrl = window.location.href;
-      const facebookShareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}&display=popup&hashtag=#CertusFormation`;
-      
-      const width = 600;
-      const height = 500;
-      const left = (window.innerWidth - width) / 2;
-      const top = (window.innerHeight - height) / 2;
-      
-      const popup = window.open(
-        facebookShareUrl,
-        'facebook-share-dialog',
-        `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes`
-      );
-
-      if (!popup || popup.closed || typeof popup.closed === 'undefined') {
-        if (window.innerWidth <= 768) {
-          window.location.href = facebookShareUrl;
-        } else {
-          window.open(facebookShareUrl, '_blank');
-        }
-      }
-
-      toast.success("📘 Fenêtre de partage ouverte !");
-
-    } catch (error) {
-      console.error("❌ Erreur partage:", error);
-      try {
-        window.location.href = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`;
-      } catch (e) {
-        toast.error("❌ Erreur lors du partage. Veuillez réessayer.");
-      }
-    } finally {
-      setTimeout(() => {
-        shareInProgress.current = false;
-      }, 2000);
-    }
-  }, []);
-
-  // ============ PARTAGE PAR EMAIL ============
-  const shareByEmail = useCallback(() => {
-    if (shareInProgress.current) return;
-    shareInProgress.current = true;
-
-    try {
-      const subject = encodeURIComponent(`Formation "${formation?.title}" - Centre Certus`);
-      const body = encodeURIComponent(
-        `Bonjour,\n\nJe souhaite partager avec vous cette formation :\n\n` +
-        `📚 ${formation?.title}\n` +
-        `🏢 Centre Certus de Monastir\n` +
-        `🔗 ${window.location.href}\n\n` +
-        `Cordialement.`
-      );
-      window.location.href = `mailto:?subject=${subject}&body=${body}`;
-    } catch (error) {
-      console.error("❌ Erreur partage email:", error);
-      toast.error("❌ Erreur lors de l'ouverture de l'email");
-    } finally {
-      setTimeout(() => {
-        shareInProgress.current = false;
-      }, 1000);
-    }
-  }, [formation]);
-
-  // ============ COPIER LE LIEN ============
-  const copyLink = useCallback(async () => {
-    if (shareInProgress.current) return;
-    shareInProgress.current = true;
-
-    try {
-      const shareUrl = window.location.href;
-      const message = `📚 ${formation?.title}\n🏢 Centre Certus de Monastir\n🔗 ${shareUrl}`;
-      
-      await navigator.clipboard.writeText(message);
-      toast.success("📋 Lien et informations copiés !");
-    } catch (error) {
-      const textArea = document.createElement('textarea');
-      textArea.value = `${formation?.title} - Centre Certus\n${window.location.href}`;
-      document.body.appendChild(textArea);
-      textArea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textArea);
-      toast.success("📋 Lien copié !");
-    } finally {
-      setTimeout(() => {
-        shareInProgress.current = false;
-      }, 1000);
-    }
-  }, [formation]);
-
-  const themeConfig = formation ? getThemeConfig(formation.theme) : THEME_CONFIG.digital;
-  const langueConfig = formation ? getLangueConfig(formation.langue) : LANGUE_CONFIG.fr;
-
-  // ============ CALCUL DE L'IMAGE DE LA FORMATION POUR OG ============
-  const formationImage = formation?.images && formation.images.length > 0 
-    ? getImageUrl(formation.images[0]) 
-    : null; // Pas de fallback, on utilise UNIQUEMENT l'image de la formation
-
+  // ============================================
+  // LOADING / ERROR
+  // ============================================
   if (loading) {
     return (
-      <main role="main" className="flex justify-center items-center h-64 mt-20">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" aria-label="Chargement de la formation"></div>
+      <main className="flex justify-center items-center h-64 mt-20">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
       </main>
     );
   }
 
   if (!formation) {
     return (
-      <main role="main" className="text-center mt-20">
+      <main className="text-center mt-20">
         <p className="text-red-600">Formation introuvable</p>
-        <button onClick={handleNavigateBack} className="mt-4 bg-blue-600 text-white px-4 py-2 rounded" aria-label="Retour à la liste des formations">
-          Retour aux formations
+        <button onClick={handleNavigateBack} className="mt-4 bg-blue-600 text-white px-4 py-2 rounded">
+          ← Retour aux formations
         </button>
       </main>
     );
   }
 
+  // ============================================
+  // RENDER
+  // ============================================
   return (
     <>
       <Helmet>
         <html lang={formation.langue || "fr"} dir={langueConfig.direction} />
-        
-        {/* Titre et description */}
         <title>{formation.title} | Centre Certus Monastir</title>
         <meta name="description" content={formation.description || formation.fullDescription?.substring(0, 160)} />
-        
-        {/* Mots-clés */}
         <meta name="keywords" content={`${formation.title}, formation ${formation.theme}, Certus Monastir, centre formation Tunisie`} />
+        <link rel="canonical" href={canonicalUrl} />
         
-        {/* URL Canonique - SPÉCIFIQUE à la formation */}
-        <link rel="canonical" href={`https://centrecertusdeformation.tn/formations/${formation.id}`} />
-        
-        {/* Open Graph - ESSENTIEL pour Facebook */}
         <meta property="og:type" content="website" />
-        <meta property="og:url" content={`https://centrecertusdeformation.tn/formations/${formation.id}`} />
+        <meta property="og:url" content={canonicalUrl} />
         <meta property="og:title" content={`${formation.title} | Centre Certus Monastir`} />
         <meta property="og:description" content={formation.description || `Formation ${formation.title} au Centre Certus de Monastir.`} />
         <meta property="og:site_name" content="Centre Certus de Formation" />
-        
-        {/* Image UNIQUEMENT depuis Supabase */}
         {formationImage ? (
           <>
             <meta property="og:image" content={formationImage} />
             <meta property="og:image:secure_url" content={formationImage} />
-            <meta property="og:image:type" content={formationImage.endsWith('.webp') ? 'image/webp' : 'image/jpeg'} />
             <meta property="og:image:width" content="1200" />
             <meta property="og:image:height" content="630" />
-            <meta property="og:image:alt" content={`${formation.title} - Formation Centre Certus`} />
           </>
         ) : (
-          // Fallback si pas d'image
           <meta property="og:image" content="https://centrecertusdeformation.tn/logo-certus.webp" />
         )}
         
-        {/* Twitter Card */}
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:site" content="@CertusFormation" />
         <meta name="twitter:title" content={`${formation.title} | Centre Certus`} />
         <meta name="twitter:description" content={formation.description || `Formation ${formation.title} au Centre Certus de Monastir`} />
         {formationImage ? (
@@ -396,7 +335,6 @@ export default function FormationDetail() {
           <meta name="twitter:image" content="https://centrecertusdeformation.tn/logo-certus.webp" />
         )}
         
-        {/* JSON-LD pour SEO */}
         <script type="application/ld+json">
           {JSON.stringify({
             "@context": "https://schema.org",
@@ -407,11 +345,7 @@ export default function FormationDetail() {
               "@type": "EducationalOrganization",
               "name": "Centre Certus de Formation",
               "url": "https://centrecertusdeformation.tn",
-              "address": {
-                "@type": "PostalAddress",
-                "addressLocality": "Monastir",
-                "addressCountry": "TN"
-              }
+              "address": { "@type": "PostalAddress", "addressLocality": "Monastir", "addressCountry": "TN" }
             },
             "duration": formation.duration,
             "offers": {
@@ -419,409 +353,283 @@ export default function FormationDetail() {
               "price": formation.price || "Sur devis",
               "priceCurrency": "TND",
               "availability": "https://schema.org/InStock"
-            },
-            "hasCourseInstance": {
-              "@type": "CourseInstance",
-              "courseMode": formation.is_online ? "online" : "onsite",
-              "location": {
-                "@type": "Place",
-                "address": {
-                  "@type": "PostalAddress",
-                  "addressLocality": "Monastir",
-                  "addressCountry": "TN"
-                }
-              }
             }
           })}
         </script>
       </Helmet>
 
-      <main role="main" id="main-content">
-        <div className="max-w-6xl mx-auto px-4 py-8 mt-20" dir={langueConfig.direction}>
-          <button 
-            onClick={handleNavigateBack} 
-            className="mb-6 text-gray-600 hover:text-blue-600 transition"
-            aria-label="Retour à la liste des formations"
-          >
-            ← Retour aux formations
-          </button>
+      <main className="max-w-6xl mx-auto px-4 py-8 mt-20" dir={langueConfig.direction}>
+        <button onClick={handleNavigateBack} className="mb-6 text-gray-600 hover:text-blue-600 transition">
+          ← Retour aux formations
+        </button>
 
-          {/* Badges */}
-          <div className="flex flex-wrap gap-3 mb-6 justify-center">
-            <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold ${themeConfig.color}`}>
-              {themeConfig.icon} {themeConfig.name}
+        {/* Badges */}
+        <div className="flex flex-wrap gap-3 mb-6 justify-center">
+          <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold ${themeConfig.color}`}>
+            {themeConfig.icon} {themeConfig.name}
+          </span>
+          <span className="inline-flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-full text-sm font-semibold">
+            {langueConfig.flag} {langueConfig.name}
+          </span>
+          {formation.is_online && (
+            <span className="bg-green-100 text-green-700 px-4 py-2 rounded-full text-sm font-semibold">🌍 En ligne</span>
+          )}
+          {formation.onDemand && (
+            <span className="bg-orange-100 text-orange-700 px-4 py-2 rounded-full text-sm font-semibold">🏢 Présentiel</span>
+          )}
+          {formation.has_test && formation.test_free && (
+            <span className="bg-green-100 text-green-700 px-4 py-2 rounded-full text-sm font-semibold animate-pulse">
+              🧪 Test gratuit
             </span>
-            <span className="inline-flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-full text-sm font-semibold">
-              {langueConfig.flag} {langueConfig.name}
-            </span>
-            {formation.is_online && (
-              <span className="bg-green-100 text-green-700 px-4 py-2 rounded-full text-sm font-semibold">🌍 Formation en ligne</span>
-            )}
-            {formation.onDemand && (
-              <span className="bg-orange-100 text-orange-700 px-4 py-2 rounded-full text-sm font-semibold">🏢 À la demande (Présentiel)</span>
-            )}
-            <span className="bg-purple-100 text-purple-700 px-4 py-2 rounded-full text-sm font-semibold">🎓 Certifiante</span>
+          )}
+          <span className="bg-purple-100 text-purple-700 px-4 py-2 rounded-full text-sm font-semibold">🎓 Certifiante</span>
+        </div>
+
+        <h1 className="text-4xl font-bold mb-6 text-gray-800 text-center">{formation.title}</h1>
+
+        {/* Durée et Prix */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto mb-8">
+          <div className="bg-gray-50 p-4 rounded-xl text-center border border-gray-200">
+            <p className="text-xs text-gray-600 uppercase tracking-wide">Durée</p>
+            <p className="text-xl font-semibold text-gray-800">{formation.duration || "Non spécifiée"}</p>
           </div>
-
-          <h1 className="text-4xl font-bold mb-6 text-gray-800 text-center">{formation.title}</h1>
-
-          {/* Durée et Prix */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto mb-8">
-            <div className="bg-gray-50 p-4 rounded-xl text-center border border-gray-200">
-              <p className="text-xs text-gray-600 uppercase tracking-wide">Durée</p>
-              <p className="text-xl font-semibold text-gray-800">{formation.duration || "Non spécifiée"}</p>
-            </div>
-            <div className="bg-gray-50 p-4 rounded-xl text-center border border-gray-200">
-              <p className="text-xs text-gray-600 uppercase tracking-wide">Tarif</p>
-              <p className="text-xl font-semibold text-gray-800">{formation.price || "Sur devis"}</p>
-            </div>
+          <div className="bg-gray-50 p-4 rounded-xl text-center border border-gray-200">
+            <p className="text-xs text-gray-600 uppercase tracking-wide">Tarif</p>
+            <p className="text-xl font-semibold text-gray-800">{formation.price || "Sur devis"}</p>
           </div>
+        </div>
 
-          {/* Images */}
-          {formation.images && formation.images.length > 0 ? (
-            <div className="mb-8">
-              <div className="relative h-96 rounded-xl overflow-hidden shadow-xl mb-4 bg-gray-100">
-                <img 
-                  src={getImageUrl(formation.images[selectedImage])} 
-                  crossOrigin="anonymous"
-                  alt={`${formation.title} - Image principale de la formation`}
-                  width="800"
-                  height="400"
-                  loading="lazy"
-                  className="w-full h-full object-contain"
-                  onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/800x400?text=Image+non+disponible"; }}
-                />
-              </div>
-              {formation.images.length > 1 && (
-                <div className="flex gap-2 justify-center flex-wrap" role="list" aria-label="Miniatures des images de la formation">
-                  {formation.images.map((img, idx) => (
-                    <img 
-                      key={idx} 
-                      src={getImageUrl(img)} 
-                      crossOrigin="anonymous"
-                      alt={`Aperçu ${idx + 1} de la formation ${formation.title}`}
-                      width="80"
-                      height="80"
-                      loading="lazy"
-                      className={`w-20 h-20 object-cover rounded-lg cursor-pointer transition-all ${selectedImage === idx ? "ring-2 ring-blue-500 shadow-lg" : "opacity-70 hover:opacity-100"}`} 
-                      onClick={() => handleImageSelect(idx)}
-                      onError={(e) => { e.target.onerror = null; e.target.style.display = "none"; }}
-                      role="button"
-                      tabIndex="0"
-                      aria-label={`Afficher l'image ${idx + 1} de ${formation.title}`}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="mb-8 bg-gray-100 rounded-xl h-64 flex items-center justify-center" role="img" aria-label="Image non disponible">
-              <div className="text-center text-6xl">📚</div>
-            </div>
-          )}
-
-          {/* Description courte */}
-          {formation.description && (
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold text-gray-700 mb-2">Description</h2>
-              <p className="text-gray-700 leading-relaxed">{formation.description}</p>
-            </div>
-          )}
-
-          {/* Description complète */}
-          {formation.fullDescription && (
-            <div className="mb-8 bg-gray-50 p-6 rounded-xl border border-gray-200">
-              <h2 className="text-xl font-semibold text-gray-700 mb-3">Description détaillée</h2>
-              <div className="text-gray-700 leading-relaxed whitespace-pre-line">{formation.fullDescription}</div>
-            </div>
-          )}
-
-          {/* Lien de test / démo */}
-          {formation.test_link && (
-            <div className="mb-8 bg-blue-50 p-6 rounded-xl border border-blue-200">
-              <h2 className="text-xl font-semibold text-blue-800 mb-3 flex items-center gap-2">
-                <span aria-hidden="true">🔗</span> Test de niveau / Démo
-              </h2>
-              <p className="text-gray-700 mb-4">
-                Évaluez votre niveau ou découvrez un aperçu de la formation :
-              </p>
-              <motion.a 
-                whileHover={{ scale: 1.02 }} 
-                href={formation.test_link} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg font-medium shadow-md hover:bg-blue-700 transition"
-                aria-label="Accéder au test de niveau ou à la démo de la formation"
-              >
-                <span aria-hidden="true">🚀</span> Accéder au test / démo
-                <span aria-hidden="true">→</span>
-              </motion.a>
-            </div>
-          )}
-
-          {/* Lien de préinscription */}
-          {formation.preinscriptionLink && (
-            <div className="mb-8 bg-green-50 p-6 rounded-xl border border-green-200">
-              <h2 className="text-xl font-semibold text-green-800 mb-3 flex items-center gap-2">
-                <span aria-hidden="true">📝</span> Préinscription
-              </h2>
-              <p className="text-gray-700 mb-4">
-                Vous pouvez vous préinscrire directement via le lien ci-dessous :
-              </p>
-              <motion.a 
-                whileHover={{ scale: 1.02 }} 
-                href={formation.preinscriptionLink} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 bg-green-600 text-white px-6 py-3 rounded-lg font-medium shadow-md hover:bg-green-700 transition"
-                aria-label="Préinscription à la formation"
-              >
-                <span aria-hidden="true">📝</span> Préinscription
-                <span aria-hidden="true">→</span>
-              </motion.a>
-            </div>
-          )}
-
-          {/* Informations complémentaires */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-            {(formation.capacite_min || formation.capacite_max) && (
-              <div className="bg-gray-50 rounded-xl p-4 text-center">
-                <h3 className="font-semibold text-gray-700">👥 Effectif</h3>
-                <p className="text-gray-700">Groupe de {formation.capacite_min || 6} à {formation.capacite_max || 10} participants</p>
-              </div>
-            )}
-            <div className="bg-gray-50 rounded-xl p-4 text-center">
-              <h3 className="font-semibold text-gray-700">🎓 Certification</h3>
-              <p className="text-gray-700">Certificat reconnu à la fin de la formation</p>
-            </div>
-          </div>
-
-          {/* ============ BOUTONS DE PARTAGE ============ */}
+        {/* Images */}
+        {formation.images?.length > 0 ? (
           <div className="mb-8">
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <span className="text-sm font-medium text-gray-600 mr-2">📤 Partager :</span>
-              
-              {/* Bouton de partage natif */}
-              {navigator.share && (
-                <button
-                  onClick={handleNativeShare}
-                  className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg"
-                  aria-label="Partager"
-                >
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/>
-                  </svg>
-                  Partager
-                </button>
-              )}
-              
-              {/* Facebook */}
-              <button
-                onClick={handleFacebookShare}
-                className="flex items-center gap-2 bg-[#1877f2] hover:bg-[#0d65d9] text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg"
-                aria-label="Partager sur Facebook"
-              >
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                </svg>
-                Facebook
-              </button>
-
-              {/* Email */}
-              <button
-                onClick={shareByEmail}
-                className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg"
-                aria-label="Partager par email"
-              >
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
-                </svg>
-                Email
-              </button>
-
-              {/* Copier le lien */}
-              <button
-                onClick={copyLink}
-                className="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg"
-                aria-label="Copier le lien"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
-                </svg>
-                Copier
-              </button>
+            <div className="relative h-96 rounded-xl overflow-hidden shadow-xl mb-4 bg-gray-100">
+              <img 
+                src={getImageUrl(formation.images[selectedImage])} 
+                alt={`${formation.title}`}
+                width="800" height="400"
+                loading="lazy"
+                className="w-full h-full object-contain"
+                onError={(e) => { e.target.src = "https://placehold.co/800x400?text=Image+non+disponible"; }}
+              />
             </div>
-          </div>
-
-          {/* Boutons d'inscription */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center mt-8">
-            {formation.is_online && (
-              <button 
-                onClick={handleInscriptionEnLigne}
-                disabled={inscriptionLoading}
-                className="bg-gradient-to-r from-blue-500 to-blue-700 text-white px-8 py-3 rounded-lg font-medium shadow-lg disabled:opacity-50 hover:shadow-xl transition-all"
-                aria-label={`S'inscrire en ligne à la formation ${formation.title}`}
-              >
-                {inscriptionLoading ? "Chargement..." : "🌍 S'inscrire en ligne"}
-              </button>
+            {formation.images.length > 1 && (
+              <div className="flex gap-2 justify-center flex-wrap">
+                {formation.images.map((img, idx) => (
+                  <img 
+                    key={idx} 
+                    src={getImageUrl(img)} 
+                    alt={`Aperçu ${idx + 1}`}
+                    width="80" height="80"
+                    loading="lazy"
+                    className={`w-20 h-20 object-cover rounded-lg cursor-pointer transition-all ${selectedImage === idx ? "ring-2 ring-blue-500 shadow-lg" : "opacity-70 hover:opacity-100"}`} 
+                    onClick={() => setSelectedImage(idx)}
+                  />
+                ))}
+              </div>
             )}
+          </div>
+        ) : (
+          <div className="mb-8 bg-gray-100 rounded-xl h-64 flex items-center justify-center">
+            <div className="text-center text-6xl">📚</div>
+          </div>
+        )}
 
-            {formation.onDemand && (
-              <button 
-                onClick={handleInscriptionDemande}
-                className="bg-gradient-to-r from-orange-500 to-orange-700 text-white px-8 py-3 rounded-lg font-medium shadow-lg hover:shadow-xl transition-all"
-                aria-label={`S'inscrire en présentiel à la formation ${formation.title}`}
-              >
-                🏢 S'inscrire à la demande (Présentiel)
+        {/* Description courte */}
+        {formation.description && (
+          <div className="mb-6">
+            <h2 className="text-xl font-semibold text-gray-700 mb-2">Description</h2>
+            <p className="text-gray-700 leading-relaxed">{formation.description}</p>
+          </div>
+        )}
+
+        {/* Description complète */}
+        {formation.fullDescription && (
+          <div className="mb-8 bg-gray-50 p-6 rounded-xl border border-gray-200">
+            <h2 className="text-xl font-semibold text-gray-700 mb-3">Description détaillée</h2>
+            <div className="text-gray-700 leading-relaxed whitespace-pre-line">{formation.fullDescription}</div>
+          </div>
+        )}
+
+        {/* Lien test / démo */}
+        {formation.test_link && (
+          <div className="mb-8 bg-blue-50 p-6 rounded-xl border border-blue-200">
+            <h2 className="text-xl font-semibold text-blue-800 mb-3 flex items-center gap-2">🔗 Test de niveau / Démo</h2>
+            <p className="text-gray-700 mb-4">Évaluez votre niveau ou découvrez un aperçu de la formation :</p>
+            <motion.a 
+              whileHover={{ scale: 1.02 }} 
+              href={formation.test_link} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg font-medium shadow-md hover:bg-blue-700 transition"
+            >
+              🚀 Accéder au test / démo →
+            </motion.a>
+          </div>
+        )}
+
+        {/* Préinscription */}
+        {formation.preinscriptionLink && (
+          <div className="mb-8 bg-green-50 p-6 rounded-xl border border-green-200">
+            <h2 className="text-xl font-semibold text-green-800 mb-3 flex items-center gap-2">📝 Préinscription</h2>
+            <p className="text-gray-700 mb-4">Vous pouvez vous préinscrire directement via le lien ci-dessous :</p>
+            <motion.a 
+              whileHover={{ scale: 1.02 }} 
+              href={formation.preinscriptionLink} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 bg-green-600 text-white px-6 py-3 rounded-lg font-medium shadow-md hover:bg-green-700 transition"
+            >
+              📝 Préinscription →
+            </motion.a>
+          </div>
+        )}
+
+        {/* Informations complémentaires */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+          {(formation.capacite_min || formation.capacite_max) && (
+            <div className="bg-gray-50 rounded-xl p-4 text-center">
+              <h3 className="font-semibold text-gray-700">👥 Effectif</h3>
+              <p className="text-gray-700">Groupe de {formation.capacite_min || 6} à {formation.capacite_max || 10} participants</p>
+            </div>
+          )}
+          <div className="bg-gray-50 rounded-xl p-4 text-center">
+            <h3 className="font-semibold text-gray-700">🎓 Certification</h3>
+            <p className="text-gray-700">Certificat reconnu à la fin de la formation</p>
+          </div>
+        </div>
+
+        {/* ============================================
+            ✅ BOUTONS D'ACTION
+            ============================================ */}
+        <div className="flex flex-col sm:flex-row gap-4 justify-center mt-8">
+          {/* ✅ Bouton Test - UNIQUEMENT si has_test est true */}
+          {formation.has_test === true && (
+            <button 
+              onClick={openTestWindow}
+              className="bg-gradient-to-r from-purple-500 to-purple-700 text-white px-8 py-3 rounded-lg font-medium shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+              aria-label={`Faire le test pour ${formation.title}`}
+            >
+              <span>🧪</span> Faire le test gratuit
+              <span className="text-xs opacity-80">(nouvelle fenêtre)</span>
+            </button>
+          )}
+
+          {formation.is_online && (
+            <button 
+              onClick={handleInscriptionEnLigne}
+              disabled={inscriptionLoading}
+              className="bg-gradient-to-r from-blue-500 to-blue-700 text-white px-8 py-3 rounded-lg font-medium shadow-lg disabled:opacity-50 hover:shadow-xl transition-all"
+            >
+              {inscriptionLoading ? "Chargement..." : "🌍 S'inscrire en ligne"}
+            </button>
+          )}
+
+          {formation.onDemand && (
+            <button 
+              onClick={() => setShowInscriptionDemandeModal(true)}
+              className="bg-gradient-to-r from-orange-500 to-orange-700 text-white px-8 py-3 rounded-lg font-medium shadow-lg hover:shadow-xl transition-all"
+            >
+              🏢 S'inscrire à la demande (Présentiel)
+            </button>
+          )}
+          
+          <button 
+            onClick={() => setShowDevisModal(true)} 
+            className="bg-gradient-to-r from-green-500 to-green-700 text-white px-8 py-3 rounded-lg font-medium shadow-lg hover:shadow-xl transition-all"
+          >
+            📩 Demander un devis
+          </button>
+        </div>
+
+        {/* ============================================
+            BOUTONS DE PARTAGE
+            ============================================ */}
+        <div className="mb-8 mt-8">
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <span className="text-sm font-medium text-gray-600 mr-2">📤 Partager :</span>
+            
+            {navigator.share && (
+              <button onClick={() => share('native')} className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition shadow-md hover:shadow-lg">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/>
+                </svg>
+                Partager
               </button>
             )}
             
-            <button 
-              onClick={() => setShowDevisModal(true)} 
-              className="bg-gradient-to-r from-green-500 to-green-700 text-white px-8 py-3 rounded-lg font-medium shadow-lg hover:shadow-xl transition-all"
-              aria-label="Demander un devis pour cette formation"
-            >
-              📩 Demander un devis
+            <button onClick={() => share('facebook')} className="flex items-center gap-2 bg-[#1877f2] hover:bg-[#0d65d9] text-white px-5 py-2.5 rounded-lg text-sm font-medium transition shadow-md hover:shadow-lg">
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+              </svg>
+              Facebook
+            </button>
+
+            <button onClick={() => share('email')} className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-md hover:shadow-lg">
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+              </svg>
+              Email
+            </button>
+
+            <button onClick={() => share('copy')} className="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-md hover:shadow-lg">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
+              </svg>
+              Copier
             </button>
           </div>
+        </div>
 
-          {/* Modal Devis */}
-          {showDevisModal && (
-            <div 
-              className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" 
-              onClick={handleCloseDevisModal}
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="devis-modal-title"
-            >
-              <div className="relative max-w-2xl w-full bg-white rounded-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-                <div className="bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white px-6 py-4 sticky top-0">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <h2 id="devis-modal-title" className="text-xl font-bold">Demande de devis</h2>
-                      <p className="text-blue-100 text-sm">Pour : {formation.title}</p>
-                    </div>
-                    <button 
-                      onClick={handleCloseDevisModal} 
-                      className="text-white text-2xl hover:text-gray-200"
-                      aria-label="Fermer la modal de devis"
-                    >
-                      ✕
-                    </button>
+        {/* Modal Devis */}
+        {showDevisModal && (
+          <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setShowDevisModal(false)}>
+            <div className="relative max-w-2xl w-full bg-white rounded-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white px-6 py-4 sticky top-0">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h2 className="text-xl font-bold">Demande de devis</h2>
+                    <p className="text-blue-100 text-sm">Pour : {formation.title}</p>
+                  </div>
+                  <button onClick={() => setShowDevisModal(false)} className="text-white text-2xl hover:text-gray-200">✕</button>
+                </div>
+              </div>
+              <form onSubmit={sendDevis} className="p-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <input type="text" name="name" placeholder="Nom complet *" required value={devisData.name} onChange={handleDevisChange} className="border border-gray-300 rounded-lg px-4 py-2 w-full focus:ring-2 focus:ring-blue-500" />
+                  <input type="email" name="email" placeholder="Email *" required value={devisData.email} onChange={handleDevisChange} className="border border-gray-300 rounded-lg px-4 py-2 w-full focus:ring-2 focus:ring-blue-500" />
+                  <input type="tel" name="telephone" placeholder="Téléphone *" required value={devisData.telephone} onChange={handleDevisChange} className="border border-gray-300 rounded-lg px-4 py-2 w-full focus:ring-2 focus:ring-blue-500" />
+                  <input type="text" name="city" placeholder="Ville" value={devisData.city} onChange={handleDevisChange} className="border border-gray-300 rounded-lg px-4 py-2 w-full focus:ring-2 focus:ring-blue-500" />
+                  <div className="md:col-span-2">
+                    <select name="country" required value={devisData.country} onChange={handleDevisChange} className="border border-gray-300 rounded-lg px-4 py-2 w-full focus:ring-2 focus:ring-blue-500">
+                      <option value="">Pays d'origine *</option>
+                      <option value="Tunisie">🇹🇳 Tunisie</option>
+                      <option value="France">🇫🇷 France</option>
+                      <option value="Belgique">🇧🇪 Belgique</option>
+                      <option value="Suisse">🇨🇭 Suisse</option>
+                      <option value="Canada">🇨🇦 Canada</option>
+                      <option value="Autre">🌍 Autre pays</option>
+                    </select>
                   </div>
                 </div>
-                <form onSubmit={sendDevis} className="p-6 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label htmlFor="devis-name" className="sr-only">Nom complet</label>
-                      <input 
-                        id="devis-name"
-                        type="text" 
-                        name="name" 
-                        placeholder="Nom complet *" 
-                        required 
-                        value={devisData.name} 
-                        onChange={handleDevisChange} 
-                        className="border border-gray-300 rounded-lg px-4 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
-                        autoComplete="name"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="devis-email" className="sr-only">Email</label>
-                      <input 
-                        id="devis-email"
-                        type="email" 
-                        name="email" 
-                        placeholder="Email *" 
-                        required 
-                        value={devisData.email} 
-                        onChange={handleDevisChange} 
-                        className="border border-gray-300 rounded-lg px-4 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
-                        autoComplete="email"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="devis-telephone" className="sr-only">Téléphone</label>
-                      <input 
-                        id="devis-telephone"
-                        type="tel" 
-                        name="telephone" 
-                        placeholder="Téléphone *" 
-                        required 
-                        value={devisData.telephone} 
-                        onChange={handleDevisChange} 
-                        className="border border-gray-300 rounded-lg px-4 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
-                        autoComplete="tel"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="devis-city" className="sr-only">Ville</label>
-                      <input 
-                        id="devis-city"
-                        type="text" 
-                        name="city" 
-                        placeholder="Ville" 
-                        value={devisData.city} 
-                        onChange={handleDevisChange} 
-                        className="border border-gray-300 rounded-lg px-4 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
-                        autoComplete="address-level2"
-                      />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label htmlFor="devis-country" className="sr-only">Pays d'origine</label>
-                      <select 
-                        id="devis-country"
-                        name="country" 
-                        required 
-                        value={devisData.country} 
-                        onChange={handleDevisChange} 
-                        className="border border-gray-300 rounded-lg px-4 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      >
-                        <option value="">Pays d'origine *</option>
-                        <option value="Tunisie">🇹🇳 Tunisie</option>
-                        <option value="France">🇫🇷 France</option>
-                        <option value="Belgique">🇧🇪 Belgique</option>
-                        <option value="Suisse">🇨🇭 Suisse</option>
-                        <option value="Canada">🇨🇦 Canada</option>
-                        <option value="Autre">🌍 Autre pays</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div>
-                    <label htmlFor="devis-message" className="sr-only">Message</label>
-                    <textarea 
-                      id="devis-message"
-                      name="message" 
-                      rows="3" 
-                      placeholder="Message / Projet" 
-                      value={devisData.message} 
-                      onChange={handleDevisChange} 
-                      className="border border-gray-300 rounded-lg px-4 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
-                    />
-                  </div>
-                  <button 
-                    type="submit" 
-                    disabled={sendingDevis} 
-                    className="w-full bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50"
-                  >
-                    {sendingDevis ? "Envoi en cours..." : "📩 Envoyer la demande"}
-                  </button>
-                </form>
-              </div>
+                <textarea name="message" rows="3" placeholder="Message / Projet" value={devisData.message} onChange={handleDevisChange} className="border border-gray-300 rounded-lg px-4 py-2 w-full focus:ring-2 focus:ring-blue-500" />
+                <button type="submit" disabled={sendingDevis} className="w-full bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50">
+                  {sendingDevis ? "Envoi en cours..." : "📩 Envoyer la demande"}
+                </button>
+              </form>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Modal Inscription présentiel */}
-          <ModalInscriptionDemande
-            isOpen={showInscriptionDemandeModal}
-            onClose={handleCloseInscriptionModal}
-            formation={formation}
-            onSuccess={() => {
-              setShowInscriptionDemandeModal(false);
-              toast.success("✅ Demande envoyée ! L'équipe Certus vous contactera.");
-            }}
-          />
-        </div>
+        {/* Modal Inscription présentiel */}
+        <ModalInscriptionDemande
+          isOpen={showInscriptionDemandeModal}
+          onClose={() => setShowInscriptionDemandeModal(false)}
+          formation={formation}
+          onSuccess={() => {
+            setShowInscriptionDemandeModal(false);
+            toast.success("✅ Demande envoyée ! L'équipe Certus vous contactera.");
+          }}
+        />
       </main>
     </>
   );

@@ -1,10 +1,63 @@
-import React, { useState, useEffect } from "react";
+// frontend/src/pages/ModifierFormation.jsx
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "react-toastify";
 import { motion } from "framer-motion";
 
+// ============================================
+// DONNÉES STATIQUES
+// ============================================
+const THEMES = [
+  { id: "digital", name: "💻 Digital & Web" },
+  { id: "data", name: "📊 Data & IA" },
+  { id: "design", name: "🎨 Design & Créativité" },
+  { id: "management", name: "📈 Management & Leadership" },
+  { id: "finance", name: "💰 Finance & Comptabilité" },
+  { id: "energie", name: "🌱 Énergies renouvelables" },
+  { id: "langues", name: "🗣️ Langues & Communication" }
+];
+
+const LANGUES = [
+  { code: "fr", name: "Français" },
+  { code: "en", name: "English" },
+  { code: "ar", name: "العربية" }
+];
+
+const TEST_TYPES = [
+  { id: "excel", name: "📊 Excel" },
+  { id: "python", name: "🐍 Python" },
+  { id: "ia", name: "🤖 Intelligence Artificielle" },
+  { id: "langues", name: "🗣️ Langues" },
+  { id: "default", name: "📝 Générique" }
+];
+
+// ============================================
+// HELPERS
+// ============================================
+const cleanFileName = (filename) => {
+  return filename
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/[^a-zA-Z0-9.-]/g, '');
+};
+
+const generateSlug = (title) => {
+  if (!title) return '';
+  return title
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .substring(0, 60);
+};
+
+// ============================================
+// COMPOSANT PRINCIPAL
+// ============================================
 export default function ModifierFormation() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -13,56 +66,62 @@ export default function ModifierFormation() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [fullDescription, setFullDescription] = useState("");
-  const [preinscriptionLink, setPreinscriptionLink] = useState("");
-  const [testLink, setTestLink] = useState("");
-  const [theme, setTheme] = useState("digital");
-  const [langue, setLangue] = useState("fr");
-  const [duration, setDuration] = useState("");
-  const [price, setPrice] = useState("");
-  const [isOnline, setIsOnline] = useState(false);
-  const [onDemand, setOnDemand] = useState(false);
+  // États du formulaire
+  const [formData, setFormData] = useState({
+    title: "",
+    description: "",
+    fullDescription: "",
+    preinscriptionLink: "",
+    testLink: "",
+    theme: "digital",
+    langue: "fr",
+    duration: "",
+    price: "",
+    isOnline: false,
+    onDemand: false,
+    hasTest: false,
+    testType: "excel",
+    testFree: false,
+    testQuestionsCount: 10,
+    testDuration: 5
+  });
+
   const [existingImages, setExistingImages] = useState([]);
   const [newImages, setNewImages] = useState([]);
   const [newPreviews, setNewPreviews] = useState([]);
   const [imagesToDelete, setImagesToDelete] = useState([]);
+
+  // Ref pour éviter les appels multiples
+  const fetchInProgress = useRef(false);
 
   // Vérification admin
   if (!isAdmin) {
     return <p className="text-center mt-20">Accès refusé</p>;
   }
 
-  const themes = [
-    { id: "digital", name: "💻 Digital & Web" },
-    { id: "data", name: "📊 Data & IA" },
-    { id: "design", name: "🎨 Design & Créativité" },
-    { id: "management", name: "📈 Management & Leadership" },
-    { id: "finance", name: "💰 Finance & Comptabilité" },
-    { id: "energie", name: "🌱 Énergies renouvelables" },
-    { id: "langues", name: "🗣️ Langues & Communication" }
-  ];
+  // ============================================
+  // GET IMAGE URL
+  // ============================================
+  const getImageUrl = useCallback((path) => {
+    if (!path) return null;
+    try {
+      const { data } = supabase.storage.from("uploads").getPublicUrl(path);
+      return data.publicUrl;
+    } catch (error) {
+      return null;
+    }
+  }, []);
 
-  const langues = [
-    { code: "fr", name: "Français" },
-    { code: "en", name: "English" },
-    { code: "ar", name: "العربية" }
-  ];
-
-  const cleanFileName = (filename) => {
-    return filename
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/[^a-zA-Z0-9.-]/g, '');
-  };
-
-  // Charger la formation
+  // ============================================
+  // CHARGEMENT DE LA FORMATION
+  // ============================================
   useEffect(() => {
+    if (!id || fetchInProgress.current) return;
+    
     const fetchFormation = async () => {
+      fetchInProgress.current = true;
+      setLoading(true);
       try {
-        setLoading(true);
         const { data, error } = await supabase
           .from("formations")
           .select("*")
@@ -71,19 +130,24 @@ export default function ModifierFormation() {
 
         if (error) throw error;
         
-        console.log("Formation chargée:", data);
-        
-        setTitle(data.title || "");
-        setDescription(data.description || "");
-        setFullDescription(data.fullDescription || "");
-        setPreinscriptionLink(data.preinscriptionLink || "");
-        setTestLink(data.test_link || "");
-        setTheme(data.theme || "digital");
-        setLangue(data.langue || "fr");
-        setDuration(data.duration || "");
-        setPrice(data.price || "");
-        setIsOnline(data.is_online || false);
-        setOnDemand(data.onDemand || false);
+        setFormData({
+          title: data.title || "",
+          description: data.description || "",
+          fullDescription: data.fullDescription || "",
+          preinscriptionLink: data.preinscriptionLink || "",
+          testLink: data.test_link || "",
+          theme: data.theme || "digital",
+          langue: data.langue || "fr",
+          duration: data.duration || "",
+          price: data.price || "",
+          isOnline: data.is_online || false,
+          onDemand: data.onDemand || false,
+          hasTest: data.has_test || false,
+          testType: data.test_type || "excel",
+          testFree: data.test_free || false,
+          testQuestionsCount: data.test_questions_count || 10,
+          testDuration: data.test_duration || 5
+        });
         setExistingImages(data.images || []);
         
       } catch (error) {
@@ -92,47 +156,56 @@ export default function ModifierFormation() {
         navigate("/formations");
       } finally {
         setLoading(false);
+        fetchInProgress.current = false;
       }
     };
 
-    if (id) {
-      fetchFormation();
-    }
+    fetchFormation();
   }, [id, navigate]);
 
-  const getImageUrl = (path) => {
-    if (!path) return null;
-    try {
-      const { data } = supabase.storage.from("uploads").getPublicUrl(path);
-      return data.publicUrl;
-    } catch (error) {
-      return null;
-    }
-  };
+  // ============================================
+  // HANDLERS
+  // ============================================
+  const handleChange = useCallback((e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+  }, []);
 
-  const handleNewImages = (e) => {
+  const handleNumberChange = useCallback((e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: parseInt(value) || 0
+    }));
+  }, []);
+
+  const handleNewImages = useCallback((e) => {
     const files = Array.from(e.target.files);
     setNewImages(files);
-    const previews = files.map(file => URL.createObjectURL(file));
-    setNewPreviews(previews);
-  };
+    setNewPreviews(files.map(file => URL.createObjectURL(file)));
+  }, []);
 
-  const removeExistingImage = (index) => {
-    const imageToDelete = existingImages[index];
-    setImagesToDelete([...imagesToDelete, imageToDelete]);
-    setExistingImages(existingImages.filter((_, i) => i !== index));
-  };
+  const removeExistingImage = useCallback((index) => {
+    setImagesToDelete(prev => [...prev, existingImages[index]]);
+    setExistingImages(prev => prev.filter((_, i) => i !== index));
+  }, [existingImages]);
 
-  const removeNewImage = (index) => {
+  const removeNewImage = useCallback((index) => {
     URL.revokeObjectURL(newPreviews[index]);
-    setNewImages(newImages.filter((_, i) => i !== index));
-    setNewPreviews(newPreviews.filter((_, i) => i !== index));
-  };
+    setNewImages(prev => prev.filter((_, i) => i !== index));
+    setNewPreviews(prev => prev.filter((_, i) => i !== index));
+  }, [newPreviews]);
 
-  const handleSubmit = async (e) => {
+  // ============================================
+  // SUBMIT
+  // ============================================
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
 
-    if (!title.trim()) {
+    if (!formData.title.trim()) {
       toast.error("Le titre est obligatoire");
       return;
     }
@@ -162,24 +235,31 @@ export default function ModifierFormation() {
         uploadedPaths.push(fileName);
       }
 
+      // Générer le slug si le titre a changé
+      const slug = generateSlug(formData.title);
+
       // Mise à jour
       const updateData = {
-        title: title.trim(),
-        description: description.trim(),
-        fullDescription: fullDescription.trim(),
-        preinscriptionLink: preinscriptionLink || null,
-        test_link: testLink || null,
-        theme,
-        langue,
-        duration: duration || null,
-        price: price || null,
-        is_online: isOnline,
-        onDemand: onDemand,
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        fullDescription: formData.fullDescription.trim(),
+        preinscriptionLink: formData.preinscriptionLink || null,
+        test_link: formData.testLink || null,
+        theme: formData.theme,
+        langue: formData.langue,
+        duration: formData.duration || null,
+        price: formData.price || null,
+        is_online: formData.isOnline,
+        onDemand: formData.onDemand,
+        has_test: formData.hasTest,
+        test_type: formData.hasTest ? formData.testType : null,
+        test_free: formData.hasTest ? formData.testFree : false,
+        test_questions_count: formData.hasTest ? formData.testQuestionsCount : 0,
+        test_duration: formData.hasTest ? formData.testDuration : 0,
+        slug: slug,
         images: uploadedPaths,
         updated_at: new Date().toISOString(),
       };
-
-      console.log("Envoi des données:", updateData);
 
       const { error: updateError } = await supabase
         .from("formations")
@@ -197,85 +277,283 @@ export default function ModifierFormation() {
     } finally {
       setSubmitting(false);
     }
-  };
+  }, [formData, existingImages, newImages, imagesToDelete, id, navigate]);
 
+  // ============================================
+  // LOADING
+  // ============================================
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64 mt-20">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
       </div>
     );
   }
 
+  // ============================================
+  // RENDER
+  // ============================================
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-3xl mx-auto p-6 mt-20">
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }} 
+      animate={{ opacity: 1, y: 0 }} 
+      className="max-w-3xl mx-auto p-6 mt-20"
+    >
       <h2 className="text-2xl font-bold mb-6">✏️ Modifier la formation</h2>
 
       <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Titre */}
         <div>
-          <label className="block text-sm font-medium mb-1">Titre *</label>
+          <label className="block text-sm font-medium mb-1" htmlFor="title">Titre *</label>
           <input 
+            id="title"
             type="text" 
-            className="w-full border p-2 rounded" 
-            value={title} 
-            onChange={(e) => setTitle(e.target.value)} 
+            name="title"
+            className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+            value={formData.title} 
+            onChange={handleChange} 
+            required 
+          />
+          <p className="text-xs text-gray-400 mt-1">Le slug (URL) sera généré automatiquement</p>
+        </div>
+
+        {/* Langue */}
+        <div>
+          <label className="block text-sm font-medium mb-1" htmlFor="langue">🌐 Langue</label>
+          <select 
+            id="langue"
+            name="langue"
+            className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+            value={formData.langue} 
+            onChange={handleChange}
+          >
+            {LANGUES.map((l) => (
+              <option key={l.code} value={l.code}>{l.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Thème */}
+        <div>
+          <label className="block text-sm font-medium mb-1" htmlFor="theme">Thème *</label>
+          <select 
+            id="theme"
+            name="theme"
+            className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+            value={formData.theme} 
+            onChange={handleChange} 
+            required
+          >
+            {THEMES.map((t) => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Description courte */}
+        <div>
+          <label className="block text-sm font-medium mb-1" htmlFor="description">Description courte *</label>
+          <textarea 
+            id="description"
+            name="description"
+            className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+            rows="3" 
+            value={formData.description} 
+            onChange={handleChange} 
             required 
           />
         </div>
 
+        {/* Description complète */}
         <div>
-          <label className="block text-sm font-medium mb-1">🌐 Langue</label>
-          <select className="w-full border p-2 rounded" value={langue} onChange={(e) => setLangue(e.target.value)}>
-            {langues.map((l) => (<option key={l.code} value={l.code}>{l.name}</option>))}
-          </select>
+          <label className="block text-sm font-medium mb-1" htmlFor="fullDescription">Description complète</label>
+          <textarea 
+            id="fullDescription"
+            name="fullDescription"
+            className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+            rows="8" 
+            value={formData.fullDescription} 
+            onChange={handleChange} 
+            placeholder="Description détaillée..." 
+          />
         </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">Thème *</label>
-          <select className="w-full border p-2 rounded" value={theme} onChange={(e) => setTheme(e.target.value)} required>
-            {themes.map((t) => (<option key={t.id} value={t.id}>{t.name}</option>))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1">Description courte *</label>
-          <textarea className="w-full border p-2 rounded" rows="3" value={description} onChange={(e) => setDescription(e.target.value)} required />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1">Description complète</label>
-          <textarea className="w-full border p-2 rounded" rows="8" value={fullDescription} onChange={(e) => setFullDescription(e.target.value)} placeholder="Description détaillée..." />
-        </div>
-
+        {/* Durée et Prix */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium mb-1">Durée</label>
-            <input type="text" placeholder="ex: 40h" className="w-full border p-2 rounded" value={duration} onChange={(e) => setDuration(e.target.value)} />
+            <label className="block text-sm font-medium mb-1" htmlFor="duration">Durée</label>
+            <input 
+              id="duration"
+              type="text" 
+              name="duration"
+              placeholder="ex: 40h" 
+              className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+              value={formData.duration} 
+              onChange={handleChange} 
+            />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Prix</label>
-            <input type="text" placeholder="ex: 1200 DT" className="w-full border p-2 rounded" value={price} onChange={(e) => setPrice(e.target.value)} />
+            <label className="block text-sm font-medium mb-1" htmlFor="price">Prix</label>
+            <input 
+              id="price"
+              type="text" 
+              name="price"
+              placeholder="ex: 1200 DT" 
+              className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+              value={formData.price} 
+              onChange={handleChange} 
+            />
           </div>
         </div>
 
+        {/* Lien préinscription */}
         <div>
-          <label className="block text-sm font-medium mb-1">Lien préinscription</label>
-          <input type="url" className="w-full border p-2 rounded" value={preinscriptionLink} onChange={(e) => setPreinscriptionLink(e.target.value)} placeholder="https://..." />
+          <label className="block text-sm font-medium mb-1" htmlFor="preinscriptionLink">Lien préinscription</label>
+          <input 
+            id="preinscriptionLink"
+            type="url" 
+            name="preinscriptionLink"
+            className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+            value={formData.preinscriptionLink} 
+            onChange={handleChange} 
+            placeholder="https://..." 
+          />
         </div>
 
+        {/* Lien test / démo */}
         <div>
-          <label className="block text-sm font-medium mb-1">🔗 Lien test / démo</label>
-          <input type="url" className="w-full border p-2 rounded" value={testLink} onChange={(e) => setTestLink(e.target.value)} placeholder="https://..." />
+          <label className="block text-sm font-medium mb-1" htmlFor="testLink">🔗 Lien test / démo</label>
+          <input 
+            id="testLink"
+            type="url" 
+            name="testLink"
+            className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+            value={formData.testLink} 
+            onChange={handleChange} 
+            placeholder="https://..." 
+          />
         </div>
 
+        {/* SECTION TEST */}
+        <div className="border-t border-gray-200 pt-4 mt-4">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">🧪 Configuration du Test</h3>
+          
+          <div className="flex items-center gap-3 mb-4">
+            <input
+              type="checkbox"
+              id="hasTest"
+              name="hasTest"
+              checked={formData.hasTest}
+              onChange={handleChange}
+              className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+            />
+            <label htmlFor="hasTest" className="text-sm font-medium text-gray-700">
+              Activer le test pour cette formation
+            </label>
+            <span className="text-xs text-gray-400">(Recommandé pour l'engagement)</span>
+          </div>
+
+          {formData.hasTest && (
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 space-y-4">
+              {/* Type de test */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="testType">
+                  Type de test *
+                </label>
+                <select 
+                  id="testType"
+                  name="testType"
+                  className="w-full border p-2 rounded bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                  value={formData.testType} 
+                  onChange={handleChange}
+                >
+                  {TEST_TYPES.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Nombre de questions */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="testQuestionsCount">
+                    Nombre de questions
+                  </label>
+                  <input 
+                    id="testQuestionsCount"
+                    type="number" 
+                    name="testQuestionsCount"
+                    min="5" 
+                    max="30" 
+                    className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                    value={formData.testQuestionsCount} 
+                    onChange={handleNumberChange}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Entre 5 et 30 questions</p>
+                </div>
+
+                {/* Durée estimée */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="testDuration">
+                    Durée estimée (minutes)
+                  </label>
+                  <input 
+                    id="testDuration"
+                    type="number" 
+                    name="testDuration"
+                    min="3" 
+                    max="30" 
+                    className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                    value={formData.testDuration} 
+                    onChange={handleNumberChange}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Entre 3 et 30 minutes</p>
+                </div>
+              </div>
+
+              {/* Test gratuit */}
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="testFree"
+                  name="testFree"
+                  checked={formData.testFree}
+                  onChange={handleChange}
+                  className="w-5 h-5 text-green-600 rounded focus:ring-green-500"
+                />
+                <label htmlFor="testFree" className="text-sm font-medium text-green-700">
+                  ✅ Accès gratuit (sans inscription)
+                </label>
+                <span className="text-xs text-gray-500 ml-2">(Recommandé pour le SEO)</span>
+              </div>
+
+              {/* Astuce SEO */}
+              <div className="bg-yellow-50 p-3 rounded border border-yellow-200 text-xs text-yellow-800">
+                💡 <strong>Astuce SEO :</strong> Activer le test gratuit augmente le temps passé sur la page, réduit le taux de rebond et améliore votre référencement naturel.
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Images */}
         {existingImages.length > 0 && (
           <div>
             <label className="block text-sm font-medium mb-2">Images actuelles</label>
             <div className="flex flex-wrap gap-3">
               {existingImages.map((img, idx) => (
                 <div key={idx} className="relative group">
-                  <img src={getImageUrl(img)} alt={`Image ${idx + 1}`} className="w-24 h-24 object-cover rounded border" />
-                  <button type="button" onClick={() => removeExistingImage(idx)} className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 text-sm opacity-0 group-hover:opacity-100 transition">×</button>
+                  <img 
+                    src={getImageUrl(img)} 
+                    alt={`Image ${idx + 1}`} 
+                    className="w-24 h-24 object-cover rounded border" 
+                  />
+                  <button 
+                    type="button" 
+                    onClick={() => removeExistingImage(idx)} 
+                    className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 text-sm opacity-0 group-hover:opacity-100 transition hover:bg-red-700"
+                  >
+                    ×
+                  </button>
                 </div>
               ))}
             </div>
@@ -283,8 +561,16 @@ export default function ModifierFormation() {
         )}
 
         <div>
-          <label className="block text-sm font-medium mb-1">Ajouter des images</label>
-          <input type="file" accept="image/*" multiple onChange={handleNewImages} className="w-full" />
+          <label className="block text-sm font-medium mb-1" htmlFor="images">Ajouter des images</label>
+          <input 
+            id="images"
+            type="file" 
+            accept="image/*" 
+            multiple 
+            onChange={handleNewImages} 
+            className="w-full" 
+          />
+          <p className="text-xs text-gray-400 mt-1">Maintenez Ctrl (ou Cmd) pour sélectionner plusieurs images</p>
         </div>
 
         {newPreviews.length > 0 && (
@@ -293,30 +579,72 @@ export default function ModifierFormation() {
             <div className="flex flex-wrap gap-3">
               {newPreviews.map((preview, idx) => (
                 <div key={idx} className="relative group">
-                  <img src={preview} alt={`Nouvelle ${idx + 1}`} className="w-24 h-24 object-cover rounded border" />
-                  <button type="button" onClick={() => removeNewImage(idx)} className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 text-sm opacity-0 group-hover:opacity-100 transition">×</button>
+                  <img 
+                    src={preview} 
+                    alt={`Nouvelle ${idx + 1}`} 
+                    className="w-24 h-24 object-cover rounded border" 
+                  />
+                  <button 
+                    type="button" 
+                    onClick={() => removeNewImage(idx)} 
+                    className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 text-sm opacity-0 group-hover:opacity-100 transition hover:bg-red-700"
+                  >
+                    ×
+                  </button>
                 </div>
               ))}
             </div>
           </div>
         )}
 
+        {/* Options */}
         <div className="flex flex-wrap gap-4">
           <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={isOnline} onChange={(e) => setIsOnline(e.target.checked)} />
+            <input 
+              type="checkbox" 
+              name="isOnline"
+              checked={formData.isOnline} 
+              onChange={handleChange} 
+              className="w-4 h-4 text-blue-600 rounded"
+            /> 
             🌍 Formation à distance
           </label>
           <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={onDemand} onChange={(e) => setOnDemand(e.target.checked)} />
+            <input 
+              type="checkbox" 
+              name="onDemand"
+              checked={formData.onDemand} 
+              onChange={handleChange} 
+              className="w-4 h-4 text-orange-600 rounded"
+            /> 
             🎯 Formation à la demande
           </label>
         </div>
 
+        {/* Boutons */}
         <div className="flex gap-3 pt-4">
-          <button type="submit" disabled={submitting} className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50">
-            {submitting ? "Enregistrement..." : "💾 Enregistrer"}
+          <button 
+            type="submit" 
+            disabled={submitting} 
+            className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-8 py-3 rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50 hover:scale-[1.02]"
+          >
+            {submitting ? (
+              <span className="flex items-center gap-2">
+                <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                Enregistrement...
+              </span>
+            ) : (
+              "💾 Enregistrer"
+            )}
           </button>
-          <button type="button" onClick={() => navigate("/formations")} className="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400 transition">
+          <button 
+            type="button" 
+            onClick={() => navigate("/formations")} 
+            className="bg-gray-200 text-gray-700 px-8 py-3 rounded-lg font-semibold hover:bg-gray-300 transition"
+          >
             Annuler
           </button>
         </div>

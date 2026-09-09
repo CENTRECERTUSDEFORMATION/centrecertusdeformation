@@ -4,6 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     
+    <!-- ✅ Cache-Control pour éviter les problèmes de cache en développement -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-5C33QY1J9W"></script>
     <script>
@@ -34,25 +39,135 @@
     <!-- Robots (indexation) -->
     <meta name="robots" content="index, follow" />
     
+    <!-- ✅ Ajout de la balise theme-color pour les navigateurs mobiles -->
+    <meta name="theme-color" content="#1a56db" />
+    
+    <!-- ✅ CORRECTION: Remplacer apple-mobile-web-app-capable par mobile-web-app-capable -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://centrecertusdeformation.tn/" />
-    <meta property="og:title" content="Centre Certus de Formation | Formations professionnelles" />
+    <meta property="og:title" content="Centre Certus de Formation | Formations professionnelles en Tunisie" />
     <meta property="og:description" content="Formations certifiantes en Tunisie pour booster votre carrière. Plus de 5000 apprenants formés." />
     <meta property="og:image" content="https://centrecertusdeformation.tn/logo-certus.webp" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="fr_FR" />
+    <meta property="og:site_name" content="Centre Certus de Formation" />
     
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image" />
     <meta property="twitter:url" content="https://centrecertusdeformation.tn/" />
-    <meta property="twitter:title" content="Centre Certus de Formation" />
-    <meta property="twitter:description" content="Formations professionnelles en Tunisie" />
+    <meta property="twitter:title" content="Centre Certus de Formation | Formations professionnelles en Tunisie" />
+    <meta property="twitter:description" content="Formations professionnelles en Tunisie - Certifications reconnues" />
     <meta property="twitter:image" content="https://centrecertusdeformation.tn/logo-certus.webp" />
+    <meta name="twitter:site" content="@CentreCertus" />
+    <meta name="twitter:creator" content="@CentreCertus" />
 
-    <!-- favicon -->
+    <!-- Favicon - Multi-format pour tous les navigateurs -->
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+    
+    <!-- ✅ Préconnexion pour améliorer les performances -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://rdttnpdjeuteeuwvggai.supabase.co" />
+    
+    <!-- ✅ Chargement des polices Google Fonts en asynchrone -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    
+    <!-- ✅ Structure de données JSON-LD pour le SEO -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "EducationalOrganization",
+        "name": "Centre Certus de Formation",
+        "url": "https://centrecertusdeformation.tn/",
+        "logo": "https://centrecertusdeformation.tn/logo-certus.webp",
+        "description": "Centre de formation professionnelle à Monastir, Tunisie. Formations certifiantes en digital, informatique, design et management.",
+        "address": {
+          "@type": "PostalAddress",
+          "addressLocality": "Monastir",
+          "addressCountry": "Tunisie"
+        },
+        "telephone": "+216 XX XXX XXX",
+        "email": "contact@centrecertusdeformation.tn"
+      }
+    </script>
+    
+    <!-- ✅ Structure de données pour les formations (Breadcrumb) -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Accueil",
+            "item": "https://centrecertusdeformation.tn/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Formations",
+            "item": "https://centrecertusdeformation.tn/formations"
+          }
+        ]
+      }
+    </script>
+    
+    <!-- ✅ Styles CSS critiques pour le LCP (Largest Contentful Paint) -->
+    <style>
+      /* Styles critiques pour éviter le flash de contenu non stylisé */
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background-color: #f8fafc;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+      #root {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+      /* Chargement initial */
+      .loading-spinner {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        font-size: 1.5rem;
+        color: #1a56db;
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <!-- ✅ Élément pour le chargement initial -->
+    <div id="root">
+      <div class="loading-spinner">
+        <svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="20" cy="20" r="18" fill="none" stroke="#1a56db" stroke-width="3" opacity="0.2"/>
+          <circle cx="20" cy="20" r="18" fill="none" stroke="#1a56db" stroke-width="3" stroke-dasharray="100" stroke-dashoffset="70" stroke-linecap="round">
+            <animate attributeName="stroke-dashoffset" from="100" to="0" dur="1.5s" repeatCount="indefinite"/>
+          </circle>
+        </svg>
+      </div>
+    </div>
+    
+    <!-- ✅ Script principal - type module -->
     <script type="module" src="/src/index.jsx"></script>
+    
+    <!-- ✅ Polyfill pour les navigateurs anciens (optionnel) -->
+    <script nomodule>
+      console.log('⚠️ Votre navigateur ne supporte pas les modules ES6. Veuillez le mettre à jour.');
+    </script>
   </body>
 </html>

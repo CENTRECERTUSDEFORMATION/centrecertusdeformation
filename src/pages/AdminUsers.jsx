@@ -87,6 +87,7 @@ const AdminUsers = () => {
     email: "",
     password: "",
     full_name: "",
+    phone: "",
     user_type: "participant",
     is_approved: true,
     formation_id: ""
@@ -94,8 +95,10 @@ const AdminUsers = () => {
   const [creating, setCreating] = useState(false);
   const [formationSearchTerm, setFormationSearchTerm] = useState("");
 
-  // ✅ MAP des formations des utilisateurs
+  // MAP des formations des utilisateurs
   const [userFormationsMap, setUserFormationsMap] = useState({});
+  // MAP des formations choisies à l'inscription
+  const [userChosenFormationMap, setUserChosenFormationMap] = useState({});
 
   // ============ FETCH FUNCTIONS ============
   const fetchUsers = useCallback(async () => {
@@ -112,6 +115,85 @@ const AdminUsers = () => {
           return 0;
         });
         setUsers(sorted);
+        
+        // Récupérer les formations choisies
+        const chosenMap = {};
+        
+        // Méthode 1: Depuis les champs de la table users
+        sorted.forEach(user => {
+          if (user.chosen_formation_id && user.chosen_formation_title) {
+            chosenMap[user.id] = {
+              id: user.chosen_formation_id,
+              title: user.chosen_formation_title
+            };
+          }
+          // Vérifier formation_chosen JSON
+          if (user.formation_chosen && !chosenMap[user.id]) {
+            try {
+              const parsed = typeof user.formation_chosen === 'string' 
+                ? JSON.parse(user.formation_chosen) 
+                : user.formation_chosen;
+              if (parsed?.title) {
+                chosenMap[user.id] = {
+                  id: parsed.id || user.chosen_formation_id,
+                  title: parsed.title
+                };
+              }
+            } catch (e) {
+              // Ignorer
+            }
+          }
+        });
+        
+        // Méthode 2: Depuis les inscriptions confirmées
+        const { data: inscriptionsData } = await supabase
+          .from('inscriptions')
+          .select('user_id, formation_id, formations:formation_id(title)')
+          .eq('statut', 'confirme');
+        
+        if (inscriptionsData) {
+          inscriptionsData.forEach(ins => {
+            if (ins.formations?.title && !chosenMap[ins.user_id]) {
+              chosenMap[ins.user_id] = {
+                id: ins.formation_id,
+                title: ins.formations.title
+              };
+            }
+          });
+        }
+        
+        // Méthode 3: Depuis les métadonnées Auth
+        try {
+          const { data: authUsers } = await supabase.auth.admin.listUsers();
+          if (authUsers?.users) {
+            authUsers.users.forEach(authUser => {
+              const meta = authUser.user_metadata || {};
+              // Vérifier formation_chosen
+              if (meta.formation_chosen && !chosenMap[authUser.id]) {
+                const chosen = typeof meta.formation_chosen === 'string' 
+                  ? JSON.parse(meta.formation_chosen) 
+                  : meta.formation_chosen;
+                if (chosen?.title) {
+                  chosenMap[authUser.id] = {
+                    id: chosen.id || meta.formation_id,
+                    title: chosen.title
+                  };
+                }
+              }
+              // Vérifier formation_id et formation_title
+              if (meta.formation_id && meta.formation_title && !chosenMap[authUser.id]) {
+                chosenMap[authUser.id] = {
+                  id: meta.formation_id,
+                  title: meta.formation_title
+                };
+              }
+            });
+          }
+        } catch (err) {
+          console.warn('Erreur récupération métadonnées:', err);
+        }
+        
+        setUserChosenFormationMap(chosenMap);
       }
     } catch (err) {
       console.error(err);
@@ -135,7 +217,7 @@ const AdminUsers = () => {
     setLoadingInscriptions(true);
     try {
       const data = await supabaseSelect("inscriptions",
-        "select=*,users:user_id(id,email,full_name,display_name),formations:formation_id(id,title,is_online,on_demand)&statut=eq.en_attente&order=created_at.asc"
+        "select=*,users:user_id(id,email,full_name,display_name,phone),formations:formation_id(id,title,is_online,on_demand)&statut=eq.en_attente&order=created_at.asc"
       );
       if (isMounted.current) {
         setInscriptionsEnAttente((data || []).filter(ins => ins.formations?.is_online === true));
@@ -343,7 +425,7 @@ const AdminUsers = () => {
     }
   }, []);
 
-  // ✅ Récupérer les formations des utilisateurs depuis les inscriptions
+  // Récupérer les formations des utilisateurs depuis les inscriptions
   const fetchUserInscriptions = useCallback(async () => {
     try {
       const { data, error } = await supabase
@@ -386,13 +468,25 @@ const AdminUsers = () => {
     try {
       if (!supabaseAdmin) throw new Error("Configuration admin Supabase manquante");
       
+      // Trouver la formation sélectionnée
+      const selectedFormation = newUser.formation_id 
+        ? formations.find(f => f.id === newUser.formation_id) 
+        : null;
+      
       const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email: newUser.email,
         password: newUser.password,
         email_confirm: true,
         user_metadata: { 
           full_name: newUser.full_name, 
-          user_type: newUser.user_type 
+          user_type: newUser.user_type,
+          phone: newUser.phone || null,
+          formation_id: newUser.formation_id || null,
+          formation_title: selectedFormation?.title || null,
+          formation_chosen: selectedFormation ? {
+            id: selectedFormation.id,
+            title: selectedFormation.title
+          } : null
         }
       });
       
@@ -410,15 +504,23 @@ const AdminUsers = () => {
           id: authData.user.id,
           email: newUser.email,
           full_name: newUser.full_name,
+          phone: newUser.phone || null,
           user_type: isAdminUser ? "admin" : newUser.user_type,
           is_admin: isAdminUser,
           is_approved: newUser.is_approved,
+          chosen_formation_id: newUser.formation_id || null,
+          chosen_formation_title: selectedFormation?.title || null,
+          formation_chosen: selectedFormation ? {
+            id: selectedFormation.id,
+            title: selectedFormation.title
+          } : null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }, { onConflict: 'id' });
 
       if (insertError) throw insertError;
 
+      // Si une formation est sélectionnée, créer l'inscription
       if (newUser.user_type === "participant" && newUser.formation_id) {
         const { error: insError } = await supabase
           .from("inscriptions")
@@ -443,6 +545,7 @@ const AdminUsers = () => {
         email: "", 
         password: "", 
         full_name: "", 
+        phone: "",
         user_type: "participant", 
         is_approved: true,
         formation_id: ""
@@ -450,7 +553,6 @@ const AdminUsers = () => {
       await fetchUsers();
       await fetchGroupes();
       await fetchInscriptionsEnAttente();
-      // ✅ Rafraîchir les formations des utilisateurs
       const map = await fetchUserInscriptions();
       setUserFormationsMap(map);
     } catch (err) {
@@ -566,7 +668,6 @@ const AdminUsers = () => {
       toast.success("✅ Participant assigné");
       await fetchGroupes();
       if (selectedGroup) await fetchGroupParticipants(selectedGroup.id);
-      // ✅ Rafraîchir les formations des utilisateurs
       const map = await fetchUserInscriptions();
       setUserFormationsMap(map);
     } catch (err) {
@@ -582,7 +683,6 @@ const AdminUsers = () => {
       toast.success("✅ Participant retiré");
       await fetchGroupes();
       if (selectedGroup) await fetchGroupParticipants(selectedGroup.id);
-      // ✅ Rafraîchir les formations des utilisateurs
       const map = await fetchUserInscriptions();
       setUserFormationsMap(map);
     } catch (err) {
@@ -660,7 +760,6 @@ const AdminUsers = () => {
       toast.success("✅ Inscription validée");
       await fetchInscriptionsEnAttente();
       await fetchGroupes();
-      // ✅ Rafraîchir les formations des utilisateurs
       const map = await fetchUserInscriptions();
       setUserFormationsMap(map);
     } catch (err) {
@@ -735,7 +834,7 @@ const AdminUsers = () => {
     }
   }, [isAdmin, fetchUsers, fetchFormationsList, fetchInscriptionsEnAttente, fetchDemandesPresentiel, fetchGroupes]);
 
-  // ✅ Charger les formations des utilisateurs
+  // Charger les formations des utilisateurs
   useEffect(() => {
     if (isAdmin && users.length > 0) {
       const loadUserFormations = async () => {
@@ -749,7 +848,8 @@ const AdminUsers = () => {
   // Filtrage des utilisateurs
   const filteredUsers = users.filter(u =>
     u.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    u.email?.toLowerCase().includes(searchTerm.toLowerCase())
+    u.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    u.phone?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const vraiFormateursCount = users.filter(u => u.user_type === "formateur" && !u.is_admin).length;
@@ -760,6 +860,7 @@ const AdminUsers = () => {
     { label: "Formateurs", value: vraiFormateursCount, icon: "👨‍🏫", color: "from-purple-500 to-purple-600" },
     { label: "Participants", value: users.filter(u => u.user_type === "participant" && !u.is_admin).length, icon: "👨‍🎓", color: "from-green-500 to-green-600" },
     { label: "Approuvés", value: users.filter(u => u.is_approved).length, icon: "✅", color: "from-teal-500 to-teal-600" },
+    { label: "Téléphones", value: users.filter(u => u.phone).length, icon: "📱", color: "from-indigo-500 to-indigo-600" },
   ];
 
   if (loading || loadingUsers) {
@@ -798,7 +899,7 @@ const AdminUsers = () => {
           </div>
 
           {/* Statistiques */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-8">
             {stats.map((stat, i) => (
               <div key={i} className={`bg-gradient-to-r ${stat.color} rounded-xl p-4 text-white shadow-lg`}>
                 <div className="flex justify-between items-center">
@@ -856,7 +957,7 @@ const AdminUsers = () => {
                 <input 
                   id="search-users"
                   type="text" 
-                  placeholder="🔍 Rechercher par nom ou email..." 
+                  placeholder="🔍 Rechercher par nom, email ou téléphone..." 
                   className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-[#1a56db] focus:border-transparent" 
                   value={searchTerm} 
                   onChange={e => setSearchTerm(e.target.value)} 
@@ -869,8 +970,10 @@ const AdminUsers = () => {
                       <tr>
                         <th className="p-4 text-left">Utilisateur</th>
                         <th className="p-4 text-left">Email</th>
+                        <th className="p-4 text-left">Téléphone</th>
                         <th className="p-4 text-left">Type</th>
                         <th className="p-4 text-left">Formation(s)</th>
+                        <th className="p-4 text-left">Formation choisie</th>
                         <th className="p-4 text-left">Statut</th>
                         <th className="p-4 text-left">Actions</th>
                       </tr>
@@ -883,7 +986,7 @@ const AdminUsers = () => {
                         if (isAdminUser) userTypeLabel = "👑 Administrateur";
                         else if (u.user_type === "formateur") userTypeLabel = "👨‍🏫 Formateur";
                         
-                        // ✅ Récupérer les formations de l'utilisateur
+                        // Récupérer les formations de l'utilisateur
                         let userFormations = [];
                         
                         if (isAdminUser) {
@@ -896,12 +999,10 @@ const AdminUsers = () => {
                             userFormations = ["Formateur (non assigné)"];
                           }
                         } else if (u.user_type === "participant") {
-                          // ✅ Récupérer depuis le map des formations
                           const formations = userFormationsMap[u.id] || [];
                           if (formations.length > 0) {
                             userFormations = formations;
                           } else {
-                            // Vérifier dans les groupes
                             const fromGroups = groupesData
                               .filter(g => g.participants?.some(p => p.user_id === u.id))
                               .map(g => g.formations?.title)
@@ -914,6 +1015,10 @@ const AdminUsers = () => {
                           }
                         }
                         
+                        // Formation choisie à l'inscription
+                        const chosenFormation = userChosenFormationMap[u.id];
+                        const hasChosenFormation = chosenFormation && chosenFormation.title;
+                        
                         return (
                           <tr key={u.id} className={`border-b hover:bg-gray-50 ${isAdminUser ? "bg-blue-50" : ""}`}>
                             <td className="p-4">
@@ -925,8 +1030,15 @@ const AdminUsers = () => {
                               </div>
                             </td>
                             <td className="p-4 text-gray-600">{u.email}</td>
+                            <td className="p-4">
+                              {u.phone ? (
+                                <span className="text-sm font-medium">{u.phone}</span>
+                              ) : (
+                                <span className="text-sm text-gray-400">—</span>
+                              )}
+                            </td>
                             <td className="p-4">{userTypeLabel}</td>
-                            <td className="p-4 max-w-[200px]">
+                            <td className="p-4 max-w-[150px]">
                               {userFormations.length > 0 ? (
                                 <div className="space-y-1">
                                   {userFormations.map((f, idx) => (
@@ -937,6 +1049,17 @@ const AdminUsers = () => {
                                 </div>
                               ) : (
                                 <span className="text-xs text-gray-400">Aucune formation</span>
+                              )}
+                            </td>
+                            <td className="p-4 max-w-[150px]">
+                              {hasChosenFormation ? (
+                                <div className="flex items-center gap-1">
+                                  <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full" title={`Formation choisie: ${chosenFormation.title}`}>
+                                    🎯 {chosenFormation.title}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-gray-400">—</span>
                               )}
                             </td>
                             <td className="p-4">
@@ -1007,6 +1130,9 @@ const AdminUsers = () => {
                             <td className="p-4">
                               <p className="font-medium">{ins.users?.full_name || ins.users?.display_name || "—"}</p>
                               <p className="text-xs text-gray-500">{ins.users?.email}</p>
+                              {ins.users?.phone && (
+                                <p className="text-xs text-gray-400">📱 {ins.users.phone}</p>
+                              )}
                             </td>
                             <td className="p-4">{ins.formations?.title}</td>
                             <td className="p-4 text-gray-500">{new Date(ins.created_at).toLocaleDateString()}</td>
@@ -1286,6 +1412,21 @@ const AdminUsers = () => {
                     required 
                   />
                 </div>
+
+                <div>
+                  <label htmlFor="new-user-phone" className="block text-sm font-medium text-gray-700 mb-1">
+                    Téléphone <span className="text-gray-400">(optionnel)</span>
+                  </label>
+                  <input 
+                    id="new-user-phone"
+                    type="tel" 
+                    placeholder="+33 6 12 34 56 78" 
+                    className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-[#1a56db] focus:border-transparent" 
+                    value={newUser.phone} 
+                    onChange={e => setNewUser({ ...newUser, phone: e.target.value })} 
+                  />
+                </div>
+
                 <div>
                   <label htmlFor="new-user-email" className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
                   <input 

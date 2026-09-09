@@ -15,6 +15,9 @@ export default function Inscription() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [selectedFormation, setSelectedFormation] = useState(null);
+  const [selectedFormationId, setSelectedFormationId] = useState('');
+  const [formationsList, setFormationsList] = useState([]);
+  const [formationsLoading, setFormationsLoading] = useState(false);
   const [formationLoading, setFormationLoading] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [emailError, setEmailError] = useState('');
@@ -22,7 +25,10 @@ export default function Inscription() {
   const [touched, setTouched] = useState({});
   const [isFormValid, setIsFormValid] = useState(false);
   const [phone, setPhone] = useState('');
+  const [phoneError, setPhoneError] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [testResult, setTestResult] = useState(null);
+  const [searchFormationTerm, setSearchFormationTerm] = useState('');
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -31,8 +37,46 @@ export default function Inscription() {
   const queryParams = new URLSearchParams(location.search);
   const redirectUrl = queryParams.get('redirect');
   const formationId = queryParams.get('formation');
+  const testCompleted = queryParams.get('test') === 'completed';
 
-  // Charger la formation si formationId est présent
+  // Charger la liste des formations
+  useEffect(() => {
+    const fetchFormations = async () => {
+      setFormationsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('formations')
+          .select('id, title, is_online, on_demand, duration, description, price')
+          .order('title', { ascending: true });
+
+        if (error) throw error;
+        setFormationsList(data || []);
+      } catch (err) {
+        console.error('Erreur chargement formations:', err);
+        toast.error('Impossible de charger la liste des formations');
+      } finally {
+        setFormationsLoading(false);
+      }
+    };
+    fetchFormations();
+  }, []);
+
+  // Récupérer le résultat du test depuis sessionStorage
+  useEffect(() => {
+    if (testCompleted) {
+      const savedResult = sessionStorage.getItem('test_result');
+      if (savedResult) {
+        try {
+          const result = JSON.parse(savedResult);
+          setTestResult(result);
+        } catch (e) {
+          console.error('Erreur parsing test result:', e);
+        }
+      }
+    }
+  }, [testCompleted]);
+
+  // Charger la formation si formationId est présent dans l'URL
   useEffect(() => {
     if (formationId) {
       const fetchFormation = async () => {
@@ -46,6 +90,7 @@ export default function Inscription() {
 
           if (error) throw error;
           setSelectedFormation(data);
+          setSelectedFormationId(data.id);
         } catch (err) {
           console.error('Erreur chargement formation:', err);
           toast.error('Impossible de charger les informations de la formation');
@@ -56,6 +101,37 @@ export default function Inscription() {
       fetchFormation();
     }
   }, [formationId]);
+
+  // Gestion du changement de formation dans le select
+  const handleFormationChange = (e) => {
+    const id = e.target.value;
+    setSelectedFormationId(id);
+    if (id) {
+      const formation = formationsList.find(f => f.id === id);
+      setSelectedFormation(formation);
+    } else {
+      setSelectedFormation(null);
+    }
+  };
+
+  // Validation du numéro de téléphone
+  const validatePhone = useCallback((value) => {
+    if (!value.trim()) {
+      setPhoneError('Le numéro de téléphone est requis');
+      return false;
+    }
+    if (value.trim().length < 8) {
+      setPhoneError('Le numéro de téléphone doit contenir au moins 8 chiffres');
+      return false;
+    }
+    const phoneRegex = /^[\+\d\s\-\(\)]{8,}$/;
+    if (!phoneRegex.test(value.trim())) {
+      setPhoneError('Format de téléphone invalide');
+      return false;
+    }
+    setPhoneError('');
+    return true;
+  }, []);
 
   // Validation en temps réel
   const validateName = useCallback((value) => {
@@ -103,10 +179,10 @@ export default function Inscription() {
     const isNameValid = fullName.trim().length >= 2;
     const isEmailValid = validateEmail(email);
     const isPasswordValid = password.length >= 6 && confirmPassword === password && password.length > 0;
-    const isPhoneValid = !phone || phone.length >= 8;
+    const isPhoneValid = phone.trim().length >= 8 && validatePhone(phone);
     
     setIsFormValid(isNameValid && isEmailValid && isPasswordValid && isPhoneValid && termsAccepted);
-  }, [fullName, email, password, confirmPassword, phone, termsAccepted, validateEmail]);
+  }, [fullName, email, password, confirmPassword, phone, termsAccepted, validateEmail, validatePhone]);
 
   const handleNameChange = (e) => {
     const value = e.target.value;
@@ -143,11 +219,36 @@ export default function Inscription() {
     }
   };
 
+  const handlePhoneChange = (e) => {
+    const value = e.target.value;
+    setPhone(value);
+    if (touched.phone) validatePhone(value);
+  };
+
   const handleBlur = (field) => {
     setTouched({ ...touched, [field]: true });
     if (field === 'name') validateName(fullName);
     if (field === 'email') validateEmail(email);
     if (field === 'password') validatePassword(password);
+    if (field === 'phone') validatePhone(phone);
+  };
+
+  // Vérifier si un utilisateur existe déjà avec ce téléphone
+  const checkPhoneExists = async (phoneNumber) => {
+    if (!phoneNumber) return false;
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('phone')
+        .eq('phone', phoneNumber)
+        .maybeSingle();
+      
+      if (error) throw error;
+      return !!data;
+    } catch (err) {
+      console.error('Erreur vérification téléphone:', err);
+      return false;
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -157,9 +258,10 @@ export default function Inscription() {
     const isNameValid = validateName(fullName);
     const isEmailValid = validateEmail(email);
     const isPasswordValid = validatePassword(password);
+    const isPhoneValid = validatePhone(phone);
 
-    if (!isNameValid || !isEmailValid || !isPasswordValid) {
-      setTouched({ name: true, email: true, password: true });
+    if (!isNameValid || !isEmailValid || !isPasswordValid || !isPhoneValid) {
+      setTouched({ name: true, email: true, password: true, phone: true });
       toast.error('Veuillez corriger les erreurs du formulaire');
       return;
     }
@@ -192,7 +294,15 @@ export default function Inscription() {
         return;
       }
 
-      // 2. Inscription avec Supabase Auth
+      // 2. Vérifier si le téléphone existe déjà
+      const phoneExists = await checkPhoneExists(phone);
+      if (phoneExists) {
+        toast.error('📱 Ce numéro de téléphone est déjà utilisé par un autre compte');
+        setLoading(false);
+        return;
+      }
+
+      // 3. Inscription avec Supabase Auth
       const { data, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -201,8 +311,14 @@ export default function Inscription() {
             full_name: fullName.trim(),
             user_type: userType,
             phone: phone || null,
-            formation_id: selectedFormation?.id || null, // ✅ Stocker la formation dans les métadonnées
-            formation_title: selectedFormation?.title || null
+            formation_id: selectedFormation?.id || null,
+            formation_title: selectedFormation?.title || null,
+            formation_chosen: selectedFormation ? {
+              id: selectedFormation.id,
+              title: selectedFormation.title
+            } : null,
+            test_completed: testCompleted || false,
+            test_result: testResult || null
           }
         }
       });
@@ -229,7 +345,7 @@ export default function Inscription() {
         return;
       }
 
-      // 3. Insérer l'utilisateur dans la table users
+      // 4. Insérer l'utilisateur dans la table users
       const { error: insertError } = await supabase
         .from('users')
         .upsert({
@@ -238,8 +354,14 @@ export default function Inscription() {
           full_name: fullName.trim(),
           user_type: userType,
           is_admin: false,
-          is_approved: false, // En attente d'approbation
+          is_approved: false,
           phone: phone || null,
+          chosen_formation_id: selectedFormation?.id || null,
+          chosen_formation_title: selectedFormation?.title || null,
+          formation_chosen: selectedFormation ? {
+            id: selectedFormation.id,
+            title: selectedFormation.title
+          } : null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }, { onConflict: 'id' });
@@ -249,38 +371,111 @@ export default function Inscription() {
         toast.warning('⚠️ Compte créé mais erreur lors de l\'enregistrement des données.');
       }
 
-      // 4. Si une formation est sélectionnée, créer automatiquement l'inscription
-      if (selectedFormation) {
+      // 5. Sauvegarder le résultat du test si présent
+      if (testResult && testCompleted) {
         try {
-          // ✅ Insérer l'inscription dans la table inscriptions avec statut "en_attente"
-          const { error: inscriptionError } = await supabase
-            .from('inscriptions')
+          const { error: testError } = await supabase
+            .from('test_results')
             .insert({
               user_id: data.user.id,
-              formation_id: selectedFormation.id,
-              statut: 'en_attente',
-              created_at: new Date().toISOString(),
-              source: 'inscription_auto' // Pour tracer l'origine
+              formation_id: testResult.formationId || formationId,
+              test_type: testResult.test_type || 'default',
+              score: testResult.correct || 0,
+              total_questions: testResult.total || 0,
+              percentage: testResult.percentage || 0,
+              level: testResult.level || 'Débutant',
+              answers: testResult.answers || {},
+              time_spent: testResult.timeSpent || 0,
+              created_at: new Date().toISOString()
             });
 
-          if (inscriptionError) {
-            console.error("Erreur inscription auto:", inscriptionError);
-            toast.warning('⚠️ Compte créé, mais l\'inscription à la formation a échoué. Contactez le support.');
+          if (testError) {
+            console.error("Erreur sauvegarde test result:", testError);
+            toast.warning('⚠️ Compte créé, mais le résultat du test n\'a pas été sauvegardé.');
           } else {
-            toast.success(`✅ Inscription à "${selectedFormation.title}" enregistrée ! En attente de validation.`);
+            toast.success('🧪 Votre résultat de test a été sauvegardé !');
+            sessionStorage.removeItem('test_result');
+          }
+        } catch (testErr) {
+          console.error("Erreur lors de la sauvegarde du test:", testErr);
+        }
+      }
+
+      // ✅ 6. Si une formation est sélectionnée, créer automatiquement l'inscription
+      // ✅ CORRIGÉ : Ne pas afficher d'erreur si l'inscription existe déjà ou est en attente
+      if (selectedFormation) {
+        try {
+          // Vérifier si une inscription existe déjà
+          const { data: existingInscription, error: checkError } = await supabase
+            .from('inscriptions')
+            .select('id, statut')
+            .eq('user_id', data.user.id)
+            .eq('formation_id', selectedFormation.id)
+            .maybeSingle();
+
+          if (checkError) {
+            console.error("Erreur vérification inscription existante:", checkError);
+          }
+
+          if (existingInscription) {
+            // ✅ L'inscription existe déjà - ne pas afficher d'erreur
+            if (existingInscription.statut === 'en_attente') {
+              toast.info(`📝 Vous êtes déjà inscrit à "${selectedFormation.title}" (en attente de validation)`);
+            } else if (existingInscription.statut === 'confirme') {
+              toast.success(`✅ Vous êtes déjà inscrit à "${selectedFormation.title}"`);
+            } else {
+              // Si l'inscription est annulée ou rejetée, on la réactive
+              const { error: updateError } = await supabase
+                .from('inscriptions')
+                .update({
+                  statut: 'en_attente',
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', existingInscription.id);
+
+              if (updateError) {
+                console.error("Erreur réactivation inscription:", updateError);
+                // ✅ Ne pas afficher d'erreur bloquante
+                toast.warning('⚠️ L\'inscription à la formation sera traitée manuellement.');
+              } else {
+                toast.success(`✅ Inscription à "${selectedFormation.title}" réactivée ! En attente de validation.`);
+              }
+            }
+          } else {
+            // ✅ Créer une nouvelle inscription
+            const { error: inscriptionError } = await supabase
+              .from('inscriptions')
+              .insert({
+                user_id: data.user.id,
+                formation_id: selectedFormation.id,
+                statut: 'en_attente',
+                created_at: new Date().toISOString(),
+                source: testCompleted ? 'inscription_apres_test' : 'inscription_auto'
+              });
+
+            if (inscriptionError) {
+              console.error("Erreur inscription auto:", inscriptionError);
+              // ✅ Ne pas afficher d'erreur bloquante - l'admin pourra créer l'inscription manuellement
+              toast.warning('⚠️ L\'inscription à la formation sera traitée manuellement par l\'administrateur.');
+            } else {
+              toast.success(`✅ Inscription à "${selectedFormation.title}" enregistrée ! En attente de validation.`);
+            }
           }
         } catch (inscriptionErr) {
           console.error("Erreur lors de l'inscription à la formation:", inscriptionErr);
-          toast.warning('⚠️ Compte créé, mais l\'inscription à la formation a échoué. Contactez le support.');
+          // ✅ Ne pas afficher d'erreur bloquante
+          toast.warning('⚠️ L\'inscription à la formation sera traitée manuellement par l\'administrateur.');
         }
       }
 
       const typeLabel = userType === 'formateur' ? 'formateur' : 'participant';
       toast.success(`✅ Inscription réussie ! Votre compte ${typeLabel} est en attente d'approbation.`);
 
-      // 5. Redirection avec un délai
+      // 7. Redirection avec un délai
       setTimeout(() => {
-        if (redirectUrl) {
+        if (testCompleted || testResult) {
+          navigate('/espace-participant');
+        } else if (redirectUrl) {
           navigate(redirectUrl);
         } else if (selectedFormation) {
           navigate(`/formations/${selectedFormation.id}`);
@@ -296,6 +491,11 @@ export default function Inscription() {
       setLoading(false);
     }
   };
+
+  // Filtrer les formations selon la recherche
+  const filteredFormations = formationsList.filter(f =>
+    f.title?.toLowerCase().includes(searchFormationTerm.toLowerCase())
+  );
 
   return (
     <>
@@ -316,7 +516,9 @@ export default function Inscription() {
               <span className="text-3xl text-white">📝</span>
             </div>
             <h1 className="text-2xl font-bold text-gray-800">Inscription</h1>
-            <p className="text-gray-500 text-sm mt-1">Créez votre compte</p>
+            <p className="text-gray-500 text-sm mt-1">
+              {testCompleted ? 'Créez votre compte pour voir vos résultats' : 'Créez votre compte'}
+            </p>
           </motion.div>
 
           <motion.div
@@ -325,13 +527,34 @@ export default function Inscription() {
             transition={{ delay: 0.1 }}
             className="bg-white rounded-2xl shadow-xl p-6"
           >
-            {/* ✅ Bannière de la formation sélectionnée */}
+            {/* Bannière du test complété */}
+            {testCompleted && testResult && (
+              <div className="mb-4 p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-xl border border-green-200">
+                <div className="flex items-start gap-3">
+                  <span className="text-2xl">🧪</span>
+                  <div className="flex-1">
+                    <p className="text-xs text-green-600 font-semibold">Test complété !</p>
+                    <p className="text-sm font-medium text-green-800">
+                      Résultat : {testResult.correct}/{testResult.total} ({testResult.percentage}%)
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Niveau : {testResult.level || 'Débutant'} • {testResult.test_type || 'Générique'}
+                    </p>
+                    <p className="text-xs text-blue-600 mt-2">
+                      🔒 Créez votre compte pour sauvegarder vos résultats
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Bannière de la formation sélectionnée via URL */}
             {formationLoading ? (
               <div className="mb-4 p-3 bg-blue-50 rounded-lg flex items-center justify-center gap-2">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
                 <span className="text-sm text-blue-600">Chargement...</span>
               </div>
-            ) : selectedFormation && (
+            ) : selectedFormation && formationId && (
               <div className="mb-5 p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-xl border border-green-200">
                 <div className="flex items-start gap-3">
                   <span className="text-2xl">🎓</span>
@@ -381,22 +604,34 @@ export default function Inscription() {
                 )}
               </div>
 
-              {/* Téléphone (optionnel) */}
+              {/* Téléphone - Requis */}
               <div>
                 <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
-                  Téléphone <span className="text-gray-400">(optionnel)</span>
+                  Téléphone <span className="text-red-500">*</span>
                 </label>
                 <input
                   id="phone"
                   type="tel"
-                  placeholder="06 12 34 56 78"
+                  placeholder="+33 6 12 34 56 78"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#1a56db] focus:border-transparent transition text-base"
+                  onChange={handlePhoneChange}
+                  onBlur={() => handleBlur('phone')}
+                  className={`w-full p-3 border ${phoneError && touched.phone ? 'border-red-500' : 'border-gray-300'} rounded-xl focus:ring-2 focus:ring-[#1a56db] focus:border-transparent transition text-base`}
+                  required
                   disabled={loading}
                   autoComplete="tel"
                   aria-label="Numéro de téléphone"
+                  aria-invalid={!!phoneError && touched.phone}
+                  aria-describedby={phoneError && touched.phone ? "phone-error" : undefined}
                 />
+                {phoneError && touched.phone && (
+                  <p id="phone-error" className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                    <span>⚠️</span> {phoneError}
+                  </p>
+                )}
+                <p className="text-xs text-gray-400 mt-1">
+                  Exemple: +33 6 12 34 56 78 ou 0612345678
+                </p>
               </div>
 
               {/* Email */}
@@ -423,6 +658,67 @@ export default function Inscription() {
                   <p id="email-error" className="text-xs text-red-500 mt-1 flex items-center gap-1">
                     <span>⚠️</span> {emailError}
                   </p>
+                )}
+              </div>
+
+              {/* Sélection de la formation */}
+              <div>
+                <label htmlFor="formation" className="block text-sm font-medium text-gray-700 mb-1">
+                  🎓 Formation souhaitée <span className="text-gray-400">(optionnel)</span>
+                </label>
+                {formationsLoading ? (
+                  <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#1a56db]"></div>
+                    <span className="text-sm text-gray-500">Chargement des formations...</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="🔍 Rechercher une formation..."
+                        value={searchFormationTerm}
+                        onChange={(e) => setSearchFormationTerm(e.target.value)}
+                        className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#1a56db] focus:border-transparent transition text-base mb-2"
+                        disabled={loading || formationsList.length === 0}
+                      />
+                    </div>
+                    
+                    <select
+                      id="formation"
+                      value={selectedFormationId}
+                      onChange={handleFormationChange}
+                      className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#1a56db] focus:border-transparent transition text-base appearance-none bg-white"
+                      disabled={loading || formationsList.length === 0}
+                    >
+                      <option value="">-- Aucune formation --</option>
+                      {filteredFormations.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.title} {f.is_online ? '🌍' : f.on_demand ? '🏢' : ''} 
+                          {f.price ? ` - ${f.price}€` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    
+                    {searchFormationTerm && (
+                      <p className="text-xs text-gray-400 mt-1">
+                        {filteredFormations.length} formation(s) trouvée(s)
+                      </p>
+                    )}
+                    
+                    {selectedFormation && selectedFormation.description && (
+                      <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                        📖 {selectedFormation.description.substring(0, 150)}
+                        {selectedFormation.description.length > 150 && '...'}
+                      </p>
+                    )}
+                    
+                    {formationsList.length === 0 && !formationsLoading && (
+                      <p className="text-xs text-amber-600 mt-1">
+                        ⚠️ Aucune formation disponible actuellement. Vous pourrez vous inscrire plus tard.
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -572,7 +868,7 @@ export default function Inscription() {
                 type="submit"
                 disabled={loading || !isFormValid}
                 className="w-full bg-gradient-to-r from-[#1a56db] to-[#76c21f] text-white py-3 rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:hover:scale-100 hover:scale-[1.02] text-base"
-                aria-label={loading ? "Inscription en cours..." : selectedFormation ? "S'inscrire et rejoindre la formation" : "S'inscrire"}
+                aria-label={loading ? "Inscription en cours..." : selectedFormation ? "S'inscrire à la formation" : "S'inscrire"}
               >
                 {loading ? (
                   <span className="flex items-center justify-center gap-2">
@@ -583,7 +879,8 @@ export default function Inscription() {
                     Inscription en cours...
                   </span>
                 ) : (
-                  selectedFormation ? "🎓 S'inscrire et rejoindre la formation" : "📝 S'inscrire"
+                  testCompleted ? "🧪 Créer mon compte et voir mes résultats" : 
+                  selectedFormation ? "🎓 S'inscrire à la formation" : "📝 S'inscrire"
                 )}
               </button>
             </form>
@@ -614,7 +911,10 @@ export default function Inscription() {
             {/* Information */}
             <div className="mt-4 p-3 bg-blue-50 rounded-lg">
               <p className="text-xs text-blue-600 text-center">
-                📌 L'inscription est gratuite. Votre compte sera activé par l'administrateur dans les plus brefs délais.
+                {testCompleted 
+                  ? '📌 Créez votre compte pour sauvegarder vos résultats et accéder à toutes nos formations.'
+                  : '📌 L\'inscription est gratuite. Votre compte sera activé par l\'administrateur dans les plus brefs délais.'
+                }
               </p>
             </div>
           </motion.div>

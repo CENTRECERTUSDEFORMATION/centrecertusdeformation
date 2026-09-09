@@ -307,7 +307,7 @@ const Contact = () => {
                   <div className="flex justify-between items-center pb-3 border-b border-blue-100">
                     <span className="font-medium text-gray-700">Lundi - Dimanche</span>
                     <div className="flex items-center gap-2">
-                      <span className="text-gray-600 font-semibold text-green-600">09:00 - 22:00</span>
+                      <span className="text-gray-600 font-semibold">09:00 - 22:00</span>
                       <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">Tous les jours</span>
                     </div>
                   </div>
