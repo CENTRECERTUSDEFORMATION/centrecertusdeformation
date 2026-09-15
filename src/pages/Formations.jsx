@@ -850,7 +850,7 @@ export default function Formations() {
                           className="mt-3 w-full bg-gradient-to-r from-green-500 to-green-600 text-white text-xs font-semibold py-1.5 rounded-lg hover:from-green-600 hover:to-green-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1 cursor-pointer"
                         >
                           <span>🧪</span> Faire le test gratuit
-                          <span className="text-[10px] opacity-80">(5-10 min)</span>
+                          <span className="text-[10px] opacity-80">(12 min)</span>
                         </button>
                       )}
 
