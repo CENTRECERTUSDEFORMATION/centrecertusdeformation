@@ -3,13 +3,17 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = 'https://rdttnpdjeuteeuwvggai.supabase.co';
 
-// ✅ VOTRE VRAIE CLÉ ANON (publique) - Copiée de votre message
+// ✅ Clé anon (publique) - Utilisée côté client
+// Cette clé est publique par nature et peut être exposée dans le navigateur.
+// Elle est protégée par RLS qui contrôle ce qui est accessible.
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJkdHRucGRqZXV0ZWV1d3ZnZ2FpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4OTI3ODMsImV4cCI6MjA4NjQ2ODc4M30.XG3YD4SOkjddvS76KaJS2dHHNdXcXSdVR765E-G_7g4';
 
-// ✅ VOTRE VRAIE CLÉ SERVICE ROLE (admin) - Copiée de votre message
-const supabaseServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJkdHRucGRqZXV0ZWV1d3ZnZ2FpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MDg5Mjc4MywiZXhwIjoyMDg2NDY4NzgzfQ.R-msKkdI6u2w0cA3x3f7Eww_mSsQ7zK7AeX8p9jS6UY';
-
-// Client standard (pour l'authentification et les requêtes normales)
+// ============================================
+// 🔒 CLIENT SUPABASE PRINCIPAL
+// ============================================
+// Ce client utilise la clé anon et bénéficie de la session utilisateur.
+// RLS s'applique : chaque utilisateur ne voit que ce qui l'autorise.
+// ============================================
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     storageKey: 'supabase-auth-token',
@@ -21,63 +25,24 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   }
 });
 
-// Client admin (pour les opérations d'administration uniquement)
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
-  }
-});
-
-// ============ FONCTIONS UTILITAIRES ============
-
-// SELECT - Récupérer des données
-export const supabaseSelect = async (table, query = '') => {
-  try {
-    const { data, error } = await supabase.from(table).select(query);
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error(`❌ Erreur select sur ${table}:`, error);
-    throw error;
-  }
-};
-
-// INSERT - Insérer des données
-export const supabaseInsert = async (table, data) => {
-  try {
-    const { data: result, error } = await supabase.from(table).insert(data).select();
-    if (error) throw error;
-    return result;
-  } catch (error) {
-    console.error(`❌ Erreur insert sur ${table}:`, error);
-    throw error;
-  }
-};
-
-// UPDATE - Mettre à jour des données
-export const supabaseUpdate = async (table, id, data) => {
-  try {
-    const { data: result, error } = await supabase.from(table).update(data).eq('id', id).select();
-    if (error) throw error;
-    return result;
-  } catch (error) {
-    console.error(`❌ Erreur update sur ${table}:`, error);
-    throw error;
-  }
-};
-
-// DELETE - Supprimer des données
-export const supabaseDelete = async (table, id) => {
-  try {
-    const { error } = await supabase.from(table).delete().eq('id', id);
-    if (error) throw error;
-    return true;
-  } catch (error) {
-    console.error(`❌ Erreur delete sur ${table}:`, error);
-    throw error;
-  }
-};
+// ============================================
+// ⚠️ REMARQUE DE SÉCURITÉ
+// ============================================
+// La clé `service_role` a été RETIRÉE de ce fichier pour des raisons de sécurité.
+//
+// ❌ La clé `service_role` ne doit JAMAIS être exposée dans le navigateur.
+// ❌ Elle donne un accès total à la base, en contournant RLS.
+//
+// Pour les opérations qui nécessitent cette clé (création/suppression
+// d'utilisateurs Auth, par exemple), il faut utiliser :
+//
+//   1. Une EDGE FUNCTION Supabase (recommandé)
+//      → Le code s'exécute côté serveur, la clé reste secrète
+//
+//   2. Un BACKEND dédié (Node.js, Express, etc.)
+//      → Le frontend appelle une API, le backend utilise la clé
+//
+// ============================================
 
 console.log('✅ Supabase initialisé avec succès');
 console.log('🔗 URL:', supabaseUrl);

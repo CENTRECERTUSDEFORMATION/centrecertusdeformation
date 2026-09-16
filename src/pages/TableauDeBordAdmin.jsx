@@ -63,10 +63,10 @@ const TableauDeBordAdmin = () => {
 
       // Codes d'accès
       if (formationsData?.length > 0) {
-        const codesData = await supabaseSelect("formation_access_codes", 
+        const codesData = await supabaseSelect("formation_access_codes",
           `formation_id=in.(${formationsData.map(f => f.id).join(',')})`
         );
-        
+
         if (codesData) {
           const codesMap = {};
           codesData.forEach(code => {
@@ -93,17 +93,17 @@ const TableauDeBordAdmin = () => {
 
   // Charger toutes les inscriptions
   const fetchAllInscriptions = async (formationsList) => {
-    if (!formationsList.length) return;
+    if (!formationsList || !formationsList.length) return;
 
     const formationIds = formationsList.map(f => f.id).join(',');
 
     // Inscriptions en ligne
-    const inscriptionsData = await supabaseSelect("inscriptions", 
+    const inscriptionsData = await supabaseSelect("inscriptions",
       `select=*,users:user_id(id,email,full_name)&formation_id=in.(${formationIds})`
     );
 
     // Demandes présentiel
-    const demandesData = await supabaseSelect("demandes_presentiel", 
+    const demandesData = await supabaseSelect("demandes_presentiel",
       `formation_id=in.(${formationIds})&order=created_at.desc`
     );
 
@@ -126,11 +126,11 @@ const TableauDeBordAdmin = () => {
     }
     setInscriptionsPresentiel(presentielMap);
 
-    // Calculer les stats
+    // Calculer les stats - ✅ CORRECTION : utiliser formationsList au lieu de formationsData
     const totalInscriptions = inscriptionsData?.length || 0;
     const totalDemandes = demandesData?.length || 0;
-    const totalTests = formationsData.filter(f => f.has_test).length;
-    const totalTestsGratuits = formationsData.filter(f => f.has_test && f.test_free).length;
+    const totalTests = formationsList.filter(f => f.has_test).length;
+    const totalTestsGratuits = formationsList.filter(f => f.has_test && f.test_free).length;
 
     setStats({
       totalFormations: formationsList.length,
@@ -144,10 +144,10 @@ const TableauDeBordAdmin = () => {
   const fetchFormationInscriptions = async (formationId) => {
     setLoadingInscriptions(prev => ({ ...prev, [formationId]: true }));
     try {
-      const inscriptionsData = await supabaseSelect("inscriptions", 
+      const inscriptionsData = await supabaseSelect("inscriptions",
         `select=*,users:user_id(id,email,full_name)&formation_id=eq.${formationId}`
       );
-      const demandesData = await supabaseSelect("demandes_presentiel", 
+      const demandesData = await supabaseSelect("demandes_presentiel",
         `formation_id=eq.${formationId}&order=created_at.desc`
       );
 
@@ -163,9 +163,9 @@ const TableauDeBordAdmin = () => {
 
   const marquerContacte = async (demandeId, formationId) => {
     try {
-      await supabaseUpdate("demandes_presentiel", demandeId, { 
-        statut: "contacte", 
-        contacte_le: new Date().toISOString() 
+      await supabaseUpdate("demandes_presentiel", demandeId, {
+        statut: "contacte",
+        contacte_le: new Date().toISOString()
       });
       toast.success("✅ Demandeur marqué comme contacté");
       await fetchFormationInscriptions(formationId);
@@ -177,7 +177,7 @@ const TableauDeBordAdmin = () => {
 
   const validerInscription = async (inscriptionId, formationId) => {
     try {
-      await supabaseUpdate("inscriptions", inscriptionId, { 
+      await supabaseUpdate("inscriptions", inscriptionId, {
         statut: "confirme",
         date_confirmation: new Date().toISOString()
       });
@@ -191,7 +191,7 @@ const TableauDeBordAdmin = () => {
 
   const rejeterInscription = async (inscriptionId, formationId) => {
     if (!confirm("Confirmer le rejet de cette inscription ?")) return;
-    
+
     try {
       await supabaseUpdate("inscriptions", inscriptionId, { statut: "annule" });
       toast.success("❌ Inscription rejetée");
@@ -205,29 +205,29 @@ const TableauDeBordAdmin = () => {
   const generateCode = async (formationId) => {
     setGenerating(true);
     const newCode = Math.random().toString(36).substring(2, 10).toUpperCase();
-    
+
     try {
       const existing = await supabaseSelect("formation_access_codes", `formation_id=eq.${formationId}`);
-      
+
       if (existing && existing.length > 0) {
-        await supabaseUpdate("formation_access_codes", existing[0].id, { 
-          teacher_code: newCode, 
-          participant_code: newCode, 
-          access_code: newCode 
+        await supabaseUpdate("formation_access_codes", existing[0].id, {
+          teacher_code: newCode,
+          participant_code: newCode,
+          access_code: newCode
         });
       } else {
-        await supabaseInsert("formation_access_codes", { 
-          formation_id: formationId, 
-          teacher_code: newCode, 
-          participant_code: newCode, 
-          access_code: newCode 
+        await supabaseInsert("formation_access_codes", {
+          formation_id: formationId,
+          teacher_code: newCode,
+          participant_code: newCode,
+          access_code: newCode
         });
       }
-      
+
       setAccessCodes(prev => ({ ...prev, [formationId]: { access_code: newCode } }));
       toast.success(`✅ Code: ${newCode}`);
       navigator.clipboard.writeText(newCode);
-      
+
     } catch (error) {
       toast.error("Erreur");
     } finally {
@@ -297,13 +297,13 @@ const TableauDeBordAdmin = () => {
   }
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       className="min-h-screen bg-gray-50 pt-20"
     >
       <div className="max-w-7xl mx-auto p-6">
-        
+
         {/* En-tête */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
           <div>
@@ -311,13 +311,13 @@ const TableauDeBordAdmin = () => {
             <p className="text-gray-500">Gérez vos formations, actualités et inscriptions</p>
           </div>
           <div className="flex gap-3 mt-3 md:mt-0">
-            <button 
+            <button
               onClick={() => navigate("/admin/statistics")}
               className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition flex items-center gap-2"
             >
               📊 Statistiques
             </button>
-            <button 
+            <button
               onClick={() => navigate("/admin/users")}
               className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition flex items-center gap-2"
             >
@@ -376,21 +376,21 @@ const TableauDeBordAdmin = () => {
 
         {/* Onglets */}
         <div className="flex gap-4 mb-6 border-b">
-          <button 
-            onClick={() => setActiveTab("formations")} 
+          <button
+            onClick={() => setActiveTab("formations")}
             className={`pb-3 px-4 font-medium transition ${
-              activeTab === "formations" 
-                ? "border-b-2 border-blue-600 text-blue-600" 
+              activeTab === "formations"
+                ? "border-b-2 border-blue-600 text-blue-600"
                 : "text-gray-500 hover:text-gray-700"
             }`}
           >
             📚 Formations ({formations.length})
           </button>
-          <button 
-            onClick={() => setActiveTab("actualites")} 
+          <button
+            onClick={() => setActiveTab("actualites")}
             className={`pb-3 px-4 font-medium transition ${
-              activeTab === "actualites" 
-                ? "border-b-2 border-blue-600 text-blue-600" 
+              activeTab === "actualites"
+                ? "border-b-2 border-blue-600 text-blue-600"
                 : "text-gray-500 hover:text-gray-700"
             }`}
           >
@@ -420,8 +420,8 @@ const TableauDeBordAdmin = () => {
                     <option key={theme.id} value={theme.id}>{theme.name}</option>
                   ))}
                 </select>
-                <button 
-                  onClick={() => navigate("/ajouter-formation")} 
+                <button
+                  onClick={() => navigate("/ajouter-formation")}
                   className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
                 >
                   <span>➕</span> Ajouter
@@ -449,7 +449,6 @@ const TableauDeBordAdmin = () => {
                         transition={{ delay: index * 0.05 }}
                         className="bg-white rounded-xl shadow-sm hover:shadow-md transition overflow-hidden border border-gray-100"
                       >
-                        {/* En-tête de la formation */}
                         <div className="p-5">
                           <div className="flex flex-col lg:flex-row justify-between gap-4">
                             <div className="flex-1 min-w-0">
@@ -457,7 +456,6 @@ const TableauDeBordAdmin = () => {
                                 <h3 className="font-bold text-lg text-gray-800 truncate">
                                   {f.title}
                                 </h3>
-                                {/* Badges */}
                                 <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
                                   {themes.find(t => t.id === f.theme)?.name || f.theme}
                                 </span>
@@ -491,17 +489,16 @@ const TableauDeBordAdmin = () => {
                               )}
                             </div>
 
-                            {/* Actions */}
                             <div className="flex items-center gap-2 flex-shrink-0">
-                              <button 
-                                onClick={() => navigate(`/modifier-formation/${f.id}`)} 
+                              <button
+                                onClick={() => navigate(`/modifier-formation/${f.id}`)}
                                 className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
                                 title="Modifier"
                               >
                                 ✏️
                               </button>
-                              <button 
-                                onClick={() => deleteFormation(f.id)} 
+                              <button
+                                onClick={() => deleteFormation(f.id)}
                                 className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
                                 title="Supprimer"
                               >
@@ -518,25 +515,25 @@ const TableauDeBordAdmin = () => {
                                 <code className="bg-gray-100 px-3 py-1 rounded text-sm font-mono">
                                   {accessCodes[f.id].access_code}
                                 </code>
-                                <button 
-                                  onClick={() => navigator.clipboard.writeText(accessCodes[f.id].access_code)} 
+                                <button
+                                  onClick={() => navigator.clipboard.writeText(accessCodes[f.id].access_code)}
                                   className="text-gray-500 hover:text-gray-700 p-1"
                                   title="Copier"
                                 >
                                   📋
                                 </button>
-                                <button 
-                                  onClick={() => generateCode(f.id)} 
-                                  disabled={generating} 
+                                <button
+                                  onClick={() => generateCode(f.id)}
+                                  disabled={generating}
                                   className="text-blue-500 hover:text-blue-700 text-sm"
                                 >
                                   🔄
                                 </button>
                               </div>
                             ) : (
-                              <button 
-                                onClick={() => generateCode(f.id)} 
-                                disabled={generating} 
+                              <button
+                                onClick={() => generateCode(f.id)}
+                                disabled={generating}
                                 className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600 transition"
                               >
                                 🎲 Générer
@@ -566,7 +563,7 @@ const TableauDeBordAdmin = () => {
                                 </span>
                               </button>
                             )}
-                            
+
                             {f.onDemand && (
                               <button
                                 onClick={() => toggleFormationExpand(f.id, 'presentiel')}
@@ -596,7 +593,7 @@ const TableauDeBordAdmin = () => {
                             <h4 className="font-semibold text-blue-800 mb-3 flex items-center gap-2">
                               <span>🌍</span> Inscriptions en ligne
                               <span className="text-xs text-blue-600">({enLigneCount})</span>
-                              <button 
+                              <button
                                 onClick={() => fetchFormationInscriptions(f.id)}
                                 className="ml-auto text-xs text-blue-600 hover:text-blue-800"
                               >
@@ -612,7 +609,7 @@ const TableauDeBordAdmin = () => {
                             ) : (
                               <div className="space-y-2 max-h-96 overflow-y-auto">
                                 {inscriptionsEnLigne[f.id].map(ins => (
-                                  <motion.div 
+                                  <motion.div
                                     key={ins.id}
                                     initial={{ opacity: 0, x: -10 }}
                                     animate={{ opacity: 1, x: 0 }}
@@ -670,7 +667,7 @@ const TableauDeBordAdmin = () => {
                             <h4 className="font-semibold text-orange-800 mb-3 flex items-center gap-2">
                               <span>🏢</span> Demandes présentiel
                               <span className="text-xs text-orange-600">({presentielCount})</span>
-                              <button 
+                              <button
                                 onClick={() => fetchFormationInscriptions(f.id)}
                                 className="ml-auto text-xs text-orange-600 hover:text-orange-800"
                               >
@@ -686,7 +683,7 @@ const TableauDeBordAdmin = () => {
                             ) : (
                               <div className="space-y-2 max-h-96 overflow-y-auto">
                                 {inscriptionsPresentiel[f.id].map(demande => (
-                                  <motion.div 
+                                  <motion.div
                                     key={demande.id}
                                     initial={{ opacity: 0, x: -10 }}
                                     animate={{ opacity: 1, x: 0 }}
@@ -758,8 +755,8 @@ const TableauDeBordAdmin = () => {
           <div>
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-gray-800">Liste des actualités</h2>
-              <button 
-                onClick={() => navigate("/ajouter-actualite")} 
+              <button
+                onClick={() => navigate("/ajouter-actualite")}
                 className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
               >
                 <span>➕</span> Ajouter
@@ -788,15 +785,15 @@ const TableauDeBordAdmin = () => {
                         </p>
                       </div>
                       <div className="flex gap-2 flex-shrink-0 ml-4">
-                        <button 
-                          onClick={() => navigate(`/modifier-actualite/${a.id}`)} 
+                        <button
+                          onClick={() => navigate(`/modifier-actualite/${a.id}`)}
                           className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
                           title="Modifier"
                         >
                           ✏️
                         </button>
-                        <button 
-                          onClick={() => deleteActualite(a.id)} 
+                        <button
+                          onClick={() => deleteActualite(a.id)}
                           className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
                           title="Supprimer"
                         >
