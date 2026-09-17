@@ -1,9 +1,8 @@
 // frontend/src/pages/EspaceParticipant.jsx
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../context/AuthContext";
-import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { Helmet } from "react-helmet-async";
 import { motion, AnimatePresence } from "framer-motion";
@@ -75,6 +74,57 @@ const EspaceParticipant = () => {
   };
 
   // ============================================
+  // ✅ AFFICHAGE DU TITRE DU TEST
+  // ============================================
+  const getTestTitle = (result) => {
+    if (result.formations?.title) {
+      return result.formations.title;
+    }
+    const testTypeLabels = {
+      'excelDebutant': 'Test Excel Débutant',
+      'excelAvance': 'Test Excel Avancé',
+      'excelAvancé': 'Test Excel Avancé',
+      'langues': 'Test de Langues',
+      'anglais': 'Test d\'Anglais',
+      'allemand': 'Test d\'Allemand',
+      'espagnol': 'Test d\'Espagnol',
+      'francais': 'Test de Français',
+      'italien': 'Test d\'Italien'
+    };
+    return testTypeLabels[result.test_type] 
+      || (result.test_type ? `Test ${result.test_type}` : 'Test de niveau');
+  };
+
+  // ============================================
+  // ✅ LIEN VERS LA FORMATION
+  // ============================================
+  const getFormationLink = (result) => {
+    if (result.formations?.slug) {
+      return `/formations/${result.formations.slug}`;
+    }
+    if (result.test_type === 'excelDebutant') {
+      return '/formations/excel-debutant-les-fondamentaux';
+    }
+    if (result.test_type === 'excelAvance' || result.test_type === 'excelAvancé') {
+      return '/formations/excel-avance-formation-perfectionnement-et-automatisation-ce';
+    }
+    return '/formations?search=excel';
+  };
+
+  // ============================================
+  // ✅ LIEN POUR REFAIRE LE TEST
+  // ============================================
+  const getRetryTestLink = (result) => {
+    if (result.test_type === 'excelDebutant') {
+      return '/test/excel-debutant';
+    }
+    if (result.test_type === 'excelAvance' || result.test_type === 'excelAvancé') {
+      return '/test/excel-avance';
+    }
+    return null;
+  };
+
+  // ============================================
   // FETCH DONNÉES
   // ============================================
   const fetchMyFormations = useCallback(async () => {
@@ -109,18 +159,33 @@ const EspaceParticipant = () => {
     }
   }, [user?.id]);
 
+  // ✅ FETCH TEST RESULTS - avec logs détaillés
   const fetchTestResults = useCallback(async () => {
-    if (!user?.id) return [];
+    if (!user?.id) {
+      console.log('⚠️ fetchTestResults: pas d\'user');
+      return [];
+    }
+    
     try {
+      console.log('🔍 fetchTestResults pour user:', user.id);
+      
       const { data, error } = await supabase
         .from('test_results')
         .select('*, formations:formation_id(id, title, slug)')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
-      if (error) throw error;
+      
+      if (error) {
+        console.error('❌ Erreur Supabase test_results:', error);
+        throw error;
+      }
+      
+      console.log('📊 Test results récupérés:', data);
+      console.log('📊 Nombre:', data?.length || 0);
+      
       return data || [];
     } catch (err) {
-      console.error("Erreur fetch test results:", err);
+      console.error("❌ Erreur fetch test results:", err);
       return [];
     }
   }, [user?.id]);
@@ -212,9 +277,19 @@ const EspaceParticipant = () => {
   }, [user?.id]);
 
   const fetchAllData = useCallback(async () => {
-    if (fetchInProgress.current || !user?.id || !isApproved) return;
+    if (fetchInProgress.current || !user?.id || !isApproved) {
+      console.log('⚠️ fetchAllData annulé:', {
+        inProgress: fetchInProgress.current,
+        hasUser: !!user?.id,
+        isApproved
+      });
+      return;
+    }
+    
     fetchInProgress.current = true;
     setLoadingData(true);
+    
+    console.log('🔄 fetchAllData - Début pour:', user.email);
     
     try {
       const [formations, pending, seancesData, testResultsData] = await Promise.all([
@@ -223,6 +298,14 @@ const EspaceParticipant = () => {
         fetchSeances(),
         fetchTestResults()
       ]);
+      
+      console.log('✅ fetchAllData - Résultats:', {
+        formations: formations?.length || 0,
+        pending: pending?.length || 0,
+        upcomingSeances: seancesData?.upcoming?.length || 0,
+        pastSeances: seancesData?.past?.length || 0,
+        testResults: testResultsData?.length || 0
+      });
       
       setMyFormations(formations || []);
       setPendingFormations(pending || []);
@@ -246,13 +329,14 @@ const EspaceParticipant = () => {
       
       setDataFetched(true);
     } catch (err) {
-      console.error("Erreur chargement données:", err);
+      console.error("❌ Erreur chargement données:", err);
       toast.error("Erreur chargement des données");
     } finally {
       setLoadingData(false);
       fetchInProgress.current = false;
+      console.log('🏁 fetchAllData - Fin');
     }
-  }, [user?.id, isApproved, fetchMyFormations, fetchPendingFormations, fetchSeances, fetchTestResults]);
+  }, [user?.id, user?.email, isApproved, fetchMyFormations, fetchPendingFormations, fetchSeances, fetchTestResults]);
 
   const rejoindreReunion = useCallback((lien) => {
     if (lien) { 
@@ -274,19 +358,27 @@ const EspaceParticipant = () => {
   };
 
   // ============================================
-  // CHARGEMENT INITIAL
+  // ✅ CHARGEMENT INITIAL - Re-fetch si user change
   // ============================================
   useEffect(() => {
-    if (user && userType === "participant" && isApproved && !dataFetched) {
+    // Réinitialiser dataFetched si l'utilisateur change
+    if (user?.id) {
+      setDataFetched(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (user && isApproved && !dataFetched && !loading) {
+      console.log('🚀 Déclenchement fetchAllData');
       fetchAllData();
     }
-  }, [user, userType, isApproved, dataFetched, fetchAllData]);
+  }, [user, isApproved, dataFetched, loading, fetchAllData]);
 
   // ============================================
-  // REAL-TIME SUBSCRIPTION
+  // ✅ REAL-TIME SUBSCRIPTION (seances + test_results)
   // ============================================
   useEffect(() => {
-    if (!user || userType !== "participant" || !isApproved) return;
+    if (!user || !isApproved) return;
     
     const subscription = supabase
       .channel('seances_changes')
@@ -301,20 +393,32 @@ const EspaceParticipant = () => {
       )
       .subscribe();
 
+    const testSubscription = supabase
+      .channel('test_results_changes')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'test_results', filter: `user_id=eq.${user.id}` },
+        () => {
+          console.log('🔄 Test result changé, re-fetch...');
+          fetchTestResults().then(setTestResults);
+        }
+      )
+      .subscribe();
+
     return () => {
       subscription.unsubscribe();
+      testSubscription.unsubscribe();
     };
-  }, [user, userType, isApproved, fetchSeances]);
+  }, [user, isApproved, fetchSeances, fetchTestResults]);
 
   // ============================================
-  // VÉRIFICATION ACCÈS
+  // ✅ VÉRIFICATION ACCÈS - Autoriser admin aussi
   // ============================================
   useEffect(() => {
     if (!loading) {
       if (!user) {
         navigate("/connexion");
-      } else if (userType !== "participant") {
-        toast.error("Accès réservé aux participants");
+      } else if (userType && !['participant', 'admin', 'formateur'].includes(userType)) {
+        toast.error("Accès non autorisé");
         navigate("/");
       } else if (!isApproved) {
         toast.warning("⏳ Votre compte est en attente d'approbation");
@@ -333,7 +437,7 @@ const EspaceParticipant = () => {
     );
   }
   
-  if (!user || userType !== "participant") return null;
+  if (!user) return null;
 
   // ============================================
   // RENDER
@@ -581,13 +685,6 @@ const EspaceParticipant = () => {
                                   ⏱️ {seance.duree} min
                                 </span>
                               </div>
-                              {seance.lien_partage_le && new Date(seance.lien_partage_le) > new Date(Date.now() - 5 * 60 * 1000) && (
-                                <div className="mt-2 p-2 bg-green-50 rounded-lg border border-green-200 inline-block">
-                                  <p className="text-xs text-green-700 flex items-center gap-1">
-                                    🆕 Le lien vient d'être partagé par votre formateur !
-                                  </p>
-                                </div>
-                              )}
                             </div>
                             <button 
                               onClick={() => seance.lien_reunion ? rejoindreReunion(seance.lien_reunion) : toast.error("Lien de réunion non disponible")} 
@@ -672,25 +769,46 @@ const EspaceParticipant = () => {
             )}
           </div>
 
-          {/* Résultats des tests */}
-          {testResults.length > 0 && (
-            <div className="mb-8">
-              <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <span className="text-purple-600">🧪</span> Mes résultats de tests
-                <span className="bg-purple-100 text-purple-700 text-xs px-2 py-0.5 rounded-full">{testResults.length}</span>
-              </h2>
+          {/* ✅ Résultats des tests - AVEC MESSAGE SI VIDE */}
+          <div className="mb-8">
+            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <span className="text-purple-600">🧪</span> Mes résultats de tests
+              <span className="bg-purple-100 text-purple-700 text-xs px-2 py-0.5 rounded-full">{testResults.length}</span>
+            </h2>
+            
+            {testResults.length === 0 ? (
+              <div className="bg-white rounded-xl shadow-sm p-8 text-center border border-gray-200">
+                <div className="text-5xl mb-3">📝</div>
+                <h3 className="text-lg font-medium text-gray-700">Aucun test effectué</h3>
+                <p className="text-gray-500 text-sm mt-1 mb-4">
+                  Passez un test de niveau gratuit pour découvrir votre profil.
+                </p>
+                <Link 
+                  to="/formations?search=excel" 
+                  className="inline-block bg-gradient-to-r from-purple-500 to-purple-700 text-white px-6 py-2 rounded-lg font-medium hover:shadow-lg transition"
+                >
+                  🧪 Voir les tests disponibles
+                </Link>
+              </div>
+            ) : (
               <div className="space-y-3">
                 {testResults.map((result, index) => {
                   const levelColors = {
                     'Avancé': 'bg-green-100 text-green-700 border-green-200',
+                    'Expert': 'bg-yellow-100 text-yellow-700 border-yellow-200',
                     'Intermédiaire': 'bg-orange-100 text-orange-700 border-orange-200',
                     'Débutant': 'bg-blue-100 text-blue-700 border-blue-200'
                   };
                   const levelEmojis = {
                     'Avancé': '🏆',
+                    'Expert': '👑',
                     'Intermédiaire': '📊',
                     'Débutant': '📚'
                   };
+                  
+                  const testTitle = getTestTitle(result);
+                  const formationLink = getFormationLink(result);
+                  const retryLink = getRetryTestLink(result);
                   
                   return (
                     <motion.div
@@ -704,7 +822,7 @@ const EspaceParticipant = () => {
                         <div className="flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <h3 className="font-bold text-gray-800">
-                              {result.formations?.title || "Formation"}
+                              {testTitle}
                             </h3>
                             <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${levelColors[result.level] || 'bg-gray-100 text-gray-700'}`}>
                               {levelEmojis[result.level] || '📚'} {result.level}
@@ -724,19 +842,29 @@ const EspaceParticipant = () => {
                             })}
                           </p>
                         </div>
-                        <Link
-                          to={`/formations/${result.formations?.slug || result.formation_id}`}
-                          className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition whitespace-nowrap"
-                        >
-                          Voir la formation →
-                        </Link>
+                        <div className="flex gap-2 items-center">
+                          {retryLink && (
+                            <Link
+                              to={retryLink}
+                              className="bg-gray-100 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition whitespace-nowrap"
+                            >
+                              🔄 Refaire
+                            </Link>
+                          )}
+                          <Link
+                            to={formationLink}
+                            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition whitespace-nowrap"
+                          >
+                            Voir la formation →
+                          </Link>
+                        </div>
                       </div>
                     </motion.div>
                   );
                 })}
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Formations confirmées */}
           <div>

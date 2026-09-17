@@ -209,15 +209,11 @@ const partners = [
 ];
 
 // ============================================
-// hasFreeTest - Vérifie si une formation propose un test gratuit
+// hasFreeTest
 // ============================================
 const hasFreeTest = (formation) => {
-  if (formation.has_test === true) {
-    return true;
-  }
-  if (formation.isStatic) {
-    return formation.test_free === true;
-  }
+  if (formation.has_test === true) return true;
+  if (formation.isStatic) return formation.test_free === true;
   return false;
 };
 
@@ -241,7 +237,7 @@ export default function Formations() {
   const [selectedFormation, setSelectedFormation] = useState(null);
   const [sendingDevis, setSendingDevis] = useState(false);
   const [formationsDropdownOpen, setFormationsDropdownOpen] = useState(false);
-  
+
   const [devisData, setDevisData] = useState({
     name: "", email: "", telephone: "", city: "", country: "", formation: "",
     hebergement: "non", hebergementType: "", visaAssistance: "non", source: "", message: ""
@@ -273,21 +269,41 @@ export default function Formations() {
     return icons[formation.theme] || '📚';
   }, []);
 
-  // ✅ Fonction pour obtenir l'URL du test
+  // ============================================
+  // ✅ DÉTECTION DU TYPE DE TEST
+  // ============================================
   const getTestUrl = useCallback((formation) => {
-    const slug = formation.slug || formation.id;
-    
-    // ✅ Vérifier si c'est une formation Excel Avancé
-    const excelSlugs = [
-      'excel-avance-monastir',
-      'excel-avance-formation-perfectionnement-et-automatisation-ce',
-      'excel-avance'
-    ];
-    
-    if (excelSlugs.includes(slug) || slug.includes('excel') || slug.includes('Excel')) {
+    const slug = (formation.slug || formation.id || '').toLowerCase();
+    const title = (formation.title || formation.fullTitle || '').toLowerCase();
+
+    // Test Excel Débutant
+    if (
+      slug.includes('excel-debutant') ||
+      slug.includes('excel-débutant') ||
+      title.includes('excel débutant') ||
+      title.includes('excel-debutant') ||
+      (title.includes('débutant') && title.includes('excel'))
+    ) {
+      return '/test/excel-debutant';
+    }
+
+    // Test Excel Avancé
+    if (
+      slug.includes('excel-avance') ||
+      slug.includes('excel-avancé') ||
+      title.includes('excel avancé') ||
+      title.includes('excel-avance') ||
+      (title.includes('avancé') && title.includes('excel'))
+    ) {
       return '/test/excel-avance';
     }
-    
+
+    // Autres formations Excel
+    if (slug.includes('excel') || title.includes('excel')) {
+      return '/test/excel-avance';
+    }
+
+    // Test générique
     return `/test/${slug}`;
   }, []);
 
@@ -296,7 +312,7 @@ export default function Formations() {
   // ============================================
   const handleNavigateToAdd = useCallback(() => navigate("/ajouter-formation"), [navigate]);
   const handleNavigateToEdit = useCallback((id) => navigate(`/modifier-formation/${id}`), [navigate]);
-  
+
   const handleNavigateToDetail = useCallback((formation) => {
     const staticFormation = STATIC_FORMATIONS.find(f => f.id === formation.id);
     if (staticFormation) {
@@ -332,19 +348,19 @@ export default function Formations() {
             }
           }
         );
-        
+
         if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
-        
+
         const data = await response.json();
-        
+
         const filteredData = data.filter(f => {
           if (f.title && (f.title.includes("échecs") || f.title.includes("echecs") || f.title.includes("Certus De Formation"))) {
             return false;
           }
-          
+
           if (f.theme !== 'langues') return true;
           if (EXCLUDED_LANGUE_IDS.includes(f.id)) return false;
-          
+
           const staticIds = new Set(STATIC_FORMATIONS.map(s => s.staticId.toLowerCase()));
           const normalizedTitle = normalizeString(f.title || '');
           for (const staticId of staticIds) {
@@ -354,16 +370,16 @@ export default function Formations() {
           }
           return true;
         });
-        
+
         const enrichedData = filteredData.map(f => ({
           ...f,
           has_test: f.has_test || false
         }));
-        
+
         const combined = [...enrichedData, ...STATIC_FORMATIONS];
         setAllFormations(combined);
         setFilteredFormations(combined);
-        
+
         const themeParam = searchParams.get('theme');
         if (themeParam) setSelectedTheme(themeParam);
       } catch (error) {
@@ -383,35 +399,35 @@ export default function Formations() {
   // ============================================
   const searchInFormation = useCallback((formation, searchLower) => {
     if (!searchLower) return true;
-    
+
     const searchableFields = [
       formation.title, formation.fullTitle, formation.shortDescription,
       formation.description, formation.duration, formation.price, formation.langue,
       formation.theme ? THEMES.find(t => t.id === formation.theme)?.name : null
     ];
-    
+
     const themeInfo = THEMES.find(t => t.id === formation.theme);
     if (themeInfo) {
       searchableFields.push(themeInfo.name, themeInfo.description);
     }
-    
-    return searchableFields.some(field => 
+
+    return searchableFields.some(field =>
       field && String(field).toLowerCase().includes(searchLower)
     );
   }, []);
 
   useEffect(() => {
     let filtered = [...allFormations];
-    
+
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase();
       filtered = filtered.filter(formation => searchInFormation(formation, searchLower));
     }
-    
+
     if (selectedTheme !== "all") {
       filtered = filtered.filter(f => f.theme === selectedTheme);
     }
-    
+
     setFilteredFormations(filtered);
   }, [searchTerm, selectedTheme, allFormations, searchInFormation]);
 
@@ -420,13 +436,13 @@ export default function Formations() {
   // ============================================
   const updateFormationTheme = useCallback(async (formationId, newTheme) => {
     if (!isAdmin) return;
-    
+
     const staticFormation = STATIC_FORMATIONS.find(f => f.id === formationId);
     if (staticFormation) {
       toast.info("Cette formation est statique, son thème ne peut pas être modifié.");
       return;
     }
-    
+
     try {
       const response = await fetch(
         `${SUPABASE_URL}/rest/v1/formations?formation_id=eq.${formationId}`,
@@ -443,10 +459,10 @@ export default function Formations() {
 
       if (!response.ok) throw new Error("Erreur mise à jour");
 
-      setAllFormations(prev => prev.map(f => 
+      setAllFormations(prev => prev.map(f =>
         f.id === formationId ? { ...f, theme: newTheme } : f
       ));
-      
+
       toast.success(`Thème mis à jour : ${THEMES.find(t => t.id === newTheme)?.name}`);
     } catch (error) {
       console.error(error);
@@ -456,14 +472,14 @@ export default function Formations() {
 
   const handleDelete = useCallback(async (id) => {
     if (!isAdmin) return;
-    
+
     if (STATIC_FORMATIONS.some(f => f.id === id)) {
       toast.info("Cette formation est statique et ne peut pas être supprimée.");
       return;
     }
-    
+
     if (!window.confirm("Supprimer définitivement cette formation ?")) return;
-    
+
     try {
       const response = await fetch(
         `${SUPABASE_URL}/rest/v1/formations?id=eq.${id}`,
@@ -477,7 +493,7 @@ export default function Formations() {
       );
 
       if (!response.ok) throw new Error("Erreur suppression");
-      
+
       setAllFormations(prev => prev.filter(f => f.id !== id));
       toast.success("Formation supprimée");
     } catch (error) {
@@ -504,13 +520,13 @@ export default function Formations() {
         source: devisData.source || "Non renseignée",
         date: new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
       };
-      
+
       const response = await emailjs.send(
-        EMAILJS_CONFIG.SERVICE_ID, 
-        EMAILJS_CONFIG.TEMPLATE_ID, 
+        EMAILJS_CONFIG.SERVICE_ID,
+        EMAILJS_CONFIG.TEMPLATE_ID,
         templateParams
       );
-      
+
       if (response.status === 200) {
         toast.success("Demande de devis envoyée avec succès !");
         setShowDevisModal(false);
@@ -532,19 +548,20 @@ export default function Formations() {
   // ============================================
   const handleInscriptionEnLigne = useCallback(async (formation) => {
     if (formation.isStatic) {
-      navigate("/inscription");
+      navigate(`/inscription?formation=${formation.id}`);
       return;
     }
-    
+
     try {
       const { data: { user: currentUser } } = await supabase.auth.getUser();
-      
+
       if (!currentUser) {
-        navigate(`/inscription?redirect=/confirm-inscription?formation=${formation.id}`);
+        // ✅ Rediriger vers l'inscription avec la formation pré-sélectionnée
+        navigate(`/inscription?formation=${formation.id}&redirect=/confirm-inscription?formation=${formation.id}`);
         return;
       }
 
-      const existing = await supabaseSelect("inscriptions", 
+      const existing = await supabaseSelect("inscriptions",
         `user_id=eq.${currentUser.id}&formation_id=eq.${formation.id}`
       );
 
@@ -574,9 +591,34 @@ export default function Formations() {
   }, [navigate]);
 
   // ============================================
+  // ✅ OUVERTURE DU TEST - NAVIGATION DIRECTE (pas de nouvelle fenêtre)
+  // ============================================
+  const handleOpenTest = useCallback((formation, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const testUrl = getTestUrl(formation);
+
+    // ✅ Vérifier si l'utilisateur est connecté
+    const checkAndNavigate = async () => {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+
+      if (!currentUser) {
+        // Utilisateur non connecté → rediriger vers inscription avec formation pré-sélectionnée
+        navigate(`/inscription?formation=${formation.id}&redirect=${encodeURIComponent(testUrl)}`);
+      } else {
+        // Utilisateur connecté → ouvrir le test directement
+        navigate(testUrl);
+      }
+    };
+
+    checkAndNavigate();
+  }, [navigate, getTestUrl]);
+
+  // ============================================
   // RENDER HELPERS
   // ============================================
-  const getThemeCount = useCallback((themeId) => 
+  const getThemeCount = useCallback((themeId) =>
     allFormations.filter(f => f.theme === themeId).length,
     [allFormations]
   );
@@ -618,7 +660,7 @@ export default function Formations() {
       </Helmet>
 
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 pt-20">
-        
+
         {/* SECTION HERO */}
         <div className="relative bg-gradient-to-r from-[#1a56db] via-[#1a56db] to-[#76c21f] text-white overflow-hidden">
           <div className="absolute inset-0 bg-black/10"></div>
@@ -707,18 +749,18 @@ export default function Formations() {
         <div className="sticky top-24 z-10 bg-white/95 backdrop-blur-sm shadow-sm border-b border-gray-200">
           <div className="max-w-7xl mx-auto px-6 py-3">
             <div className="relative max-w-md mx-auto">
-              <input 
-                type="text" 
-                placeholder="Rechercher par titre, description, thème, durée, prix, langue..." 
-                className="w-full border border-gray-300 rounded-xl px-4 py-2 pl-10 focus:outline-none focus:ring-2 focus:ring-[#1a56db]" 
-                value={searchTerm} 
-                onChange={(e) => setSearchTerm(e.target.value)} 
+              <input
+                type="text"
+                placeholder="Rechercher par titre, description, thème, durée, prix, langue..."
+                className="w-full border border-gray-300 rounded-xl px-4 py-2 pl-10 focus:outline-none focus:ring-2 focus:ring-[#1a56db]"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 aria-label="Rechercher une formation"
               />
               <svg className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             </div>
             <p className="text-center text-sm text-gray-500 mt-2">{filteredFormations.length} formation(s) trouvée(s)</p>
-            
+
             {isAdmin && (
               <div className="text-center mt-3">
                 <button onClick={handleNavigateToAdd} className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-lg text-sm font-semibold transition-all shadow-md hover:shadow-lg inline-flex items-center gap-2">
@@ -752,12 +794,7 @@ export default function Formations() {
                 const slug = formation.slug || formation.id;
                 const detailPath = isStatic ? formation.staticPath : `/formations/${slug}`;
                 const testUrl = getTestUrl(formation);
-                
-                const openTestWindow = (e) => {
-                  e.stopPropagation();
-                  window.open(testUrl, '_blank', 'width=1024,height=768,scrollbars=yes,resizable=yes');
-                };
-                
+
                 return (
                   <motion.div
                     key={formation.id}
@@ -773,23 +810,23 @@ export default function Formations() {
                     {/* Image */}
                     <Link to={detailPath} className="relative h-40 overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 cursor-pointer block">
                       {formation.images?.[0] ? (
-                        <motion.img 
-                          animate={{ scale: hoveredCard === formation.id ? 1.05 : 1 }} 
-                          transition={{ duration: 0.3 }} 
-                          src={getImageUrl(formation.images[0])} 
-                          alt={displayTitle} 
-                          width="400" 
-                          height="300" 
-                          loading="lazy" 
-                          className="w-full h-full object-cover" 
-                          onError={(e) => e.target.src = "https://placehold.co/400x300?text=" + encodeURIComponent(formationIcon)} 
+                        <motion.img
+                          animate={{ scale: hoveredCard === formation.id ? 1.05 : 1 }}
+                          transition={{ duration: 0.3 }}
+                          src={getImageUrl(formation.images[0])}
+                          alt={displayTitle}
+                          width="400"
+                          height="300"
+                          loading="lazy"
+                          className="w-full h-full object-cover"
+                          onError={(e) => e.target.src = "https://placehold.co/400x300?text=" + encodeURIComponent(formationIcon)}
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-5xl bg-gradient-to-br from-blue-50 to-indigo-50">
                           {formationIcon}
                         </div>
                       )}
-                      
+
                       {/* Badges */}
                       <div className="absolute top-3 right-3 flex flex-col gap-1 items-end">
                         {hasTest && (
@@ -808,14 +845,14 @@ export default function Formations() {
                           </span>
                         )}
                       </div>
-                      
+
                       {/* Thème */}
                       <div className="absolute bottom-3 left-3">
                         <span className="text-xs bg-black/60 text-white px-2 py-0.5 rounded-full backdrop-blur-sm">
                           {themeInfo?.icon || '📚'} {themeInfo?.name || "Formation"}
                         </span>
                       </div>
-                      
+
                       {/* Overlay */}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center pb-4">
                         <span className="text-white text-sm font-medium bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full">
@@ -823,17 +860,17 @@ export default function Formations() {
                         </span>
                       </div>
                     </Link>
-                    
+
                     {/* Contenu */}
                     <div className="p-4 flex-1 flex flex-col">
                       <Link to={detailPath} className="font-bold text-base mb-1 line-clamp-2 text-gray-800 hover:text-[#1a56db] transition">
                         {displayTitle}
                       </Link>
-                      
+
                       <p className="text-gray-500 text-xs line-clamp-2 mb-3 flex-1">
                         {displayDescription}
                       </p>
-                      
+
                       <div className="flex justify-between items-center text-xs text-gray-500 mt-auto pt-2 border-t border-gray-100">
                         {formation.duration && (
                           <span className="flex items-center gap-1">⏱️ {formation.duration}</span>
@@ -843,10 +880,10 @@ export default function Formations() {
                         )}
                       </div>
 
-                      {/* ✅ Bouton Test - UNIQUEMENT si hasTest est true */}
+                      {/* ✅ Bouton Test - NAVIGATION DIRECTE */}
                       {hasTest && (
                         <button
-                          onClick={openTestWindow}
+                          onClick={(e) => handleOpenTest(formation, e)}
                           className="mt-3 w-full bg-gradient-to-r from-green-500 to-green-600 text-white text-xs font-semibold py-1.5 rounded-lg hover:from-green-600 hover:to-green-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1 cursor-pointer"
                         >
                           <span>🧪</span> Faire le test gratuit
@@ -875,7 +912,7 @@ export default function Formations() {
                           </div>
                         </div>
                       )}
-                      
+
                       {isStatic && isAdmin && (
                         <div className="mt-3 pt-3 border-t border-gray-100">
                           <p className="text-xs text-gray-400 text-center">📖 Page dédiée - Contenu statique</p>
@@ -887,7 +924,7 @@ export default function Formations() {
               })}
             </div>
           )}
-          
+
           {/* SECTION TESTS GRATUITS */}
           {freeTestCount > 0 && (
             <div className="mt-12 bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl p-8 border border-green-200">
@@ -903,7 +940,7 @@ export default function Formations() {
               </div>
             </div>
           )}
-          
+
           {/* TEMOIGNAGES */}
           <div className="mt-20 py-12 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl">
             <div className="max-w-6xl mx-auto px-4">
@@ -917,14 +954,14 @@ export default function Formations() {
                   <span className="text-gray-500">({testimonials.length} avis)</span>
                 </div>
               </div>
-              <Swiper 
-                spaceBetween={30} 
-                slidesPerView={1} 
-                breakpoints={{ 768: { slidesPerView: 2 }, 1024: { slidesPerView: 3 } }} 
-                autoplay={{ delay: 4000, disableOnInteraction: false }} 
-                pagination={{ clickable: true }} 
-                navigation={true} 
-                modules={[Autoplay, Pagination, Navigation]} 
+              <Swiper
+                spaceBetween={30}
+                slidesPerView={1}
+                breakpoints={{ 768: { slidesPerView: 2 }, 1024: { slidesPerView: 3 } }}
+                autoplay={{ delay: 4000, disableOnInteraction: false }}
+                pagination={{ clickable: true }}
+                navigation={true}
+                modules={[Autoplay, Pagination, Navigation]}
                 className="pb-12"
               >
                 {randomTestimonials.map((t, i) => (

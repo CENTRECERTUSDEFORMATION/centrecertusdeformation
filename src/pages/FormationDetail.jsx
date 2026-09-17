@@ -18,9 +18,6 @@ const EMAILJS_CONFIG = {
   TEMPLATE_ID: "template_5iq0uco"
 };
 
-// ============================================
-// CONFIGURATION DES THÈMES
-// ============================================
 const THEME_CONFIG = {
   digital: { name: "Digital & Web", icon: "💻", color: "bg-blue-100 text-blue-700" },
   data: { name: "Data & IA", icon: "📊", color: "bg-purple-100 text-purple-700" },
@@ -52,6 +49,7 @@ export default function FormationDetail() {
 
   const [formation, setFormation] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null); // ✅ AJOUT : état d'erreur
   const [selectedImage, setSelectedImage] = useState(0);
   const [showDevisModal, setShowDevisModal] = useState(false);
   const [showInscriptionDemandeModal, setShowInscriptionDemandeModal] = useState(false);
@@ -111,12 +109,24 @@ export default function FormationDetail() {
   }, []);
 
   // ============================================
-  // CHARGEMENT DE LA FORMATION
+  // ✅ CHARGEMENT DE LA FORMATION (AMÉLIORÉ)
   // ============================================
   useEffect(() => {
+    let isMounted = true;
+
     const fetchFormation = async () => {
+      if (!slug) {
+        setError("Slug manquant dans l'URL");
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
+      setError(null);
+
       try {
+        console.log('🔍 Chargement formation avec slug:', slug);
+
         let query = supabase.from('formations').select('*');
         
         if (isUUID(slug)) {
@@ -125,28 +135,43 @@ export default function FormationDetail() {
           query = query.eq('slug', slug);
         }
         
-        const { data, error } = await query.single();
+        const { data, error: fetchError } = await query.maybeSingle();
         
-        if (error) {
-          if (error.code === 'PGRST116') {
-            navigate('/404');
-            return;
-          }
-          throw error;
+        if (!isMounted) return;
+
+        if (fetchError) {
+          console.error('❌ Erreur Supabase:', fetchError);
+          setError(`Erreur de chargement : ${fetchError.message}`);
+          setLoading(false);
+          return;
         }
-        
+
+        if (!data) {
+          console.warn('⚠️ Formation non trouvée pour slug:', slug);
+          setError(`Aucune formation trouvée avec le slug "${slug}"`);
+          setLoading(false);
+          return;
+        }
+
+        console.log('✅ Formation chargée:', data.title);
         setFormation(data);
-      } catch (error) {
-        console.error("Erreur chargement formation:", error);
-        toast.error("❌ Erreur lors du chargement de la formation");
-        navigate('/404');
+        setError(null);
+      } catch (err) {
+        console.error("❌ Exception fetchFormation:", err);
+        if (isMounted) {
+          setError(`Erreur inattendue : ${err.message}`);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
     
-    if (slug) fetchFormation();
-  }, [slug, navigate]);
+    fetchFormation();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [slug]);
 
   // ============================================
   // NAVIGATION
@@ -154,12 +179,34 @@ export default function FormationDetail() {
   const handleNavigateBack = useCallback(() => navigate("/formations"), [navigate]);
 
   // ============================================
-  // FONCTION POUR OUVRIR LE TEST DANS UNE NOUVELLE FENÊTRE
+  // ✅ TEST - Navigation directe (plus de nouvelle fenêtre)
   // ============================================
-  const openTestWindow = useCallback(() => {
-    const testUrl = `/test/${formation.slug || formation.id}`;
-    window.open(testUrl, '_blank', 'width=1024,height=768,scrollbars=yes,resizable=yes');
-  }, [formation]);
+  const handleOpenTest = useCallback(() => {
+    if (!formation) return;
+    
+    // Détection du type de test
+    const formationSlug = (formation.slug || '').toLowerCase();
+    const formationTitle = (formation.title || '').toLowerCase();
+
+    let testUrl = `/test/${formation.slug || formation.id}`;
+
+    // Test Excel Débutant
+    if (
+      formationSlug.includes('excel-debutant') ||
+      (formationTitle.includes('excel') && formationTitle.includes('débutant'))
+    ) {
+      testUrl = '/test/excel-debutant';
+    }
+    // Test Excel Avancé
+    else if (
+      formationSlug.includes('excel-avance') ||
+      (formationTitle.includes('excel') && formationTitle.includes('avancé'))
+    ) {
+      testUrl = '/test/excel-avance';
+    }
+
+    navigate(testUrl);
+  }, [formation, navigate]);
 
   // ============================================
   // DEVIS
@@ -201,6 +248,8 @@ export default function FormationDetail() {
   // INSCRIPTION
   // ============================================
   const handleInscriptionEnLigne = useCallback(async () => {
+    if (!formation) return;
+    
     setInscriptionLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -245,7 +294,7 @@ export default function FormationDetail() {
   // PARTAGE
   // ============================================
   const share = useCallback(async (platform) => {
-    if (shareInProgress.current) return;
+    if (!formation || shareInProgress.current) return;
     shareInProgress.current = true;
 
     try {
@@ -277,24 +326,61 @@ export default function FormationDetail() {
   }, [formation]);
 
   // ============================================
-  // LOADING / ERROR
+  // ✅ LOADING
   // ============================================
   if (loading) {
     return (
-      <main className="flex justify-center items-center h-64 mt-20">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      <main className="flex justify-center items-center min-h-screen mt-20">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto" />
+          <p className="mt-4 text-gray-500 text-sm">Chargement de la formation...</p>
+        </div>
       </main>
     );
   }
 
-  if (!formation) {
+  // ============================================
+  // ✅ ERREUR (au lieu de rediriger vers /404)
+  // ============================================
+  if (error || !formation) {
     return (
-      <main className="text-center mt-20">
-        <p className="text-red-600">Formation introuvable</p>
-        <button onClick={handleNavigateBack} className="mt-4 bg-blue-600 text-white px-4 py-2 rounded">
-          ← Retour aux formations
-        </button>
-      </main>
+      <>
+        <Helmet>
+          <title>Formation introuvable | Centre Certus</title>
+        </Helmet>
+        <main className="max-w-2xl mx-auto px-4 py-20 mt-20 text-center">
+          <div className="text-7xl mb-6">📚</div>
+          <h1 className="text-3xl font-bold text-gray-800 mb-4">
+            Formation introuvable
+          </h1>
+          <p className="text-gray-600 mb-8">
+            {error || `Aucune formation ne correspond à "${slug}"`}
+          </p>
+          <div className="flex flex-wrap gap-3 justify-center">
+            <button 
+              onClick={handleNavigateBack} 
+              className="bg-blue-600 text-white px-6 py-3 rounded-xl font-medium hover:bg-blue-700 transition shadow-lg"
+            >
+              ← Retour aux formations
+            </button>
+            <Link
+              to="/formations?search=excel"
+              className="bg-gray-200 text-gray-700 px-6 py-3 rounded-xl font-medium hover:bg-gray-300 transition"
+            >
+              🔍 Rechercher une formation
+            </Link>
+          </div>
+
+          {/* Debug info en développement */}
+          {import.meta.env.DEV && (
+            <div className="mt-8 p-4 bg-gray-100 rounded-lg text-left text-xs font-mono">
+              <p><strong>Slug demandé :</strong> {slug}</p>
+              <p><strong>Est UUID :</strong> {isUUID(slug || '') ? 'Oui' : 'Non'}</p>
+              <p><strong>Erreur :</strong> {error || 'Aucune'}</p>
+            </div>
+          )}
+        </main>
+      </>
     );
   }
 
@@ -502,15 +588,14 @@ export default function FormationDetail() {
             ✅ BOUTONS D'ACTION
             ============================================ */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center mt-8">
-          {/* ✅ Bouton Test - UNIQUEMENT si has_test est true */}
+          {/* ✅ Bouton Test */}
           {formation.has_test === true && (
             <button 
-              onClick={openTestWindow}
+              onClick={handleOpenTest}
               className="bg-gradient-to-r from-purple-500 to-purple-700 text-white px-8 py-3 rounded-lg font-medium shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
               aria-label={`Faire le test pour ${formation.title}`}
             >
               <span>🧪</span> Faire le test gratuit
-              <span className="text-xs opacity-80">(nouvelle fenêtre)</span>
             </button>
           )}
 
@@ -541,9 +626,7 @@ export default function FormationDetail() {
           </button>
         </div>
 
-        {/* ============================================
-            BOUTONS DE PARTAGE
-            ============================================ */}
+        {/* BOUTONS DE PARTAGE */}
         <div className="mb-8 mt-8">
           <div className="flex flex-wrap items-center justify-center gap-3">
             <span className="text-sm font-medium text-gray-600 mr-2">📤 Partager :</span>

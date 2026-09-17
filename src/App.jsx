@@ -43,7 +43,7 @@ const FormationEspagnolMonastir = lazy(() => import("./pages/formations/langues/
 const FormationFrancaisMonastir = lazy(() => import("./pages/formations/langues/FormationFrancaisMonastir"));
 const FormationItalienMonastir = lazy(() => import("./pages/formations/langues/FormationItalienMonastir"));
 
-// ============ PAGE DE TEST EXCEL AVANCÉ ============
+// ============ PAGES DE TEST EXCEL (dédiées) ============
 const TestExcelAvance = lazy(() => import("./pages/tests/TestExcelAvance"));
 
 // ============ PAGE DE TEST GÉNÉRIQUE ============
@@ -111,11 +111,16 @@ function AppContent() {
           <Route path="/formation-francais-monastir" element={<FormationFrancaisMonastir />} />
           <Route path="/formation-italien-monastir" element={<FormationItalienMonastir />} />
           
-          {/* ============ TESTS ============ */}
-          {/* Route pour le test Excel Avancé (dédié) */}
+          {/* ============ TESTS EXCEL ============ */}
+          {/* ⚠️ IMPORTANT : ces routes doivent être AVANT /test/:slug */}
+          {/* Test Excel Débutant */}
+          <Route path="/test/excel-debutant" element={<TestExcelAvance />} />
+          
+          {/* Test Excel Avancé */}
           <Route path="/test/excel-avance" element={<TestExcelAvance />} />
           
-          {/* Route pour le test générique (pour les autres formations) */}
+          {/* ============ TEST GÉNÉRIQUE (autres formations) ============ */}
+          {/* ⚠️ Cette route doit être EN DERNIER pour ne pas capturer /test/excel-* */}
           <Route path="/test/:slug" element={<TestFormation />} />
           
           {/* ============ ACTUALITÉ ============ */}
