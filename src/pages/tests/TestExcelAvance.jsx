@@ -23,9 +23,9 @@ const EXCEL_VERSIONS = {
 // IDS DES FORMATIONS EXCEL (depuis Supabase)
 // ============================================
 const EXCEL_FORMATION_IDS = {
-  debutant: '564f0e11-9b16-4af8-9b6d-135aab08312c', // Excel Débutant - Les Fondamentaux
-  avance: 'b5f25db3-7414-4ac9-ba15-e7c912e399cc',   // Excel Avancé - Formation Perfectionnement et Automatisation
-  bureautique: '9ff10837-675b-43c0-a6a8-7297af778750' // Informatique Bureautique
+  debutant: '564f0e11-9b16-4af8-9b6d-135aab08312c',
+  avance: '5bf25db3-7414-4ac9-ba15-e7c912e399cc',   // ✅ CORRIGÉ : commence par '5'
+  bureautique: '9ff10837-675b-43c0-a6a8-7297af778750'
 };
 
 // ============================================
@@ -754,10 +754,12 @@ export default function TestExcelAvance() {
     if (isDebutantTest) {
       return EXCEL_FORMATION_IDS.debutant;
     }
-    // Pour le test avancé, on lie à la formation Excel Avancé
     return EXCEL_FORMATION_IDS.avance;
   };
 
+  // ============================================
+  // ✅ SOUMISSION DU TEST (AVEC CORRECTION 409)
+  // ============================================
   const handleSubmitTest = async (reason = 'manual') => {
     if (submitting) return;
     setSubmitting(true);
@@ -797,7 +799,6 @@ export default function TestExcelAvance() {
     const programme = FORMATION_PROGRAMMES[level.formationKey];
     const timeSpent = Math.round(((testDuration * 60) - timeLeft) / 60);
 
-    // ✅ RÉCUPÉRER L'ID DE LA FORMATION EXCEL
     const excelFormationId = getExcelFormationId(levelKey);
 
     const resultData = {
@@ -822,25 +823,36 @@ export default function TestExcelAvance() {
     setTestCompleted(true);
     if (timerRef.current) clearTimeout(timerRef.current);
 
-    // ✅ SAUVEGARDE AVEC formation_id
+    // ============================================
+    // ✅ SAUVEGARDE (SANS created_at → CORRECTION 409)
+    // ============================================
     if (user) {
       try {
         const testType = isDebutantTest ? 'excelDebutant' : 'excelAvance';
-        
+
+        // ⚠️ PAYLOAD SANS id, SANS created_at, SANS updated_at
+        // Ces colonnes sont générées automatiquement par la BDD
         const insertPayload = {
           user_id: user.id,
-          formation_id: excelFormationId, // ✅ LIER À LA FORMATION
+          formation_id: excelFormationId,
           test_type: testType,
           score: correct,
           total_questions: questions.length,
           percentage,
           level: level.label,
           answers,
-          time_spent: timeSpent * 60,
-          created_at: new Date().toISOString()
+          time_spent: timeSpent * 60
         };
 
-        console.log('📤 Insertion test_results:', insertPayload);
+        console.log('═══════════════════════════════════════');
+        console.log('📤 INSERTION test_results');
+        console.log('═══════════════════════════════════════');
+        console.log('📋 Payload:', JSON.stringify(insertPayload, null, 2));
+        console.log('📋 Clés envoyées:', Object.keys(insertPayload));
+        console.log('📋 Contient "id" ?', 'id' in insertPayload);
+        console.log('📋 Contient "created_at" ?', 'created_at' in insertPayload);
+        console.log('📋 Contient "updated_at" ?', 'updated_at' in insertPayload);
+        console.log('═══════════════════════════════════════');
 
         const { data: insertedData, error: insertError } = await supabase
           .from('test_results')
@@ -849,10 +861,18 @@ export default function TestExcelAvance() {
           .single();
 
         if (insertError) {
-          console.error('❌ Erreur insertion test_results:', insertError);
-          toast.error(`Erreur sauvegarde : ${insertError.message}`);
+          console.error('═══════════════════════════════════════');
+          console.error('❌ ERREUR INSERTION test_results');
+          console.error('═══════════════════════════════════════');
+          console.error('📋 Message:', insertError.message);
+          console.error('📋 Code:', insertError.code);
+          console.error('📋 Details:', insertError.details);
+          console.error('📋 Hint:', insertError.hint);
+          console.error('═══════════════════════════════════════');
+
+          toast.error(`❌ Erreur ${insertError.code || ''}: ${insertError.message}`);
         } else {
-          console.log('✅ Résultat sauvegardé:', insertedData);
+          console.log('✅ INSERTION RÉUSSIE:', insertedData);
           toast.success('✅ Résultat sauvegardé dans votre espace !');
         }
       } catch (error) {
@@ -889,13 +909,12 @@ export default function TestExcelAvance() {
   // ============================================
   const handleGoToFormation = () => {
     const formationId = results?.formationId;
-    
+
     if (formationId === EXCEL_FORMATION_IDS.debutant) {
       navigate('/formations/excel-debutant-les-fondamentaux');
     } else if (formationId === EXCEL_FORMATION_IDS.avance) {
       navigate('/formations/excel-avance-formation-perfectionnement-et-automatisation-ce');
     } else {
-      // Fallback : rechercher excel
       navigate('/formations?search=excel');
     }
   };
@@ -1361,7 +1380,7 @@ export default function TestExcelAvance() {
                     }`}
                   >
                     <span className="font-medium text-gray-700 flex items-center justify-between">
-                      <span className="flex items-center">
+                      <span className="flex items-center whitespace-pre">
                         <span
                           className={`inline-block w-6 h-6 rounded text-center text-xs leading-6 mr-2 font-bold ${
                             isSelected ? 'bg-[#1a56db] text-white' : 'bg-gray-100'
